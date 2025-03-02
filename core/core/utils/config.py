@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+
+import rclpy
+from enum import Enum
+from core.utils.factory import TopicFactory, ParamFactory
+from std_msgs.msg import Float64, Bool, UInt8, String, UInt16, UInt8MultiArray
+from sensor_msgs.msg import Image, CompressedImage
+from core_msgs.msg import (
+    Controller,
+    Config,
+    Camera,
+    KillSwitch,
+    AutoControl,
+    ObjectCount,
+    Option,
+    Pwm,
+    Pixhawk,
+    StateObject,
+)
+
+
+class Param:
+    KP = "/yaw_controller/yaw_controller/Kp"
+    KI = "/yaw_controller/yaw_controller/Ki"
+    KD = "/yaw_controller/yaw_controller/Kd"
+    THRESHOLD = "/camera_front/threshold"
+    TRACK = "/"
+    BOW_SPEED = "/motor_controller/bow_speed"
+    X_SPEED = "/motor_controller/x_speed"
+    MOTOR_SPEED = "/motor_controller/motor_speed"
+
+
+class Node:
+    camera_front = "camera_front"
+    mission_controller = "mission_controller"
+    motor_controller = "motor_controller"
+    pid_publisher = "pid_publisher"
+    mission_control = "mission_controller"
+    microcontroller = "microcontroller"
+    cam_recorder = "cam_recorder"
+    motor_utils = "motor_utils"
+    param_controller = "param_controller"
+    mission_manual = "mission_manual"
+    mission = "mission"
+    gcs = "GCS"
+
+
+class Topic:
+    # Autocontrol/Mode
+    auto_control = TopicFactory("asv/auto_control/", AutoControl)
+
+    # Camera
+    camera_raw = TopicFactory("/asv/vision/camera/raw", Image)
+    # camera_compressed = TopicFactory(
+    #     '/kki24/vision/camera/compressed', String)
+    camera_processed = TopicFactory("/asv/vision/camera/processed", String)
+    camera_config = TopicFactory("/asv/vision/camera/config", Camera)
+    image_green_box = TopicFactory("/asv/vision/image/show_green", String)
+    image_blue_box = TopicFactory("/asv/vision/image/show_blue", String)
+
+    dsc = TopicFactory("/asv/vision/image/dsc", Float64)
+    dsc_flag = TopicFactory("/asv/vision/image/dsc_flag", Float64)
+    state_object = TopicFactory("/asv/vision/image/state", StateObject)
+    buoy_detect = TopicFactory("/asv/vision/image/detected", Bool)
+
+    # GCS Config
+    gcs_config = TopicFactory("/asv/gcs/config", Config)
+
+    # Misc.
+    fail_safe = TopicFactory("/asv/fail_safe", Bool)
+    kill_switch = TopicFactory("/asv/kill_switch", KillSwitch)
+    heading_deg = TopicFactory("/asv/heading_deg", Float64)
+    jetson_batt = TopicFactory("/asv/battery/jetson", UInt16)
+    motor_batt = TopicFactory("/asv/battery/motor", UInt16)
+    internal_temp_deg = TopicFactory("/asv/temp/internal", Float64)
+    mux_state = TopicFactory("/asv/mux_state", UInt8)
+
+    # Yaw Controller Thruster (angular z axis)
+    # control_effort_yaw = TopicFactory("/yaw_controller/control_effort", Float64)
+    control_effort_dsc = TopicFactory("/yaw_controller/control_effort", Float64)
+    state_yaw = TopicFactory("/yaw_controller/state", Float64)
+    setpoint_yaw = TopicFactory("/yaw_controller/setpoint", Float64, latch=True)
+    state_dst = TopicFactory("/asv/yaw_controller/state", Float64)
+
+    # Object Detected
+    object_detected = TopicFactory("/asv/vision/object_detected", Bool)
+    object_counted = TopicFactory("/asv/vision/object_counted", ObjectCount)
+
+    # Mission
+    mission = TopicFactory("/asv/mission/current", UInt8)
+
+    # Reverse autonomous mode
+    reverse_auto_mode = TopicFactory("/asv/reverse_auto_mode", Bool)
+
+    # Strategy Option
+    strat_option = TopicFactory("/asv/strat", Option)
+
+    # PWM
+    pwm = TopicFactory("/asv/pwm", Pwm)
+
+    # Micon <> GCS
+    # killswitch = TopicFactory('/asv/')
+    auto_status_remote = TopicFactory("/asv/micon/auto_status_remote", UInt8)
+    auto_status_gcs = TopicFactory("/asv/micon/auto_status_gcs", UInt8)
+    pico_raw = TopicFactory("/asv/micon/pico_raw", String)
+    # compass = TopicFactory('/asv/micon/compass', String)
+    # coordinate = TopicFactory('/asv/micon/coordinate', String)
+    # micon_yaw = TopicFactory('/asv/micon/yaw', Float64)
+    pixhawk = TopicFactory("/asv/micon/pixhawk", Pixhawk)
+    pxmode = TopicFactory("/asv/micon/pixhawk/mode", String)
+
+    # Echosounder
+    echosounder_dist = TopicFactory("/asv/echosounder/distance", Float64)
+    echosounder_conf = TopicFactory("/asv/echosounder/confidence", Float64)
+
+
+class AutoState:
+    HARDWARE = 0
+    AUTO = 1
+    MANUAL = 2
+
+
+class RemoteState:
+    TBS_AUTO = 0
+    TBS_MANUAL = 1
+
+
+class Buoys:
+    def __init__(self, node):
+        self.node = node
+        self.reverse_factory = ParamFactory(Param.REVERSEMODE, bool)
+
+    @property
+    def RED(self):
+        return int(not self.reverse_factory.getParam(self.node))
+
+    @property
+    def GREEN(self):
+        return int(self.reverse_factory.getParam(self.node))
+
+class Tower:
+    RED = "Red"
+    GREEN = "Green"
+
+    def __init__(self, node):
+        self.node = node
+        self.reverse_factory = ParamFactory(Param.REVERSEMODE, bool)
+
+    @property
+    def RED(self):
+        return self.RED if not self.reverse_factory.getParam(self.node) else self.GREEN
+
+    @property
+    def GREEN(self):
+        return self.GREEN if not self.reverse_factory.getParam(self.node) else self.RED4
+
+
+class Box:
+    BLUE = "Blue"
+    GREEN = "Green"
+
+
+class ArduinoCfg:
+    PORT = "/dev/ttyUSB0"
+    BAUDRATE = 9600
+    TIMEOUT = 1
+
+
+class Camera:
+    # Using YUY2 Format, Raw video stream
+    # FRONT = "v4l2src device=/dev/video0 ! video/x-raw,format=YUY2,width=640,height=480,framerate=30/1 ! nvvidconv ! video/x-raw(memory:NVMM) ! nvvidconv ! video/x-raw, format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
+
+    # Using MJPEG Format (razer Kiyo), Compressed video stream
+    FRONT = "v4l2src device=/dev/video0 io-mode=2 ! image/jpeg, width=(int)1920, height=(int)1080, framerate=30/1 ! nvv4l2decoder mjpeg=1 ! nvvidconv ! video/x-raw,format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
+    LEFT = "v4l2src device=/dev/video1 io-mode=2 ! image/jpeg, width=(int)1920, height=(int)1080, framerate=30/1 ! nvv4l2decoder mjpeg=1 ! nvvidconv ! video/x-raw,format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
+    RIGHT = "v4l2src device=/dev/video2 io-mode=2 ! image/jpeg, width=(int)1920, height=(int)1080, framerate=30/1 ! nvv4l2decoder mjpeg=1 ! nvvidconv ! video/x-raw,format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
+
+    TOP = "0"
+    BOTTOM = "1"
+    # Using FFMPEG, not supported by Jetson Module (by default)
+    # FRONT = 0
+
+
+class Channel:
+    MOTOR_X = 0
+    MOTOR_Y = 2
+    # KILL_SWITCH = 7
+
+
+class SETPOINT:
+    SETPOINT_YAW = 320
+
+
+class MotorReverse:
+    map = ()
+
+
+class DetectedStatus:
+    NOT_DETECTED = 0
+    ONE_DETECTED = 1
+    BOTH_DETECTED = 2
+
+
+class ModelPath:
+    buoy = "model/buoy/buoy.engine"
+
+
+class SPEED:
+    Maximum = 1
+    MediumFast = 0.8
+    Medium = 0.5
+    Slow = 0.4
+    Idle = 0
