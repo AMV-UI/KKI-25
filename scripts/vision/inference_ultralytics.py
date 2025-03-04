@@ -79,7 +79,7 @@ class ObjectDetector:
             for box in boxes:
                 # Get bounding box coordinates
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
-    
+                    
                 # Confidence
                 confidence = math.ceil((box.conf[0] * 100)) / 100
                 # print("Confidence --->", confidence)
@@ -100,7 +100,6 @@ class ObjectDetector:
                     cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
                     cv2.putText(img, self.class_names[cls] + " " + str(confidence), (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
                 
-                    
                    
                     if(max_red == -1):
                         max_red = area
@@ -133,6 +132,7 @@ class ObjectDetector:
                         green = {
                             "x1": x1, "y1": y1, "x2": x2, "y2": y2
                         }
+
                 elif(self.class_names[cls] == "greenBox"):
                     green_area = abs(x1 - x2) * abs(y1 - y2)
                     color = (0, 69, 0)   
@@ -220,10 +220,7 @@ class ObjectDetector:
         if(max_red != -1 and max_green != -1):
             color = (255, 255, 255)   
             
-            mid_x = (mid_green + mid_red) / 2
-            mid_x = int(mid_x)
-
-            mid_y = (max(red["y1"], green["y1"]) + min(red["y2"], green["y2"])) / 2
+            mid_x = (mid_green + mid# Draw working area firstgreen["y1"]) + min(red["y2"], green["y2"])) / 2
             mid_y = int(mid_y)
 
             dsc_x = abs(mid_x - width)
@@ -236,7 +233,7 @@ class ObjectDetector:
             #     dsc_flag = 1
             dsc_flag = True # if both detected
             if(mid_x > width): 
-                dsc = -dsc
+                dsc = -dsc# Draw working area first
 
             # elif(mid_X <)sc, is_detected 
             cv2.rectangle(img, (mid_x, mid_y), (mid_x, mid_y), color, 3)

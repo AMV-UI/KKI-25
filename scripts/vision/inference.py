@@ -27,7 +27,6 @@ IMG_SIZE = (640, 640)
 
 CLASSES = ("bicycle", "bus", "car", "minibus", "motorcycle", "transjakarta", "truck")
 VALID_VEHICLES = ["transjakarta"]
-API_ENDPOINT = "http://localhost:3030/api/logs"
 
 def filter_boxes(boxes, box_confidences, box_class_probs):
     """Filter boxes with object threshold."""
@@ -170,7 +169,7 @@ def setup_model(args):
     return model, platform
 
 
-class VideoDetector:
+class ObjectDetector:
     def __init__(self, model, platform, serial_port='/dev/ttyUSB0', show_output=False, save_output=False):
         self.model = model
         self.platform = platform
@@ -278,94 +277,6 @@ class VideoDetector:
             except:
                 print("Failed to send serial message")
 
-    
-    def load_working_area(self):
-        """Load working area from API and save local copy"""
-        try:
-            print("Attempting to load working area from API...")
-            response = requests.get('http://localhost:3030/api/working-area')
-            print(f"API Response Status: {response.status_code}")
-            print(f"API Response: {response.text}")
-            
-            if response.status_code == 200:
-                config = response.json()
-                
-                # Save local copy
-                try:
-                    with open('working_area.json', 'w') as f:
-                        json.dump(config, f, indent=2)
-                    print("Successfully saved working_area.json")
-                except Exception as e:
-                    print(f"Error saving working_area.json: {str(e)}")
-                
-                if self.frame_width is None or self.frame_height is None:
-                    print("Frame dimensions not set")
-                    print(f"Current dimensions: {self.frame_width}x{self.frame_height}")
-                    return False
-
-                if config['type'] == 'polygon':
-                    points = [(p['x'] * self.frame_width, p['y'] * self.frame_height) 
-                            for p in config['polygon']]
-                    self.working_area = Polygon(points)
-                    print(f"Created polygon with points: {points}")
-                else:  # boundingBox
-                    box = config['bounding_box']
-                    points = [(p['x'] * self.frame_width, p['y'] * self.frame_height) 
-                            for p in box['points']]
-                    self.working_area = Polygon(points)
-                    print(f"Created bounding box with points: {points}")
-                
-                return True
-                
-        except requests.exceptions.ConnectionError:
-            print("Could not connect to API server at http://localhost:3030")
-        except requests.exceptions.RequestException as e:
-            print(f"API request failed: {str(e)}")
-        except Exception as e:
-            print(f"Unexpected error loading working area: {str(e)}")
-            print(f"Error type: {type(e)}")
-            import traceback
-            traceback.print_exc()
-        
-        # Try loading from local file if API fails
-        try:
-            if os.path.exists('working_area.json'):
-                print("Found existing working_area.json, attempting to load...")
-                with open('working_area.json', 'r') as f:
-                    config = json.load(f)
-                print("Successfully loaded working_area.json")
-                
-                if self.frame_width is None or self.frame_height is None:
-                    print("Frame dimensions not set for local file")
-                    return False
-
-                if config['type'] == 'polygon':
-                    points = [(p['x'] * self.frame_width, p['y'] * self.frame_height) 
-                            for p in config['polygon']]
-                    self.working_area = Polygon(points)
-                    print(f"Created polygon from file with points: {points}")
-                else:  # boundingBox
-                    box = config['bounding_box']
-                    points = [(p['x'] * self.frame_width, p['y'] * self.frame_height) 
-                            for p in box['points']]
-                    self.working_area = Polygon(points)
-                    print(f"Created bounding box from file with points: {points}")
-                return True
-            else:
-                print("No working_area.json file found")
-        except Exception as e:
-            print(f"Error loading from working_area.json: {str(e)}")
-            import traceback
-            traceback.print_exc()
-        
-        return False
-
-    def update_working_area_loop(self):
-        """Periodically update working area"""
-        while True:
-            self.load_working_area()
-            time.sleep(self.update_interval)
-
 
     def is_in_working_area(self, box):
         """Check if the center of the box is in the working area"""
@@ -384,6 +295,17 @@ class VideoDetector:
         img_src = frame
         if img_src is None:
             return None
+        
+        # red / green buoy
+        max_red = -1
+        max_green = -1
+        red = { "x1":-1, "y1":-1, "x2":-1, "y2":-1}
+        green = {"x1":-1, "y1":-1, "x2":-1, "y2":-1}
+
+        is_detected_green_box = 0
+        is_detected_blue_box = 0
+        is_detected_green_buoy = 0 
+        is_detected_red_buoy = 0
 
         height, width = img_src.shape[:2]
 
@@ -399,13 +321,10 @@ class VideoDetector:
 
         outputs = self.model.run([input_data])
         boxes, classes, scores = post_process(outputs)
-
-        valid_detected = False
         
         if boxes is not None:
             img_annotated = img_src.copy()
             
-            # Draw working area first
             self.draw_working_area(img_annotated)
             
             real_boxes = self.co_helper.get_real_box(boxes)
@@ -461,8 +380,7 @@ class VideoDetector:
             self.save_dir = None
             self.current_video_name = None
 
-        # Load initial working area
-        self.load_working_area()
+        
         
         is_video_file = isinstance(source, str)
         
