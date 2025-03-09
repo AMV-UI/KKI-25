@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import pytrees
 import rclpy
 from rclpy.node import Node
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType, Parameter, ParameterValue
@@ -30,6 +30,7 @@ class TopicFactory:
             callback,
             qos
         )
+    
     
 
     # TODO: FIX ON TEST_FACTORY
@@ -191,3 +192,55 @@ class ParamFactory:
             return ParameterType.PARAMETER_STRING_ARRAY
         
         return type_map.get(self.param_type, ParameterType.PARAMETER_NOT_SET)
+
+
+class MissionFactory:
+    """Factory Pattern to create mission behaviors dynamically"""
+
+    @staticmethod
+    def create_mission(mission_type, node):
+        missions = {
+            "find_step_one": MissionFindStepOne,
+            "step_one": MissionStepOne
+        }
+        if mission_type in missions:
+            return missions[mission_type](node)
+        else:
+            raise ValueError(f"Unknown mission type: {mission_type}")
+
+
+
+    class BaseMission(py_trees.behaviour.Behaviour):
+    """Base class for mission steps"""
+    
+        def __init__(self, name, node):
+            super(BaseMission, self).__init__(name=name)
+            self.node = node
+            self.blackboard = py_trees.blackboard.Client(name=name)
+            
+            # Panggil register keys yang akan dipakai
+            self.register_keys()
+            
+            # Panggil PubSub yang akan dipakai
+            self.create_pubsub()
+            
+        def register_keys(self):
+            """
+            Subclass dari Base Mission harus Override register_keys ini
+            """
+            raise NotImplementedError("Subclasses must implement register_keys()")
+
+        def register_pubsub():
+            """
+            Subclass dari Base Mission harus Override register_pubsub ini
+            """
+            raise NotImplementedError("Subclasses must implement register_pubsub()")
+
+
+        def initialise(self):
+            self.get_logger().info(f"<=> [{NodeConfig.mission}] Entering mission: {self.name}")
+
+        def update(self):
+            """Common update logic, overridden in subclasses"""
+            raise NotImplementedError("Subclasses must implement this method")
+        

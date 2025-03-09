@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import rclpy
+import py_trees
 from enum import Enum
 from core.utils.factory import TopicFactory, ParamFactory
 from std_msgs.msg import Float64, Bool, UInt8, String, UInt16, UInt8MultiArray
@@ -112,6 +113,24 @@ class Topic:
     # Echosounder
     echosounder_dist = TopicFactory("/asv/echosounder/distance", Float64)
     echosounder_conf = TopicFactory("/asv/echosounder/confidence", Float64)
+
+class BT:
+    class ALL:
+        px_heading = ("px_heading", py_trees.common.Access.WRITE)
+        detected = ("detected", py_trees.common.Access.WRITE)
+        current_mission = ("current_mission", py_trees.common.Access.WRITE)
+        dsc = ("dsc", py_trees.common.Access.WRITE)
+        pxmode = ("pxmode", py_trees.common.Access.WRITE)
+        mission_status = ("mission_status", py_trees.common.Access.WRITE)
+        frame_counter = ("frame_counter", py_trees.common.Access.WRITE)
+        manuver_detected = ("manuver_detected", py_trees.common.Access.WRITE)
+        isChange = ("isChange", py_trees.common.Access.WRITE)
+        find_mode = ("find_mode", py_trees.common.Access.WRITE)
+        frame_counter_manuver = ("frame_counter_manuver", py_trees.common.Access.WRITE)
+        image = ("image", py_trees.common.Access.WRITE)
+        camera_bottom = ("camera_bottom", py_trees.common.Access.WRITE)
+    class mission_1:
+        
 
 
 class AutoState:
