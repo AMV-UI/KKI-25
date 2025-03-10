@@ -83,8 +83,9 @@ class BlackboardROS(py_trees.blackboard.Client):
             if not key.startswith("__") and isinstance(value, tuple):
                 self.register_key(value[0], access=value[1])
 
-## Init dengan default val
 
+
+## Init dengan default val
 class InitializeBlackboard(py_trees.behaviour.Behaviour):
     """Initialize the blackboard with default values"""
     
@@ -164,7 +165,7 @@ class MissionSubscriber(py_trees.behaviour.Behaviour):
         self.blackboard = py_trees.blackboard.Client(name="MissionSubscriber")
         self.blackboard.register_key("current_mission", access=py_trees.common.Access.WRITE)
         
-    def setup(self, **kwargs):
+    def setup(self, **kwa   rgs):
         self.subscription = self.node.create_subscription(
             UInt8,
             Topic.mission.value,
