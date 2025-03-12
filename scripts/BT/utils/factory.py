@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import py_trees
+import pytrees
 import rclpy
 from rclpy.node import Node
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType, Parameter, ParameterValue
@@ -211,7 +211,7 @@ class MissionFactory:
 
 
     class BaseMission(py_trees.behaviour.Behaviour):
-        """Base class for mission steps"""
+    """Base class for mission steps"""
     
         def __init__(self, name, node):
             super(BaseMission, self).__init__(name=name)

@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'mission = core_behavior_tree.mission:main'
+            'mission = core_behavior_tree.mission_test:main'
         ],
     },
 )

@@ -8,37 +8,23 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
-find_package(std_msgs REQUIRED)
-find_package(geometry_msgs REQUIRED)
 
-# Find all message files
-file(GLOB MSG_FILES
-  "msg/*.msg"
+rosidL_generate_interfaces(${PROJECT_NAME}
+  "msg/AutoControl.msg"
+  "msg/Camera.msg"
+  "msg/Config.msg"
+  "msg/Controller.msg"
+  "msg/Coordinate.msg"
+  "msg/KillSwitch.msg"
+  "msg/ObjectCount.msg"
+  "msg/Option.msg"
+  "msg/Pwm.msg"
+  "msg/Pixhawk.msg"
+  "msg/StateObject.msg"
 )
-
-# Generate interfaces for all found messages
-rosidl_generate_interfaces(${PROJECT_NAME}
-  ${MSG_FILES}
-  DEPENDENCIES std_msgs geometry_msgs
-)
-
-# Install directives
-ament_export_dependencies(rosidl_default_runtime)
-ament_export_include_directories(include)
-
-add_executable(msgs_node src/msgs_node.cpp)
-target_include_directories(msgs_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
-target_compile_features(msgs_node PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
-ament_target_dependencies(
-  msgs_node
-  "std_msgs"
-  "geometry_msgs"
-)
-
-install(TARGETS msgs_node
-  DESTINATION lib/${PROJECT_NAME})
+# uncomment the following section in order to fill in
+# further dependencies manually.
+# find_package(<dependency> REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

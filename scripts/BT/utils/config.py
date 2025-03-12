@@ -85,44 +85,36 @@ class Topic:
 
     # Object Detected
     object_detected = TopicFactory("/asv/vision/object_detected", Bool)
-    object_counted = TopicFactory("/core/vision/object_counted", ObjectCount)
+    object_counted = TopicFactory("/asv/vision/object_counted", ObjectCount)
 
     # Mission
-    mission = TopicFactory("/core/mission/current", UInt8)
+    mission = TopicFactory("/asv/mission/current", UInt8)
 
     # Reverse autonomous mode
-    reverse_auto_mode = TopicFactory("/core/reverse_auto_mode", Bool)
+    reverse_auto_mode = TopicFactory("/asv/reverse_auto_mode", Bool)
 
     # Strategy Option
-    strat_option = TopicFactory("/core/strat", Option)
+    strat_option = TopicFactory("/asv/strat", Option)
 
     # PWM
-    pwm = TopicFactory("/core/pwm", Pwm)
+    pwm = TopicFactory("/asv/pwm", Pwm)
 
     # Micon <> GCS
     # killswitch = TopicFactory('/asv/')
-    auto_status_remote = TopicFactory("/core/micon/auto_status_remote", UInt8)
-    auto_status_gcs = TopicFactory("/core/micon/auto_status_gcs", UInt8)
-    pico_raw = TopicFactory("/core/micon/pico_raw", String)
+    auto_status_remote = TopicFactory("/asv/micon/auto_status_remote", UInt8)
+    auto_status_gcs = TopicFactory("/asv/micon/auto_status_gcs", UInt8)
+    pico_raw = TopicFactory("/asv/micon/pico_raw", String)
     # compass = TopicFactory('/asv/micon/compass', String)
     # coordinate = TopicFactory('/asv/micon/coordinate', String)
     # micon_yaw = TopicFactory('/asv/micon/yaw', Float64)
-    pixhawk = TopicFactory("/core/micon/pixhawk", Pixhawk)
-    pxmode = TopicFactory("/core/micon/pixhawk/mode", String)
+    pixhawk = TopicFactory("/asv/micon/pixhawk", Pixhawk)
+    pxmode = TopicFactory("/asv/micon/pixhawk/mode", String)
 
     # Echosounder
-    echosounder_dist = TopicFactory("/core/echosounder/distance", Float64)
-    echosounder_conf = TopicFactory("/core/echosounder/confidence", Float64)
+    echosounder_dist = TopicFactory("/asv/echosounder/distance", Float64)
+    echosounder_conf = TopicFactory("/asv/echosounder/confidence", Float64)
 
 class BT:
-
-    ### PY_TREES STATUS 
-    failure = py_trees.common.Status.FAILURE
-    running = py_trees.common.Status.RUNNING
-    invalid = py_trees.common.Status.INVALID 
-    success = py_trees.common.Status.SUCCESS 
-
-    ### 
     class ALL:
         px_heading = ("px_heading", py_trees.common.Access.WRITE)
         detected = ("detected", py_trees.common.Access.WRITE)
@@ -150,10 +142,10 @@ class RemoteState:
     TBS_AUTO = 0
     TBS_MANUAL = 1
 
+
 class Direction:
     A = [0, 270, 180, 270]
     B = [0, 90, 180, 90]
-
 
 class Buoys:
     def __init__(self, node):
@@ -217,12 +209,6 @@ class Channel:
     # KILL_SWITCH = 7
 
 
-class PxMode:
-    HOLD = "HOLD"
-    MANUAL = "MANUAL"
-    GUIDED = "GUIDED"
-    AUTO = "AUTO"
-
 class SETPOINT:
     SETPOINT_YAW = 320
 
@@ -245,5 +231,5 @@ class SPEED:
     Maximum = 1
     MediumFast = 0.8
     Medium = 0.5
-    Slow = 0.3
+    Slow = 0.4
     Idle = 0
