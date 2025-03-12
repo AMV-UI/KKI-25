@@ -1,0 +1,472 @@
+#!/usr/bin/env python3
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import UInt8, Float64, Bool
+import py_trees
+import py_trees.console as console
+import py_trees.display
+import time
+import random
+from enum import Enum
+import threading    
+
+
+# # Mission control main sequence
+        # mission_control = py_trees.composites.Sequence(name="Mission Control", memory=True)
+        
+        # # Check PX mode condition
+        # check_pxmode = CheckPXMode()
+        
+        # # Set initial heading once
+        # set_initial_heading = SetInitialHeading(self)
+        
+        # # First buoy sequence
+        # first_buoy = py_trees.composites.Sequence(name="First Buoy", memory=True)
+        
+        # # Check if we haven't visited first buoy yet
+        # not_first_buoy_visited = py_trees.decorators.Inverter(
+        #     name="Not First Buoy Visited",
+        #     child=IsFirstBuoyVisited()
+        # )
+        
+        # # Set search range for first buoy
+        # set_first_search_range = SetFirstSearchRange(self)
+        
+        # # First buoy search and approach fallback
+        # first_buoy_search_approach = py_trees.composites.Selector(name="First Buoy Search/Approach", memory=False)
+        
+        # # Approach if detected with stable detection
+        # first_buoy_approach = py_trees.composites.Sequence(name="First Buoy Approach", memory=True)
+        # is_detected = IsDetected()
+        # is_detection_stable = IsDetectionStable()
+        # approach_first_buoy = ApproachBuoy(self)
+        # first_buoy_approach.add_children([is_detected, is_detection_stable, approach_first_buoy])
+        
+        # # Search if not detected
+        # first_buoy_search = py_trees.composites.Sequence(name="First Buoy Search", memory=True)
+        # is_not_detected = IsNotDetected()
+        # search_for_first_buoy = SearchForBuoy(self)
+        # first_buoy_search.add_children([is_not_detected, search_for_first_buoy])
+        
+        # # Add search
+        # first_buoy_search_approach.add_children([first_buoy_approach, first_buoy_search])
+        
+        # # After detecting buoy, perform maneuver
+        # first_buoy_maneuver = py_trees.composites.Sequence(name="First Buoy Maneuver", memory=True)
+        # perform_first_maneuver = PerformManeuver(self)
+        # increment_buoy_counter = IncrementBuoyCounter(self)
+        # first_buoy_maneuver.add_children([perform_first_maneuver, increment_buoy_counter])
+        
+        # # Build first buoy sequence
+        # first_buoy.add_children([not_first_buoy_visited, set_first_search_range, first_buoy_search_approach, first_buoy_maneuver])
+        
+        # # Second buoy sequence
+        # second_buoy = py_trees.composites.Sequence(name="Second Buoy", memory=True)
+        
+        # # Check if we visited first buoy but not second
+        # second_buoy_conditions = py_trees.composites.Sequence(name="Second Buoy Conditions", memory=True)
+        # first_buoy_visited = IsFirstBuoyVisited()
+        # not_second_buoy_visited = py_trees.decorators.Inverter(
+        #     name="Not Second Buoy Visited",
+        #     child=IsSecondBuoyVisited()
+        # )
+        # second_buoy_conditions.add_children([first_buoy_visited, not_second_buoy_visited])
+        
+        # # Set search range for second buoy
+        # set_second_search_range = SetSecondSearchRange(self)
+        
+        # # Toggle track
+        # toggle_track = ToggleTrack(self)
+        
+        # # Second buoy search and approach fallback
+        # second_buoy_search_approach = py_trees.composites.Selector(name="Second Buoy Search/Approach", memory=False)
+        
+        # # Approach if detected with stable detection
+        # second_buoy_approach = py_trees.composites.Sequence(name="Second Buoy Approach", memory=True)
+        # approach_second_buoy = ApproachBuoy(self)
+        # second_buoy_approach.add_children([approach_second_buoy])
+        
+        # # Search if not detected
+        # second_buoy_search = py_trees.composites.Sequence(name="Second Buoy Search", memory=True)
+        # search_for_second_buoy = SearchForBuoy(self)
+        # second_buoy_search.add_children([search_for_second_buoy])
+        
+        # second_buoy_search_approach.add_children([second_buoy_approach, second_buoy_search])
+        
+        # # After detecting buoy, perform maneuver
+        # second_buoy_maneuver = py_trees.composites.Sequence(name="Second Buoy Maneuver", memory=True)
+        # perform_second_maneuver = PerformManeuver(self)
+        # increment_second_buoy_counter = IncrementBuoyCounter(self)
+        # set_maneuvering_complete = SetManeuveringComplete(self)
+        # second_buoy_maneuver.add_children([perform_second_maneuver, increment_second_buoy_counter, set_maneuvering_complete])
+        
+        # # Build second buoy sequence
+        # second_buoy.add_children([second_buoy_conditions, set_second_search_range, toggle_track, second_buoy_search_approach, second_buoy_maneuver])
+        
+        # # Final mission - position green box
+        # final_mission = py_trees.composites.Sequence(name="Final Mission", memory=True)
+        # is_second_buoy_visited = IsSecondBuoyVisited()
+        # is_maneuvering_complete = IsManeuvringComplete()
+        # position_green_box = PositionGreenBox(self)
+        # final_mission.add_children([is_second_buoy_visited, is_maneuvering_complete, position_green_box])
+        
+        # # Add all sequences to mission control
+        # mission_control.add_children([check_pxmode, set_initial_heading, first_buoy, second_buoy, final_mission])
+        
+        # Add all to root
+        # root.add_children([init_blackboard, sensors, mission_control])
+        
+
+
+# Check if we are in HOLD mode condition
+class CheckPXMode(py_trees.behaviour.Behaviour):
+    def __init__(self):
+        super(CheckPXMode, self).__init__(name="Check PX Mode")
+        self.blackboard = py_trees.blackboard.Client(name="CheckPXMode")
+        self.blackboard.register_key("pxmode", access=py_trees.common.Access.READ)
+        
+    def update(self):
+        if self.blackboard.pxmode == PxMode.HOLD.value:
+            return py_trees.common.Status.SUCCESS
+        else:
+            return py_trees.common.Status.FAILURE
+
+# Condition: Check if buoy is detected
+class IsDetected(py_trees.behaviour.Behaviour):
+    def __init__(self):
+        super(IsDetected, self).__init__(name="Is Detected")
+        self.blackboard = py_trees.blackboard.Client(name="IsDetected")
+        self.blackboard.register_key("detected", access=py_trees.common.Access.READ)
+        
+    def update(self):
+        if self.blackboard.detected:
+            return py_trees.common.Status.SUCCESS
+        else:
+            return py_trees.common.Status.FAILURE
+
+# Condition: Check if buoy is not detected
+class IsNotDetected(py_trees.behaviour.Behaviour):
+    def __init__(self):
+        super(IsNotDetected, self).__init__(name="Is Not Detected")
+        self.blackboard = py_trees.blackboard.Client(name="IsNotDetected")
+        self.blackboard.register_key("detected", access=py_trees.common.Access.READ)
+        
+    def update(self):
+        if not self.blackboard.detected:
+            return py_trees.common.Status.SUCCESS
+        else:
+            return py_trees.common.Status.FAILURE
+
+# Condition: Check if detection is stable for some frames
+class IsDetectionStable(py_trees.behaviour.Behaviour):
+    def __init__(self):
+        super(IsDetectionStable, self).__init__(name="Detection Stable")
+        self.blackboard = py_trees.blackboard.Client(name="IsDetectionStable")
+        self.blackboard.register_key("detected", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("frame_counter", access=py_trees.common.Access.WRITE)
+        
+    def update(self):
+        if self.blackboard.detected:
+            self.blackboard.frame_counter.is_started()
+            if self.blackboard.frame_counter.is_enough():
+                self.blackboard.frame_counter.reset()
+                return py_trees.common.Status.SUCCESS
+        else:
+            self.blackboard.frame_counter.reset()
+        return py_trees.common.Status.FAILURE
+
+# Condition: Check if loss of detection is stable for some frames
+class IsLossOfDetectionStable(py_trees.behaviour.Behaviour):
+    def __init__(self):
+        super(IsLossOfDetectionStable, self).__init__(name="Loss of Detection Stable")
+        self.blackboard = py_trees.blackboard.Client(name="IsLossOfDetectionStable")
+        self.blackboard.register_key("detected", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("frame_counter", access=py_trees.common.Access.WRITE)
+        
+    def update(self):
+        if not self.blackboard.detected:
+            self.blackboard.frame_counter.is_started()
+            if self.blackboard.frame_counter.is_enough():
+                self.blackboard.frame_counter.reset()
+                return py_trees.common.Status.SUCCESS
+        else:
+            self.blackboard.frame_counter.reset()
+        return py_trees.common.Status.FAILURE
+
+# Condition: Check if we found first buoy
+class IsFirstBuoyVisited(py_trees.behaviour.Behaviour):
+    def __init__(self):
+        super(IsFirstBuoyVisited, self).__init__(name="First Buoy Visited")
+        self.blackboard = py_trees.blackboard.Client(name="IsFirstBuoyVisited")
+        self.blackboard.register_key("buoy_visited_count", access=py_trees.common.Access.READ)
+        
+    def update(self):
+        if self.blackboard.buoy_visited_count >= 1:
+            return py_trees.common.Status.SUCCESS
+        else:
+            return py_trees.common.Status.FAILURE
+
+# Condition: Check if we found second buoy
+class IsSecondBuoyVisited(py_trees.behaviour.Behaviour):
+    def __init__(self):
+        super(IsSecondBuoyVisited, self).__init__(name="Second Buoy Visited")
+        self.blackboard = py_trees.blackboard.Client(name="IsSecondBuoyVisited")
+        self.blackboard.register_key("buoy_visited_count", access=py_trees.common.Access.READ)
+        
+    def update(self):
+        if self.blackboard.buoy_visited_count >= 2:
+            return py_trees.common.Status.SUCCESS
+        else:
+            return py_trees.common.Status.FAILURE
+
+# Action: Increment buoy visit counter
+class IncrementBuoyCounter(py_trees.behaviour.Behaviour):
+    def __init__(self, node):
+        super(IncrementBuoyCounter, self).__init__(name="Increment Buoy Counter")
+        self.node = node
+        self.blackboard = py_trees.blackboard.Client(name="IncrementBuoyCounter")
+        self.blackboard.register_key("buoy_visited_count", access=py_trees.common.Access.WRITE)
+        
+    def update(self):
+        self.blackboard.buoy_visited_count += 1
+        self.node.get_logger().info(f"Buoy count increased to: {self.blackboard.buoy_visited_count}")
+        return py_trees.common.Status.SUCCESS
+
+# Action: Set Initial Heading
+class SetInitialHeading(py_trees.behaviour.Behaviour):
+    def __init__(self, node):
+        super(SetInitialHeading, self).__init__(name="Set Initial Heading")
+        self.node = node
+        self.blackboard = py_trees.blackboard.Client(name="SetInitialHeading")
+        self.blackboard.register_key("px_heading", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("find_mode", access=py_trees.common.Access.WRITE)
+        
+    def update(self):
+        if self.blackboard.px_heading >= 0:
+            self.blackboard.find_mode.set_initial_heading(self.blackboard.px_heading)
+            self.node.get_logger().info(f"Initial heading set to: {self.blackboard.px_heading}")
+            return py_trees.common.Status.SUCCESS
+        return py_trees.common.Status.RUNNING
+
+# Action: Set Search Range for First Buoy
+class SetFirstSearchRange(py_trees.behaviour.Behaviour):
+    def __init__(self, node):
+        super(SetFirstSearchRange, self).__init__(name="Set First Search Range")
+        self.node = node
+        self.blackboard = py_trees.blackboard.Client(name="SetFirstSearchRange")
+        self.blackboard.register_key("find_mode", access=py_trees.common.Access.WRITE)
+        
+    def update(self):
+        self.blackboard.find_mode.set_range(1)
+        self.node.get_logger().info("Setting search range for first buoy")
+        return py_trees.common.Status.SUCCESS
+
+# Action: Set Search Range for Second Buoy
+class SetSecondSearchRange(py_trees.behaviour.Behaviour):
+    def __init__(self, node):
+        super(SetSecondSearchRange, self).__init__(name="Set Second Search Range")
+        self.node = node
+        self.blackboard = py_trees.blackboard.Client(name="SetSecondSearchRange")
+        self.blackboard.register_key("find_mode", access=py_trees.common.Access.WRITE)
+        
+    def update(self):
+        self.blackboard.find_mode.set_range(2)
+        self.node.get_logger().info("Setting search range for second buoy")
+        return py_trees.common.Status.SUCCESS
+
+# Action: Toggle Track
+class ToggleTrack(py_trees.behaviour.Behaviour):
+    def __init__(self, node):
+        super(ToggleTrack, self).__init__(name="Toggle Track")
+        self.node = node
+        self.blackboard = py_trees.blackboard.Client(name="ToggleTrack")
+        self.blackboard.register_key("find_mode", access=py_trees.common.Access.WRITE)
+        
+    def update(self):
+        current_track = self.blackboard.find_mode.get_track()
+        new_track = "B" if current_track == "A" else "A"
+        self.blackboard.find_mode.set_track(new_track)
+        self.node.get_logger().info(f"Switching track from {current_track} to {new_track}")
+        return py_trees.common.Status.SUCCESS
+
+# Action: Check if maneuvering is complete
+class IsManeuvringComplete(py_trees.behaviour.Behaviour):
+    def __init__(self):
+        super(IsManeuvringComplete, self).__init__(name="Is Manoeuvring Complete")
+        self.blackboard = py_trees.blackboard.Client(name="IsManeuvringComplete")
+        self.blackboard.register_key("maneuvering_complete", access=py_trees.common.Access.READ)
+        
+    def update(self):
+        if self.blackboard.maneuvering_complete:
+            return py_trees.common.Status.SUCCESS
+        else:
+            return py_trees.common.Status.FAILURE
+
+# Action: Set maneuvering complete flag
+class SetManeuveringComplete(py_trees.behaviour.Behaviour):
+    def __init__(self, node):
+        super(SetManeuveringComplete, self).__init__(name="Set Maneuvering Complete")
+        self.node = node
+        self.blackboard = py_trees.blackboard.Client(name="SetManeuveringComplete")
+        self.blackboard.register_key("maneuvering_complete", access=py_trees.common.Access.WRITE)
+        
+    def update(self):
+        self.blackboard.maneuvering_complete = True
+        self.node.get_logger().info("Maneuvering phase complete")
+        return py_trees.common.Status.SUCCESS
+
+# Action: Approach Buoy - drive forward when buoy is detected
+class ApproachBuoy(py_trees.behaviour.Behaviour):
+    def __init__(self, node):
+        super(ApproachBuoy, self).__init__(name="Approach Buoy")
+        self.node = node
+        self.blackboard = py_trees.blackboard.Client(name="ApproachBuoy")
+        
+        # Publishers
+        self.state_dst_pub = node.create_publisher(
+            Float64,
+            Topic.state_dst,
+            10
+        )
+        self.mission_pub = node.create_publisher(
+            UInt8,
+            Topic.mission,
+            10
+        )
+        
+    def initialise(self):
+        self.node.get_logger().info(f"<=> [{NodeConfig.mission}] Approaching buoy")
+        
+    def update(self):
+        # Default center position
+        dsc_state = 160.0  
+        self.state_dst_pub.publish(Float64(data=dsc_state))
+        
+        # Publish current mission (just for logging/status purposes)
+        self.mission_pub.publish(UInt8(data=1))
+        
+        return py_trees.common.Status.RUNNING
+
+# Action: Search for buoy using find_mode
+class SearchForBuoy(py_trees.behaviour.Behaviour):
+    def __init__(self, node):
+        super(SearchForBuoy, self).__init__(name="Search For Buoy")
+        self.node = node
+        self.blackboard = py_trees.blackboard.Client(name="SearchForBuoy")
+        self.blackboard.register_key("px_heading", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("find_mode", access=py_trees.common.Access.READ)
+        
+        # Publishers
+        self.state_dst_pub = node.create_publisher(
+            Float64,
+            Topic.state_dst,
+            10
+        )
+        self.mission_pub = node.create_publisher(
+            UInt8,
+            Topic.mission,
+            10
+        )
+        
+    def initialise(self):
+        self.node.get_logger().info(f"<=> [{NodeConfig.mission}] Searching for buoy")
+        
+    def update(self):
+        # Use find_mode to determine steering direction
+        if self.blackboard.px_heading >= 0:
+            heading_state = self.blackboard.find_mode.get_state(self.blackboard.px_heading)
+            self.node.get_logger().info(f"[{NodeConfig.mission}] Current Heading: {self.blackboard.px_heading}, Command: {heading_state}")
+        else:
+            heading_state = 160.0  # Default center if no heading
+            
+        # Publish steering command
+        self.state_dst_pub.publish(Float64(data=heading_state))
+        
+        # Publish current mission (just for logging/status purposes)
+        self.mission_pub.publish(UInt8(data=0))
+        
+        return py_trees.common.Status.RUNNING
+
+# Action: Perform maneuvering after buoy detection
+class PerformManeuver(py_trees.behaviour.Behaviour):
+    def __init__(self, node):
+        super(PerformManeuver, self).__init__(name="Perform Maneuver")
+        self.node = node
+        self.blackboard = py_trees.blackboard.Client(name="PerformManeuver")
+        self.blackboard.register_key("detected", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("manuver_detected", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key("find_mode", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("frame_counter_manuver", access=py_trees.common.Access.WRITE)
+        
+        # Publishers
+        self.state_dst_pub = node.create_publisher(
+            Float64,
+            Topic.state_dst,
+            10
+        )
+        self.mission_pub = node.create_publisher(
+            UInt8,
+            Topic.mission,
+            10
+        )
+        
+    def initialise(self):
+        self.node.get_logger().info(f"<=> [{NodeConfig.mission}] Performing maneuver")
+        
+    def update(self):
+        # Set mission number for logging
+        self.mission_pub.publish(UInt8(data=6))
+        
+        if self.blackboard.detected:
+            self.blackboard.manuver_detected = True
+            # Maneuver direction
+            if self.blackboard.find_mode.get_track() == "A":
+                # Left
+                self.state_dst_pub.publish(Float64(data=-200))
+                self.node.get_logger().info("Maneuvering left")
+            else:
+                # Right
+                self.state_dst_pub.publish(Float64(data=200))
+                self.node.get_logger().info("Maneuvering right")
+        elif self.blackboard.manuver_detected == True and not self.blackboard.detected:
+            self.blackboard.frame_counter_manuver.is_started()
+            # Continue maneuver
+            if self.blackboard.find_mode.get_track() == "A":
+                self.state_dst_pub.publish(Float64(data=-200))
+            else:
+                self.state_dst_pub.publish(Float64(data=200))
+
+            if self.blackboard.frame_counter_manuver.is_enough():
+                return py_trees.common.Status.SUCCESS
+        else:
+            # Default behavior when nothing is detected yet
+            self.state_dst_pub.publish(Float64(data=160.0))
+
+        return py_trees.common.Status.RUNNING
+
+# Action: Position green box (final mission)
+class PositionGreenBox(py_trees.behaviour.Behaviour):
+    def __init__(self, node):
+        super(PositionGreenBox, self).__init__(name="Position Green Box")
+        self.node = node
+        
+        # Publishers
+        self.state_dst_pub = node.create_publisher(
+            Float64,
+            Topic.state_dst,
+            10
+        )
+        self.mission_pub = node.create_publisher(
+            UInt8,
+            Topic.mission,
+            10
+        )
+        
+    def initialise(self):
+        self.node.get_logger().info(f"<=> [{NodeConfig.mission}] Positioning green box - MISSION COMPLETE")
+        
+    def update(self):
+        # Final positioning
+        self.state_dst_pub.publish(Float64(data=0.0))
+        self.mission_pub.publish(UInt8(data=7))
+        return py_trees.common.Status.SUCCESS
