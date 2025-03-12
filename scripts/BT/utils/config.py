@@ -143,6 +143,10 @@ class RemoteState:
     TBS_MANUAL = 1
 
 
+class Direction:
+    A = [0, 270, 180, 270]
+    B = [0, 90, 180, 90]
+
 class Buoys:
     def __init__(self, node):
         self.node = node

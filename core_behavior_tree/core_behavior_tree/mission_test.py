@@ -10,8 +10,9 @@ from std_msgs.msg import UInt8, Bool, Float64
 from core.utils.config import Node as NodeConfig, PxMode, Direction, Param, Topic, BT
 from core.utils.converter import autocontrolToString
 from core.utils.frame_counter import FrameCounter
-from core.utils.factory import MissionFactory
+from core.utils.factory import MissionFactory, ParamFactory
 
+import threading 
 ##FindMode dari script lama
 class FindMode:
     def __init__(self):
@@ -20,7 +21,11 @@ class FindMode:
         self.threshold = 90
         self.range_low = -1
         self.range_high = -1
-        self.find_status = "Left" if rclpy.get_param(Param.TRACK) == "A" else "Right"
+
+        ##TODO: Fix ParamFactory usage
+        # self.find_status = "Left" if ParamFactory().get_param(Param.TRACK) == "A" else "Right"
+        
+        self.find_status = "Left"
         self.GO_LEFT = -200
         self.GO_RIGHT = 200
         self.dir_map = {
@@ -31,14 +36,15 @@ class FindMode:
     def set_initial_heading(self, heading):
         self.initial_heading = heading
 
-    def set_range(self, direction):
-        if rclpy.get_param(Param.TRACK) == "A":
-            self.range_low = Direction.A[direction] - self.threshold
-            self.range_high = Direction.A[direction] + self.threshold
-        else:
-            self.range_low = Direction.B[direction] - self.threshold
-            self.range_high = Direction.B[direction] + self.threshold
-
+    ##TODO: Fix ParamFactory usage
+    # def set_range(self, direction):
+    #     if ParamFactory().get_param(Param.TRACK) == "A":
+    #         self.range_low = Direction.A[direction] - self.threshold
+    #         self.range_high = Direction.A[direction] + self.threshold
+    #     else:
+    #         self.range_low = Direction.B[direction] - self.threshold
+    #         self.range_high = Direction.B[direction] + self.threshold
+    #
     def get_heading(self, raw_heading):
         heading = raw_heading - self.initial_heading
         if heading < 0:
@@ -102,7 +108,7 @@ class InitializeBlackboard(py_trees.behaviour.Behaviour):
         self.blackboard.find_mode = FindMode()
         self.blackboard.image = None
         self.blackboard.camera_bottom = None
-
+        self.blackboard.current_mission = "-"  # Initialize with a default value
         print(self.blackboard)        
         return BT.success 
 
@@ -119,8 +125,8 @@ class PrintBlackboard(py_trees.behaviour.Behaviour):
     def update(self):
         for key, value in vars(BT.ALL).items():
             if not key.startswith("__") and isinstance(value, tuple):
-                print(self.blackboard.get(value[0], access=value[1]))
-
+                print(self.blackboard.get(value[0]))
+        return BT.running 
 
 #
 # # Sensor subscribers
@@ -204,46 +210,47 @@ class PrintBlackboard(py_trees.behaviour.Behaviour):
 #         return py_trees.common.Status.RUNNING
 #
 # # Main ROS2 Node
-# class BehaviorTreeNode(Node):
-#     def __init__(self):
-#         super().__init__('behavior_tree_node')
-#
-#         self.tree = self.create_tree()
-#         self.timer = self.create_timer(0.1, self.tick_tree)
-#         self.setup_visualization()
-#
-#     def tick_tree(self):
-#         self.tree.tick()
-#
-#     def create_tree(self):
-#         root = py_trees.composites.Parallel(
-#             name="Root",
-#             policy=py_trees.common.ParallelPolicy.SuccessOnAll()
-#         )
-#
-#         sensors = py_trees.composites.Parallel(
-#             name="Sensors",
-#             policy=py_trees.common.ParallelPolicy.SuccessOnAll()
-#         )
-#
-#         init_blackboard = InitializeBlackboard()
-#
-#         heading_sub = HeadingSubscriber(self)
-#         detected_sub = DetectedSubscriber(self)
-#         pxmode_sub = PXModeSubscriber(self)
-#
-#         watcher = PrintBlackboard()
-#
-#         sensors.add_children([heading_sub, detected_sub, pxmode_sub, watcher])
-#
-#         root.add_children([init_blackboard, sensors])
-#
-#         behavior_tree = py_trees.trees.BehaviourTree(root)
-#         return behavior_tree
-#
-#     def setup_visualization(self):
-#         py_trees.display.render_dot_tree(self.tree.root)
-#
+class BehaviorTreeNode(Node):
+    def __init__(self):
+        super().__init__('behavior_tree_node')
+
+        self.tree = self.create_tree()
+        self.timer = self.create_timer(0.1, self.tick_tree)
+        self.setup_visualization()
+
+    def tick_tree(self):
+        self.tree.tick()
+
+    def create_tree(self):
+        root = py_trees.composites.Parallel(
+            name="Root",
+            policy=py_trees.common.ParallelPolicy.SuccessOnAll()
+        )
+
+        sensors = py_trees.composites.Parallel(
+            name="Sensors",
+            policy=py_trees.common.ParallelPolicy.SuccessOnAll()
+        )
+
+        init_blackboard = InitializeBlackboard()
+
+        # heading_sub = HeadingSubscriber(self)
+        # detected_sub = DetectedSubscriber(self)
+        # pxmode_sub = PXModeSubscriber(self)
+
+        watcher = PrintBlackboard()
+
+        # sensors.add_children([heading_sub, detected_sub, pxmode_sub, watcher])
+        list = [watcher]
+        sensors.add_children(list)
+        root.add_children([init_blackboard, sensors])
+
+        behavior_tree = py_trees.trees.BehaviourTree(root)
+        return behavior_tree
+
+    def setup_visualization(self):
+        py_trees.display.render_dot_tree(self.tree.root)
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -251,7 +258,7 @@ def main(args=None):
     # simulator_node = MiniSimulator()
 
     # Start the behavior tree node
-    # bt_node = BehaviorTreeNode()
+    bt_node = BehaviorTreeNode()
     #
     test_node = InitializeBlackboard()
 

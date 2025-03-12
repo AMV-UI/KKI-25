@@ -117,10 +117,10 @@ class Topic:
 class BT:
 
     ### PY_TREES STATUS 
-    failure = py_trees.common.FAILURE
-    running = py_trees.common.RUNNING
-    invalid = py_trees.common.INVALID 
-    success = py_trees.common.SUCCESS 
+    failure = py_trees.common.Status.FAILURE
+    running = py_trees.common.Status.RUNNING
+    invalid = py_trees.common.Status.INVALID 
+    success = py_trees.common.Status.SUCCESS 
 
     ### 
     class ALL:
@@ -149,6 +149,10 @@ class AutoState:
 class RemoteState:
     TBS_AUTO = 0
     TBS_MANUAL = 1
+
+class Direction:
+    A = [0, 270, 180, 270]
+    B = [0, 90, 180, 90]
 
 
 class Buoys:
@@ -213,6 +217,12 @@ class Channel:
     # KILL_SWITCH = 7
 
 
+class PxMode:
+    HOLD = "HOLD"
+    MANUAL = "MANUAL"
+    GUIDED = "GUIDED"
+    AUTO = "AUTO"
+
 class SETPOINT:
     SETPOINT_YAW = 320
 
@@ -235,5 +245,5 @@ class SPEED:
     Maximum = 1
     MediumFast = 0.8
     Medium = 0.5
-    Slow = 0.4
+    Slow = 0.3
     Idle = 0

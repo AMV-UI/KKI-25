@@ -1,0 +1,13 @@
+digraph pastafarianism {
+ordering=out;
+graph [fontname="times-roman"];
+node [fontname="times-roman"];
+edge [fontname="times-roman"];
+Root [fillcolor=gold, fontcolor=black, fontsize=9, label="⚡ Root\nSuccessOnAll", shape=parallelogram, style=filled];
+InitBlackboard [fillcolor=gray, fontcolor=black, fontsize=9, label=InitBlackboard, shape=ellipse, style=filled];
+Root -> InitBlackboard;
+Sensors [fillcolor=gold, fontcolor=black, fontsize=9, label="⚡ Sensors\nSuccessOnAll", shape=parallelogram, style=filled];
+Root -> Sensors;
+"Print Blackboard" [fillcolor=gray, fontcolor=black, fontsize=9, label="Print Blackboard", shape=ellipse, style=filled];
+Sensors -> "Print Blackboard";
+}
