@@ -137,12 +137,8 @@ class HeadingSubscriber(py_trees.behaviour.Behaviour):
         self.blackboard.register_key("px_heading", access=py_trees.common.Access.WRITE)
         
     def setup(self, **kwargs):
-        self.subscription = self.node.create_subscription(
-            Float64,
-            Topic.heading_deg,
-            self.heading_callback,
-            10
-        )
+        self.subscription = Topic.heading_deg.create_subscription(self)
+    
         return True
         
     def heading_callback(self, msg):
@@ -160,12 +156,8 @@ class DetectedSubscriber(py_trees.behaviour.Behaviour):
         self.blackboard.register_key("last_detected_time", access=py_trees.common.Access.WRITE)
         
     def setup(self, **kwargs):
-        self.subscription = self.node.create_subscription(
-            Bool,
-            Topic.detected,
-            self.detected_callback,
-            10
-        )
+        self.subscription = Topic.detected.create_subscription(self) 
+        
         return True
         
     def detected_callback(self, msg):
@@ -188,12 +180,8 @@ class PXModeSubscriber(py_trees.behaviour.Behaviour):
         self.blackboard.register_key("buoy_visited_count", access=py_trees.common.Access.WRITE)
         
     def setup(self, **kwargs):
-        self.subscription = self.node.create_subscription(
-            UInt8,
-            Topic.pxmode,
-            self.pxmode_callback,
-            10
-        )
+        self.subscription = Topic.pxmode.create_subscription(self) 
+    
         return True
         
     def pxmode_callback(self, msg):
