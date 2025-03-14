@@ -24,8 +24,11 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'test_factory = core_feature_test.test_factory:main'
+            # 'test_factory = core_feature_test.test_factory:main',
+            'test_motor = core_feature_test.test_motor:main'
+            # 'test_time_keeper = core_feature_test.test_time_keeper:main'
             # 'test_service_factory = core_feature_test.test_services:main',
+
         ],
     },
 )
