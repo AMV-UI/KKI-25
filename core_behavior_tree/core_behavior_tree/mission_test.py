@@ -128,87 +128,75 @@ class PrintBlackboard(py_trees.behaviour.Behaviour):
                 print(self.blackboard.get(value[0]))
         return BT.running 
 
-#
-# # Sensor subscribers
-# class HeadingSubscriber(py_trees.behaviour.Behaviour):
-#     def __init__(self, node):
-#         super(HeadingSubscriber, self).__init__(name="Heading Subscriber")
-#         self.node = node
-#         self.blackboard = py_trees.blackboard.Client(name="HeadingSubscriber")
-#         self.blackboard.register_key("px_heading", access=py_trees.common.Access.WRITE)
-#
-#     def setup(self, **kwargs):
-#         self.subscription = self.node.create_subscription(
-#             Float64,
-#             Topic.heading_deg,
-#             self.heading_callback,
-#             10
-#         )
-#         return True
-#
-#     def heading_callback(self, msg):
-#         self.blackboard.px_heading = msg.data
-#
-#     def update(self):
-#         return py_trees.common.Status.RUNNING
-#
-# class DetectedSubscriber(py_trees.behaviour.Behaviour):
-#     def __init__(self, node):
-#         super(DetectedSubscriber, self).__init__(name="Detected Subscriber")
-#         self.node = node
-#         self.blackboard = py_trees.blackboard.Client(name="DetectedSubscriber")
-#         self.blackboard.register_key("detected", access=py_trees.common.Access.WRITE)
-#         self.blackboard.register_key("last_detected_time", access=py_trees.common.Access.WRITE)
-#
-#     def setup(self, **kwargs):
-#         self.subscription = self.node.create_subscription(
-#             Bool,
-#             Topic.detected,
-#             self.detected_callback,
-#             10
-#         )
-#         return True
-#
-#     def detected_callback(self, msg):
-#         if msg.data and not self.blackboard.detected:
-#             # Detection just became true
-#             self.blackboard.last_detected_time = time.time()
-#         self.blackboard.detected = msg.data
-#
-#     def update(self):
-#         return py_trees.common.Status.RUNNING
-#
-# class PXModeSubscriber(py_trees.behaviour.Behaviour):
-#     def __init__(self, node):
-#         super(PXModeSubscriber, self).__init__(name="PX Mode Subscriber")
-#         self.node = node
-#         self.blackboard = py_trees.blackboard.Client(name="PXModeSubscriber")
-#         self.blackboard.register_key("pxmode", access=py_trees.common.Access.WRITE)
-#         self.blackboard.register_key("px_heading", access=py_trees.common.Access.READ)
-#         self.blackboard.register_key("find_mode", access=py_trees.common.Access.WRITE)
-#         self.blackboard.register_key("buoy_visited_count", access=py_trees.common.Access.WRITE)
-#
-#     def setup(self, **kwargs):
-#         self.subscription = self.node.create_subscription(
-#             UInt8,
-#             Topic.pxmode,
-#             self.pxmode_callback,
-#             10
-#         )
-#         return True
-#
-#     def pxmode_callback(self, msg):
-#         old_pxmode = self.blackboard.pxmode
-#         self.blackboard.pxmode = msg.data
-#
-#         # Reset mission if PX mode changes
-#         if old_pxmode != PxMode.HOLD.value and msg.data == PxMode.HOLD.value:
-#             self.blackboard.find_mode.set_initial_heading(self.blackboard.px_heading)
-#             self.blackboard.buoy_visited_count = 0
-#
-#     def update(self):
-#         return py_trees.common.Status.RUNNING
-#
+
+# Sensor subscribers
+class HeadingSubscriber(py_trees.behaviour.Behaviour):
+    def __init__(self, node):
+        super(HeadingSubscriber, self).__init__(name="Heading Subscriber")
+        self.node = node
+        self.blackboard = py_trees.blackboard.Client(name="HeadingSubscriber")
+        self.blackboard.register_key("px_heading", access=py_trees.common.Access.WRITE)
+
+    def setup(self, **kwargs):
+        self.subscription = Topic.heading_deg.create_subscriber(self)        
+
+        return True
+
+    def heading_callback(self, msg):
+        self.blackboard.px_heading = msg.data
+
+    def update(self):
+        return py_trees.common.Status.RUNNING
+
+class DetectedSubscriber(py_trees.behaviour.Behaviour):
+    def __init__(self, node):
+        super(DetectedSubscriber, self).__init__(name="Detected Subscriber")
+        self.node = node
+        self.blackboard = py_trees.blackboard.Client(name="DetectedSubscriber")
+        self.blackboard.register_key("detected", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key("last_detected_time", access=py_trees.common.Access.WRITE)
+
+    def setup(self, **kwargs):
+        self.subscription = Topic.detected.create_subscriber(self)
+
+        return True
+
+    def detected_callback(self, msg):
+        if msg.data and not self.blackboard.detected:
+            # Detection just became true
+            self.blackboard.last_detected_time = time.time()
+        self.blackboard.detected = msg.data
+
+    def update(self):
+        return py_trees.common.Status.RUNNING
+
+class PXModeSubscriber(py_trees.behaviour.Behaviour):
+    def __init__(self, node):
+        super(PXModeSubscriber, self).__init__(name="PX Mode Subscriber")
+        self.node = node
+        self.blackboard = py_trees.blackboard.Client(name="PXModeSubscriber")
+        self.blackboard.register_key("pxmode", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key("px_heading", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("find_mode", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key("buoy_visited_count", access=py_trees.common.Access.WRITE)
+
+    def setup(self, **kwargs):
+        self.subscription = Topic.pxmode.create_subsciber(self)
+
+        return True
+
+    def pxmode_callback(self, msg):
+        old_pxmode = self.blackboard.pxmode
+        self.blackboard.pxmode = msg.data
+
+        # Reset mission if PX mode changes
+        if old_pxmode != PxMode.HOLD.value and msg.data == PxMode.HOLD.value:
+            self.blackboard.find_mode.set_initial_heading(self.blackboard.px_heading)
+            self.blackboard.buoy_visited_count = 0
+
+    def update(self):
+        return py_trees.common.Status.RUNNING
+
 # # Main ROS2 Node
 class BehaviorTreeNode(Node):
     def __init__(self):
@@ -234,13 +222,14 @@ class BehaviorTreeNode(Node):
 
         init_blackboard = InitializeBlackboard()
 
-        # heading_sub = HeadingSubscriber(self)
-        # detected_sub = DetectedSubscriber(self)
-        # pxmode_sub = PXModeSubscriber(self)
+        heading_sub = HeadingSubscriber(self)
+        detected_sub = DetectedSubscriber(self)
+        pxmode_sub = PXModeSubscriber(self)
 
         watcher = PrintBlackboard()
 
-        # sensors.add_children([heading_sub, detected_sub, pxmode_sub, watcher])
+        sensors.add_children([heading_sub, detected_sub, pxmode_sub, watcher])
+        
         list = [watcher]
         sensors.add_children(list)
         root.add_children([init_blackboard, sensors])
