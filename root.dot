@@ -8,6 +8,12 @@ InitBlackboard [fillcolor=gray, fontcolor=black, fontsize=9, label=InitBlackboar
 Root -> InitBlackboard;
 Sensors [fillcolor=gold, fontcolor=black, fontsize=9, label="⚡ Sensors\nSuccessOnAll", shape=parallelogram, style=filled];
 Root -> Sensors;
+"Heading Subscriber" [fillcolor=gray, fontcolor=black, fontsize=9, label="Heading Subscriber", shape=ellipse, style=filled];
+Sensors -> "Heading Subscriber";
+"Detected Subscriber" [fillcolor=gray, fontcolor=black, fontsize=9, label="Detected Subscriber", shape=ellipse, style=filled];
+Sensors -> "Detected Subscriber";
+"PX Mode Subscriber" [fillcolor=gray, fontcolor=black, fontsize=9, label="PX Mode Subscriber", shape=ellipse, style=filled];
+Sensors -> "PX Mode Subscriber";
 "Print Blackboard" [fillcolor=gray, fontcolor=black, fontsize=9, label="Print Blackboard", shape=ellipse, style=filled];
 Sensors -> "Print Blackboard";
 }

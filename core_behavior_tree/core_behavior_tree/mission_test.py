@@ -230,8 +230,6 @@ class BehaviorTreeNode(Node):
 
         sensors.add_children([heading_sub, detected_sub, pxmode_sub, watcher])
         
-        list = [watcher]
-        sensors.add_children(list)
         root.add_children([init_blackboard, sensors])
 
         behavior_tree = py_trees.trees.BehaviourTree(root)
