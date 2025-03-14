@@ -1,3 +1,10 @@
+# general ROS2 redundant build files
 build/
 install/
 log/
+
+
+# untuk output visualisasi behavior tree
+*.png
+*.svg
+*.dot
