@@ -111,14 +111,11 @@ class ParamFactory:
         )
 
     def getParam(self, node):
-        if not self._param_client:
-            self._param_client = node.create_client(GetParameters, '/parameter_blackboard/get_parameters')
-            
-        request = GetParameters.Request()
-        request.names = [self.param_name]
-        future = self._param_client.call_async(request)
-        rclpy.spin_until_future_complete(node, future)
-        return future.result().values[0]._value
+        # Changed get_param to use Node.get_parameter() (simpler and does same task)
+        if not node.has_parameter(self.param_name):
+            self._param_client = node.declare_parameter(self.param_name)
+        
+        return node.get_parameter(self.param_name)
 
     def setParam(self, node, value):
         set_client = node.create_client(SetParameters, '/parameter_blackboard/set_parameters')

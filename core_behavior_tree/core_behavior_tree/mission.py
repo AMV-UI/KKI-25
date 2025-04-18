@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import threading
+from core.scripts.BT.bt_test import MiniSimulator
 import rclpy
 from rclpy.node import Node
 import time
