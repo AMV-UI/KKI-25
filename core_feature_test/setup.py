@@ -30,5 +30,8 @@ setup(
             # 'test_service_factory = core_feature_test.test_services:main',
 
         ],
+        'pytest11': [
+            'core_feature_test = core_feature_test',
+        ],
     },
 )

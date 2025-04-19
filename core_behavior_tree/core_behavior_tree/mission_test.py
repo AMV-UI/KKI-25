@@ -145,8 +145,7 @@ class HeadingSubscriber(py_trees.behaviour.Behaviour):
         self.blackboard.register_key("px_heading", access=py_trees.common.Access.WRITE)
 
     def setup(self, **kwargs):
-        self.subscription = Topic.heading_deg.create_subscriber(self)        
-
+        self.subscription = Topic.heading_deg.createSubscriber(self.node, self.heading_callback)
         return True
 
     def heading_callback(self, msg):
@@ -164,7 +163,7 @@ class DetectedSubscriber(py_trees.behaviour.Behaviour):
         self.blackboard.register_key("last_detected_time", access=py_trees.common.Access.WRITE)
 
     def setup(self, **kwargs):
-        self.subscription = Topic.detected.create_subscriber(self)
+        self.subscription = Topic.object_detected.createSubscriber(self.node, self.detected_callback)
 
         return True
 
@@ -188,8 +187,8 @@ class PXModeSubscriber(py_trees.behaviour.Behaviour):
         self.blackboard.register_key("buoy_visited_count", access=py_trees.common.Access.WRITE)
 
     def setup(self, **kwargs):
-        self.subscription = Topic.pxmode.create_subsciber(self)
-
+        self.subscription = Topic.pxmode.createSubscriber(self.node, self.pxmode_callback)
+        
         return True
 
     def pxmode_callback(self, msg):
@@ -197,7 +196,7 @@ class PXModeSubscriber(py_trees.behaviour.Behaviour):
         self.blackboard.pxmode = msg.data
 
         # Reset mission if PX mode changes
-        if old_pxmode != PxMode.HOLD.value and msg.data == PxMode.HOLD.value:
+        if old_pxmode != PxMode.HOLD and msg.data == PxMode.HOLD:
             self.blackboard.find_mode.set_initial_heading(self.blackboard.px_heading)
             self.blackboard.buoy_visited_count = 0
 
@@ -212,6 +211,7 @@ class BehaviorTreeNode(Node):
         self.tree = self.create_tree()
         self.timer = self.create_timer(0.1, self.tick_tree)
         self.setup_visualization()
+        self.tree.setup()
 
     def tick_tree(self):
         self.tree.tick()
@@ -272,7 +272,7 @@ def main(args=None):
         pass
 
     # Clean shutdown
-    rclpy.try_shutdown()
+    rclpy.shutdown()
     executor_thread.join()
 
 if __name__ == '__main__':
