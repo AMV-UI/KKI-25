@@ -25,8 +25,7 @@ OBJ_THRESH = 0.25
 NMS_THRESH = 0.45
 IMG_SIZE = (640, 640)
 
-CLASSES = ("bicycle", "bus", "car", "minibus", "motorcycle", "transjakarta", "truck")
-VALID_VEHICLES = ["transjakarta"]
+CLASSES = ("redBuoy", "greenBuoy")
 
 def filter_boxes(boxes, box_confidences, box_class_probs):
     """Filter boxes with object threshold."""
@@ -186,25 +185,7 @@ class ObjectDetector:
         self.frame_width = None
         self.frame_height = None
         
-        try:
-            self.ser = serial.Serial(serial_port, 115200, timeout=1)
-            print(f"Serial connection established on {serial_port}")
-        except:
-            print("Warning: Could not establish serial connection")
-            self.ser = None
-
-        # Start working area update thread
-        self.update_thread = threading.Thread(target=self.update_working_area_loop, daemon=True)
-        self.update_thread.start()
         
-        try:
-            self.ser = serial.Serial(serial_port, 115200, timeout=1)
-            print(f"Serial connection established on {serial_port}")
-        except:
-            print("Warning: Could not establish serial connection")
-            self.ser = None
-
-        self.working_area = None
 
     def setup_save_directory(self, video_path):
         """Setup directory for saving detection results"""
@@ -224,24 +205,8 @@ class ObjectDetector:
             save_path = os.path.join(save_dir, f"frame_{frame_num:04d}.jpg")
             cv2.imwrite(save_path, frame)
             # print(f"Saved detection result: {save_path}")
-
-    def set_working_area(self, points):
-        """Set the working area polygon"""
-        self.working_area = Polygon(points)
-
-    def is_in_working_area(self, box):
-        """Check if the center of the box is in the working area"""
-        if self.working_area is None:
-            return False  # Changed from True to False to ensure we only detect in defined areas
-        
-        # Calculate center point of the box
-        center_x = (box[0] + box[2]) / 2
-        center_y = (box[1] + box[3]) / 2
-        point = Point(center_x, center_y)
-        
-        return self.working_area.contains(point)
     
-    def setup_video_writer(self, frame_width, frame_height, fps):
+    def video_writer(self, frame_width, frame_height, fps):
         """Setup video writer for output"""
         if self.save_output:
             output_filename = 'output.mp4'
@@ -255,57 +220,24 @@ class ObjectDetector:
 
     def draw_working_area(self, frame):
         """Draw working area on frame"""
-        if self.working_area:
-            # Get coordinates of the polygon
-            coords = np.array(self.working_area.exterior.coords)
-            # Convert to integer points
-            pts = coords.reshape((-1, 1, 2)).astype(np.int32)
-            # Draw filled polygon with semi-transparency
-            overlay = frame.copy()
-            cv2.fillPoly(overlay, [pts], (0, 255, 0))
-            # Combine with original frame
-            alpha = 0.3
-            cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
-            # Draw polygon outline
-            cv2.polylines(frame, [pts], True, (0, 255, 0), 2)
-
-    def send_serial_message(self, message):
-        """Send message through serial port"""
-        if self.ser:
-            try:
-                self.ser.write(message.encode())
-            except:
-                print("Failed to send serial message")
-
-
-    def is_in_working_area(self, box):
-        """Check if the center of the box is in the working area"""
-        if self.working_area is None:
-            return False
-        
-        # Calculate center point of the box
-        center_x = (box[0] + box[2]) / 2
-        center_y = (box[1] + box[3]) / 2
-        point = Point(center_x, center_y)
-        
-        return self.working_area.contains(point)
+        # Get coordinates of the polygon
+        coords = np.array(self.working_area.exterior.coords)
+        # Convert to integer points
+        pts = coords.reshape((-1, 1, 2)).astype(np.int32)
+        # Draw filled polygon with semi-transparency
+        overlay = frame.copy()
+        cv2.fillPoly(overlay, [pts], (0, 255, 0))
+        # Combine with original frame
+        alpha = 0.3
+        cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+        # Draw polygon outline
+        cv2.polylines(frame, [pts], True, (0, 255, 0), 2)
             
     def process_frame(self, frame):
         """Process a single frame and return annotated frame"""
         img_src = frame
         if img_src is None:
             return None
-        
-        # red / green buoy
-        max_red = -1
-        max_green = -1
-        red = { "x1":-1, "y1":-1, "x2":-1, "y2":-1}
-        green = {"x1":-1, "y1":-1, "x2":-1, "y2":-1}
-
-        is_detected_green_box = 0
-        is_detected_blue_box = 0
-        is_detected_green_buoy = 0 
-        is_detected_red_buoy = 0
 
         height, width = img_src.shape[:2]
 
@@ -321,40 +253,28 @@ class ObjectDetector:
 
         outputs = self.model.run([input_data])
         boxes, classes, scores = post_process(outputs)
+
+        print(boxes, classes, scores)
         
-        if boxes is not None:
-            img_annotated = img_src.copy()
+        # if boxes is not None:
+        #     img_annotated = img_src.copy()
             
-            self.draw_working_area(img_annotated)
+        #     # Draw working area first
+        #     self.draw_working_area(img_annotated)
             
-            real_boxes = self.co_helper.get_real_box(boxes)
+        #     real_boxes = self.co_helper.get_real_box(boxes)
             
-            for box, score, cl, real_box in zip(boxes, scores, classes, real_boxes):
-                if not self.is_in_working_area(real_box):
-                    continue
+        #     for box, score, cl, real_box in zip(boxes, scores, classes, real_boxes):
+        #         if not self.is_in_working_area(real_box):
+        #             continue
                 
-                class_name = CLASSES[cl]
-                top, left, right, bottom = [int(b) for b in real_box]
-                cv2.rectangle(img_annotated, (top, left), (right, bottom), (255, 0, 0), 2)
-                cv2.putText(img_annotated, f'{class_name} {score:.2f}',
-                           (top, left - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        #         class_name = CLASSES[cl]
+        #         top, left, right, bottom = [int(b) for b in real_box]
+        #         cv2.rectangle(img_annotated, (top, left), (right, bottom), (255, 0, 0), 2)
+        #         cv2.putText(img_annotated, f'{class_name} {score:.2f}',(top, left - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
-                if class_name in VALID_VEHICLES:
-                    valid_detected = True
-                    print(f"Valid vehicle detected: {class_name} (confidence: {score:.2f})")
-                    self.send_serial_message("x1")
-                    self.send_api_request(img_annotated, "VALID", class_name)
-                else:
-                    self.send_api_request(img_annotated, "TRESPASSING", class_name)
-
-            if not valid_detected:
-                self.send_serial_message("x0")
-            
-            if self.output_writer:
-                self.output_writer.write(img_annotated)
-                
-            return img_annotated
-        return img_src
+        #     return img_annotated
+        # return img_src
 
     def process_video(self, source=0):
         """Process video stream from file or camera"""
@@ -431,10 +351,6 @@ class ObjectDetector:
             if self.ser:
                 self.ser.close()
 
-def setup_video_detector(args):
-    """Setup the video detector with the specified model"""
-    model, platform = setup_model(args)
-    return VideoDetector(model, platform, args.serial_port, args.show, args.save)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

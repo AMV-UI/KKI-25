@@ -168,6 +168,8 @@ def setup_model(args):
         assert False, "{} is not rknn/pytorch/onnx model".format(model_path)
     print('Model-{} is {} model, starting val'.format(model_path, platform))
     return model, platform
+
+
 class VideoDetector:
     def __init__(self, model, platform, serial_port='/dev/ttyUSB0', show_output=False, save_output=False):
         self.model = model

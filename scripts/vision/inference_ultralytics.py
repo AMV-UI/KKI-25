@@ -1,257 +1,369 @@
-
-from ultralytics import YOLO
 import cv2
 import math
 import rospy
-from std_msgs.msg import String
 import base64
 import datetime
 import time
-from ably import AblyRealtime
 import asyncio
+
+from ultralytics import YOLO
+from std_msgs.msg import String
 from utils.config import Topic
 from io import BytesIO
+from kki24.msg import ObjectCount
+from utils.config import Param, SPEED
+from utils.motor import Motor
+from utils.image.camera_bottom import BottomCamera
+
 
 class ObjectDetector:
-    def __init__(self, model_path, class_names, camera_index=0, width=640, height=480, fps=30):
+    def __init__(
+        self, model_path, class_names, camera_index, width=640, height=480, fps=30
+    ):
+        # Camera
         self.model = YOLO(model_path)
         self.class_names = class_names
         self.cap = cv2.VideoCapture(camera_index)
-        self.cap.set(1, fps)      # Set FPS
-        self.cap.set(3, width)    # Set width
-        self.cap.set(4, height)   # Set height
-        
-        self.image = rospy.Publisher("/kki24/vision/camera/show_green", String, queue_size=10)
-        self.imageA = rospy.Publisher("/kki24/vision/camera/show_blue", String, queue_size=10)
-        
-        self.time = -1
-        self.timeA = -1
-        
-        self.is_took_blue_box = False 
-        self.is_took_green_box = False 
+        self.cap.set(1, fps)  # Set FPS
+        self.cap.set(3, width)  # Set width
+        self.cap.set(4, height)  # Set height
 
+        self.camera_bottom = BottomCamera()
+        # Track
+        self.track = rospy.get_param(Param.TRACK)
+
+        # PID
+        self.pid_adjust = 300
+        self.treshold = 0.25
+
+        # Data Frame
+        self.max_red = -1
+        self.max_green = -1
+        self.red = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
+        self.green = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
+
+        self.green_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
+        self.blue_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
+
+        # Publisher
         self.dscPub = Topic.dsc.createPublisher()
-        #self.dscFlagPub = Topic.dsc_flag.createPublisher()
-    
-    async def publish_gcs(self, image):
-        ably = AblyRealtime('NXISOw.ePEc4A:nwlGvuHnw7KsO039takwqRoMjXUzetpa0iUkSeovXyk')
-        await ably.connection.once_async('connected')
-        print('connected to Ably')
+        self.cameraBottomPub = Topic.image_blue_box.createPublisher()
 
-        channel = ably.channels.get('amv-juara')
+    def draw_detections(self, img, results):
+        """Draw detection boxes and labels on frame"""
+        for r in results:
+            boxes = r.boxes
+            for box in boxes:
+                # Get box coordinates
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
 
-        result, encoded_image = cv2.imencode('.jpg', image, [cv2.IMWRITE_JPEG_QUALITY, 10])
+                # Get confidence and class
+                conf = float(box.conf[0])
+                class_id = int(box.cls[0])
+                class_name = self.class_names[class_id]
 
-        if not result:
-            rospy.logerr("Failed to encode frame to JPG")
-            ably.close()
-            return
+                # Draw box and label
+                color = (0, 255, 0) if class_name == "greenBox" else (0, 0, 255)
+                cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+                label = f"{class_name} {conf:.2f}"
+                cv2.putText(
+                    img, label, (x1, y1 - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1
+                )
+                return img
 
-        # Convert to base64                                
-        base64_image = base64.b64encode(encoded_image).decode('utf-8')
-
-        image_len = len(base64_image)
-
-        print(f"sending_file {image_len}")
-        await channel.publish('first', base64_image)
-
-    def process_frame(self):
+    def process_frame(self, mission):
         success, img = self.cap.read()
         # print("In your mom")
         if not success:
             return None
-        
 
-        results = self.model(img, stream=True, task='detect', verbose=False)
+        width = self.cap.get(3) // 2  # float `width`
+        height = self.cap.get(4) // 2  # float `height`
+
+        width = int(width)
+        height = int(height)
+
+        center = (width, height)
+        yaw_state = center[0]
+
+        detected = False
+
+        # results = self.model(img, stream=True, task="detect", verbose=False)
+
+        results = self.model(img, conf=0.4, verbose=False)
+        # results = self.model(img, stream=True, task='detect')
 
         # red / green buoy
-        max_red = -1
-        max_green = -1
-        red = { "x1":-1, "y1":-1, "x2":-1, "y2":-1}
-        green = {"x1":-1, "y1":-1, "x2":-1, "y2":-1}
+        self.max_red = -1
+        self.max_green = -1
+        self.red = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
+        self.green = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
 
-        is_detected_green_box = 0
-        is_detected_blue_box = 0
-        is_detected_green_buoy = 0 
-        is_detected_red_buoy = 0
+        self.green_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
+        self.blue_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
+
+        # threshold boxes
+        # self.minimum_blue_box_area = 200
+        # self.minimum_green_box_area = 200
         for r in results:
+            self.track = rospy.get_param(Param.TRACK)
             boxes = r.boxes
             for box in boxes:
                 # Get bounding box coordinates
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    
-                # Confidence
-                confidence = math.ceil((box.conf[0] * 100)) / 100
-                # print("Confidence --->", confidence)
 
-                # # Class name
+                confidence = float(box.conf[0])
                 cls = int(box.cls[0])
-                # print("Class name -->", self.class_names[cls])
 
-                if confidence < 0.7:
+                if confidence < 0.4:
                     continue
 
                 # put box in cam
                 color = (0, 0, 0)
                 area = abs(x1 - x2)
-                if(self.class_names[cls] == "redBuoy"):
-                    is_detected_red_buoy = 1
-                    color = (0, 0, 255)
-                    cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-                    cv2.putText(img, self.class_names[cls] + " " + str(confidence), (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-                
-                   
-                    if(max_red == -1):
-                        max_red = area
-                        red = {
-                            "x1": x1, "y1": y1, "x2": x2, "y2": y2
-                        }
-                        continue
+                if mission == "buoy":
+                    img, self.red, self.green = self.buoy_detected(
+                        cls, img, x1, y1, x2, y2, confidence, area
+                    )
 
-                    if max_red < area:
-                        max_red = area
-                        red = {
-                            "x1": x1, "y1": y1, "x2": x2, "y2": y2
-                        }
-                elif(self.class_names[cls] == "greenBuoy"):
-                    is_detected_green_buoy = 1
-                    color = (0, 255, 0)   
-                    cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-                    cv2.putText(img, self.class_names[cls] + " " + str(confidence), (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+                elif mission == "green_box":
+                    # Motor.full_detected()
+                    # yaw_state = self.pid_adjust * (1 if self.track == "A" else -1)
+                    img, status = self.green_box_detected(
+                        img, x1, y1, x2, y2, confidence, area
+                    )
+                    yaw_state = 0
+                    detected = status
 
-                    if(max_green == -1):
-                        max_green = area
-                        green = {
-                            "x1": x1, "y1": y1, "x2": x2, "y2": y2
-                        }
-                        continue
+                    return img, yaw_state, detected
 
-                    
-                    if max_green < area:
-                        max_green = area
-                        green = {
-                            "x1": x1, "y1": y1, "x2": x2, "y2": y2
-                        }
+                elif mission == "blue_box":
+                    # Motor.full_detected()
+                    # yaw_state = self.pid_adjust * (1 if self.track == "A" else -1)
 
-                elif(self.class_names[cls] == "greenBox"):
-                    green_area = abs(x1 - x2) * abs(y1 - y2)
-                    color = (0, 69, 0)   
-                    is_detected_green_box  = 1
-                    # if(self.time == -1):
-                    #     self.time = time.time()
-                    # elif time.time() - self.time > 2 and not self.is_took_green_box:
-                    #     self.time = -1   
-                    #     self.is_took_green_box = True
-                    #     result, encoded_image = cv2.imencode('.jpg', img)
-                    #     if not result:
-                    #         rospy.logerr("Failed to encode frame to JPG")
-                    #         break
-                    
-                    #         # Convert to base64
-                    #     base64_image = base64.b64encode(encoded_image).decode('utf-8')
-                    #     self.image.publish(base64_image)
-                    #     # self.image.publish(img)
-                    #     cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-                    #     cv2.putText(img, self.class_names[cls] + " " + str(confidence), (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-                    # self.image.publish(img)
-                    cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-                    cv2.putText(img, self.class_names[cls] + " " + str(confidence), (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-                elif(self.class_names[cls] == "blueBox"):
-                    blue_area = abs(x1 - x2) * abs(y1 - y2)
-                    color = (0, 0, 255)   
-                    cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-                    cv2.putText(img, self.class_names[cls] + " " + str(confidence), (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+                    img_64, status = self.blue_box_detected(
+                        img, x1, y1, x2, y2, confidence, area
+                    )
+                    yaw_state = 0
+                    detected = status
 
-                    is_detected_blue_box = 1
-                    # if(self.timeA == -1):
-                    #     self.timeA = time.time()
-                    # elif time.time() - self.timeA > 2 and not self.is_took_blue_box:
-                    #     self.timeA = -1   
-                    #     self.is_took__box = True
-                    #     result, encoded_image = cv2.imencode('.jpg', img)
-                    #     if not result:
-                    #         rospy.logerr("Failed to encode frame to JPG")
-                    #         break
-                    
-                    #         # Convert to base64
-                    #     base64_image = base64.b64encode(encoded_image).decode('utf-8')
-                    #     self.imageA.publish(base64_image)
-                    #     # self.image.publish(img)
-                    #     cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-                    #     cv2.putText(img, self.class_names[cls] + " " + str(confidence), (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-                else:
-                    color = (0, 0, 0)
-                    cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-                    cv2.putText(img, self.class_names[cls] + " " + str(confidence), (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+                    return img_64, yaw_state, detected
 
-            if(is_detected_green_box == 0):
-                self.time = -1
-            if(is_detected_blue_box == 0):
-                self.timeA = -1
+                elif mission == "find_dock":
+                    img = self.find_dock_detected(cls, img, x1, y1, x2, y2, confidence)
 
-            # print(f"Detected: Red Buoy: {is_detected_red_buoy}, Green Buoy: {is_detected_green_buoy}, Green Box: {is_detected_green_box}, Blue Box: {is_detected_blue_box}")
+                elif mission == "docking":
+                    img, status = self.docking_detected(
+                        cls, img, x1, y1, x2, y2, confidence
+                    )
+                    # Motor.full_detected()
+                    # yaw_state = self.pid_adjust * (1 if self.track == "A" else -1)
+                    detected = status
 
-        # print(f"Detected Sex: Red Buoy: {is_detected_red_buoy}, Green Buoy: {is_detected_green_buoy}, Green Box: {is_detected_green_box}, Blue Box: {is_detected_blue_box}")
+                    if detected:
+                        Motor.full_detected()
 
+                    return img, yaw_state, detected
 
-        ## print(f"Red {max_red} {red}")
-        ## print(f"Green {max_green} {green}")
-        # asyncio.run(self.publish_gcs(img))
-        mid_red = red["x1"] + abs(red["x2"] - red["x1"]) / 2
-        mid_red = int(mid_red)
+        if self.max_red < self.max_green * self.treshold:
+            Motor.one_is_closer_detected()
+            self.max_red = -1
+        elif self.max_green < self.max_red * self.treshold:
+            Motor.one_is_closer_detected()
+            self.max_green = -1
 
-        mid_green = green["x1"] + abs(green["x2"] - green["x1"]) / 2
-        mid_green = int(mid_green)
+        self.mid_red = (self.red["x1"] + self.red["x2"]) // 2
+        self.mid_green = (self.green["x1"] + self.green["x2"]) // 2
 
-        width  = self.cap.get(3) // 2  # float `width`
-        height = self.cap.get(4) // 2 # float `height`
-        
-        width = int(width)
-        height = int(height)
+        # Full Motor
+        if self.max_red != -1 and self.max_green != -1:
+            mid_x = (self.mid_green + self.mid_red) // 2
 
-        
+            mid_y = (
+                max(self.red["y1"], self.green["y1"])
+                + min(self.red["y2"], self.green["y2"])
+            ) // 2
+
+            dsc_x = mid_x - width
+            # dsc_y = mid_y - height
+
+            Motor.full_detected()
+            yaw_state = dsc_x
+        # Half Motor
+        else:
+            # Only Green Buoy
+            if self.max_green != -1:
+                Motor.half_detected()
+                yaw_state = self.pid_adjust * (-1 if self.track == "A" else 1)
+
+            # Only Red Buoy
+            elif self.max_red != -1:
+                Motor.half_detected()
+                yaw_state = self.pid_adjust * (1 if self.track == "A" else -1)
+
+            # No Buoy
+            else:
+                Motor.not_detected()
+                yaw_state = 0
+
+        if self.max_green != -1 or self.max_red != -1:
+            detected = True
+
+        if mission == "find_dock":
+            if self.green_box["x1"] != -1 and self.blue_box["x1"] != -1:
+                mid_x = (
+                    (self.green_box["x1"] + self.green_box["x2"]) // 2
+                    + (self.blue_box["x1"] + self.blue_box["x2"]) // 2
+                ) // 2
+                yaw_state = mid_x - width
+                detected = True
+                Motor.full_detected()
+            elif self.green_box["x1"] != -1:
+                # lintasan B = A, A = B
+                Motor.half_detected()
+                yaw_state = self.pid_adjust * (-1 if self.track == "A" else 1)
+                detected = True
+            else:
+                Motor.half_detected()
+                yaw_state = self.pid_adjust * (1 if self.track == "A" else 1)
+                detected = True
+
         color = (0, 0, 0)
         cv2.rectangle(img, (width, height), (width, height), color, 3)
 
-        dsc = 0
-        dsc_flag = False
-        state = [is_detected_red_buoy, is_detected_green_buoy, is_detected_green_box, is_detected_blue_box]
-        # print("test", state)
-        if(max_red != -1 and max_green != -1):
-            color = (255, 255, 255)   
-            
-            mid_x = (mid_green + mid# Draw working area firstgreen["y1"]) + min(red["y2"], green["y2"])) / 2
-            mid_y = int(mid_y)
+        return img, yaw_state, detected
 
-            dsc_x = abs(mid_x - width)
-            dsc_y = abs(mid_y - height)
-            dsc = math.sqrt(dsc_x * dsc_x + dsc_y * dsc_y)
+    def buoy_detected(self, cls, img, x1, y1, x2, y2, confidence, area):
+        red = self.red
+        green = self.green
 
-            # kiri = 1, kanan = 0
-            # dsc_flag = 0
-            # if(mid_x < width):
-            #     dsc_flag = 1
-            dsc_flag = True # if both detected
-            if(mid_x > width): 
-                dsc = -dsc# Draw working area first
+        if self.class_names[cls] == "redBuoy" or self.class_names[cls] == "red_buoy":
+            color = (0, 0, 255)
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+            cv2.putText(
+                img,
+                self.class_names[cls] + " " + str(confidence),
+                (x1, y1),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                color,
+                2,
+            )
 
-            # elif(mid_X <)sc, is_detected 
-            cv2.rectangle(img, (mid_x, mid_y), (mid_x, mid_y), color, 3)
-            
-            # self.dscPub.publish(dsc)
-            #self.dscFlagPub.publish(dsc_flag)
-            #self.image.publish(img)
-        
-        elif(max_green != -1):
-            dsc = -200
+            if self.max_red < area:
+                self.max_red = area
+                red = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
 
+        elif (
+            self.class_names[cls] == "greenBuoy"
+            or self.class_names[cls] == "green_buoy"
+        ):
+            # self.obj_count.red += 1
+            color = (0, 255, 0)
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+            cv2.putText(
+                img,
+                self.class_names[cls] + " " + str(confidence),
+                (x1, y1),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                color,
+                2,
+            )
 
-        elif(max_red != -1):
-            dsc = 200
-        
+            if self.max_green < area:
+                self.max_green = area
+                green = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
 
-        return img, dsc, state
+        return img, red, green
 
+    def green_box_detected(self, cls, img, x1, y1, x2, y2, confidence):
+        status = False
+        if self.class_names[cls] == "greenBox":
+            color = (0, 69, 0)
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+            cv2.putText(
+                img,
+                self.class_names[cls] + " " + str(confidence),
+                (x1, y1),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                color,
+                2,
+            )
+            status = True
+
+        return img, status
+
+    def blue_box_detected(self, cls, img, x1, y1, x2, y2, confidence):
+        status = False
+        img = ""
+        if self.class_names[cls] == "blueBox":
+            color = (0, 0, 255)
+            img = self.camera_bottom.do_capture()
+
+            # cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+            # cv2.putText(
+            #     img,
+            #     self.class_names[cls] + " " + str(confidence),
+            #     (x1, y1),
+            #     cv2.FONT_HERSHEY_SIMPLEX,
+            #     1,
+            #     color,
+            #     2,
+            # )
+            #
+            status = True
+        return img, status
+
+    def find_dock_detected(self, cls, img, x1, y1, x2, y2, confidence, area):
+        if self.class_names[cls] == "greenBox":
+            color = (0, 0, 255)
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+            cv2.putText(
+                img,
+                self.class_names[cls] + " " + str(confidence),
+                (x1, y1),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                color,
+                2,
+            )
+            self.green_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+
+        if self.class_names[cls] == "blueBox":
+            color = (0, 0, 255)
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+            cv2.putText(
+                img,
+                self.class_names[cls] + " " + str(confidence),
+                (x1, y1),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                color,
+                2,
+            )
+            self.blue_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+
+        return img
+
+    def docking_detected(self, cls, img, x1, y1, x2, y2, confidence):
+        status = False
+        if self.class_names[cls] == "docking":
+            color = (0, 0, 255)
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+            cv2.putText(
+                img,
+                self.class_names[cls] + " " + str(confidence),
+                (x1, y1),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                color,
+                2,
+            )
+            status = True
+
+        return img, status
 
     def release(self):
         self.cap.release()
@@ -262,10 +374,7 @@ class ObjectDetector:
             frame = self.process_frame()
             if frame is None:
                 break
-            
-            cv2.imshow('Webcam', frame)
-            if cv2.waitKey(1) == ord('q'):
+
+            cv2.imshow("Webcam", frame)
+            if cv2.waitKey(1) == ord("q"):
                 break
-
-
-
