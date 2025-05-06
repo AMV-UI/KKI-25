@@ -13,10 +13,9 @@ from rclpy.node import Node
 from pykalman import KalmanFilter
 from pymavlink import mavutil
 from std_msgs.msg import Float64, UInt8, UInt16
-from krbai24_interfaces.srv import GetParameters, SetParameters
-from krbai24_interfaces.msg import ParameterValue, ParameterType, Parameter
-
 from core_msgs.msg import Pwm, KillSwitch, Pixhawk, AutoControl
+from rcl_interfaces.srv import GetParameters, SetParameters
+from rcl_interfaces.msg import ParameterValue, ParameterType, Parameter
 
 
 from utils.config import (
