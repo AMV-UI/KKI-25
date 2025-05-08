@@ -106,7 +106,6 @@ class Microcontroller(Node):
             transition_covariance=1e-5,
         )
         self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
-        # rclpy.loginfo_once(f"<> [{Node.microcontroller}] PWM Subscriber created")
         self.get_logger().info("<> PWM Subscriber created")
 
     def _init_mc(self):
@@ -116,40 +115,34 @@ class Microcontroller(Node):
         try:
             if dirs[0] != "/dev/ttyUSB0":
                 self.ser_1 = serial.Serial(dirs[0], 115200)
-                # self.mc1 = MiconType.NOT_IDENTIFIED
                 self.mc1 = MiconType.ESP32
                 self.ser_2 = mavutil.mavlink_connection(dirs[1], baud=57600)
-                rclpy.loginfo_once(
-                    f"<> [{Node.microcontroller}] Waiting for px initiated"
-                )
+                
+
+                self.get_logger().info("<> Waiting for px initiated")
+
                 self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
                 self.ser_2.wait_heartbeat()
-                rclpy.loginfo_once(
-                    f"<> [{Node.microcontroller}] PX Succesfully initiated"
-                )
+
+
+                self.get_logger().info("<> PX Succesfully initiated")
                 self._px_arm()
                 self.mc2 = MiconType.PX
             else:
                 self.ser_1 = serial.Serial(dirs[1], 115200)
-                # self.mc1 = MiconType.NOT_IDENTIFIED
                 self.mc1 = MiconType.ESP32
                 self.ser_2 = mavutil.mavlink_connection(dirs[0], baud=57600)
-                # self.ser_2= mavutil.mavlink_connection("/dev/ttyUSB0", baud=57600)
-                rclpy.loginfo_once(
-                    f"<> [{Node.microcontroller}] Waiting for px initiated"
-                )
+                
+                self.get_logger().info("<> Waiting for px initiated")
+
                 self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
                 self.ser_2.wait_heartbeat()
-                # rclpy.loginfo_once(
-                #     f"<> [{Node.microcontroller}] PX Succesfully initiated"
-                # )
+                
                 self.get_logger().info("<> PX Succesfully initiated")
                 self._px_arm()
                 self.mc2 = MiconType.PX
-        except Exception:
-             
-            self.get_logger().error_throttle(5000, "MC Index is not found")
-            # print(e)
+        except Exception as e:
+            self.get_logger().error(f"MC Index not found: {str(e)}")
             self.mc1 = MiconType.NONE
 
     def _get_micon_dir(self):
@@ -213,13 +206,10 @@ class Microcontroller(Node):
             self.echosounder_conf,
         ) = parsed_data
 
-        # print("no filter")
-        # print(heading_deg)
 
         return True
 
     def _pwm_callback(self, pwm_msg):
-        # self.get_logger().info(f'Received PWM message: {pwm_msg}')
         self.pwm_chan = pwm_msg
 
     @staticmethod
@@ -279,7 +269,7 @@ class Microcontroller(Node):
             #     5, "[{Node.microcontroller}] No message in RC_CHANNELS"
             # )
 
-            self.get_logger().error_throttle(5000, "No message in RC_CHANNELS")
+            self.get_logger().info(f"No message in RC_CHANNELS")
             return
         return rc_channels
 
@@ -300,12 +290,14 @@ class Microcontroller(Node):
                     self.set_rc_channel_pwm(pwm_count, pwm=int(pwm_val))
                     # rclpy.logerr_throttle(5, "<=> [{Node.microcontroller}] PWM sent")
 
-                    self.get_logger().error_throttle(5000,  "<=> [{Node.microcontroller}] PWM sent")
+                    # self.get_logger().error_throttle(5000,  "<=> [{Node.microcontroller}] PWM sent")
+                    self.get_logger().info(f"PWM sent")
                     pwm_count = pwm_count + 1
                     # time.sleep(0.2)
             except Exception as e:
-                self.get_logger().error_throttle(5000,   f"[{Node.microcontroller}] PWM Channel cannot pass. Error : {e}"
-)
+                self.get_logger().error(f"PWM Channel cannot pass. Error : {e}")
+
+                
         elif 1301 <= rc_channels.chan8_raw <= 1700:
             try:
                 for pwm_val in self.pwm_chan.channels:
@@ -313,24 +305,20 @@ class Microcontroller(Node):
                         pwm_count = 1
                         break
                     self.set_rc_channel_pwm(pwm_count, 65535)
-                    # rclpy.logerr_throttle(5, "<=> [{Node.microcontroller}] Change mode to Manual control. Throttle PWM.")
-                    self.get_logger().error_throttle(5000,   "<=> [{Node.microcontroller}] Change mode to Manual control. Throttle PWM.")
+                    self.get_logger().info(f"Change mode to Manual control. Throttle PWM.")                    
                     pwm_count = pwm_count + 1
-                    # time.sleep(0.2)
-            except Exception as e:
-                # rclpy.logerr(
-                #         f"[{Node.microcontroller}] Manual Mode: PWM Channel cannot pass. Error : {e}"
-                # )
 
-                self.get_logger().error_throttle(5000,   
-                        f"[{Node.microcontroller}] Manual Mode: PWM Channel cannot pass. Error : {e}")
+            except Exception as e:
+                self.get_logger().error(f"Manual Mode: PWM Channel cannot pass. Error : {e}")
         else:
-            # rclpy.logerr_throttle(5, "<=> [{Node.microcontroller}] Error Mode : PWM not sent")
-            self.get_logger().error_throttle(5000, "<=> [{Node.microcontroller}] Error Mode : PWM not sent")
- 
+            self.get_logger().info(f"Error Mode : PWM not sent")
+
     def _get_pwm(self):
         rc_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
-        self.get_logger().info_throttle(2000, f"Channel Values: {rc_channels}")
+        self.get_logger().info(f"Channel Values : {rc_channels}")
+           
+
+
     def auto_status_gcs_cb(self, msg):
         self.auto_status_gcs.data = msg.data
         # self.auto_status_gcs.data = 0
@@ -349,10 +337,9 @@ class Microcontroller(Node):
             0,
             0,
         )
-        # rclpy.logerr_throttle(5, f"<=> [{Node.microcontroller}] Arming motors ...") 
-        self.get_logger().info(5000, f"<=> [{Node.microcontroller}] Arming motors ...")
+        self.get_logger().info(f"Arming motors ...")
         self.ser_2.motors_armed_wait()
-        rclpy.logwarn_once(f"<=> [{Node.microcontroller}] Motor Armed!")
+        self.get_logger().info(f"Motor Armed!")
 
     def _px_set_mode(self, pwm_val):
         if pwm_val <= 1300:
@@ -362,10 +349,10 @@ class Microcontroller(Node):
         else:
             self.pxmode = PxMode.MANUAL
 
-        rclpy.loginfo(f'<=> [{Node.microcontroller}] Current Mode : {self.pxmode}')
+        self.get_logger().info(f"Current Mode : {self.pxmode}")
 
         if self.pxmode not in self.ser_2.mode_mapping():
-            rclpy.logwarn_once(f"<=> [{Node.microcontroller}] Unknown Mode : {self.pxmode}")
+            self.get_logger().info(f"Unknown Mode : {self.pxmode}")
             # print("Try:", list(self.ser_2.mode_mapping().keys()))
             return
 
@@ -375,7 +362,7 @@ class Microcontroller(Node):
             mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
             mode_id,
         )
-        rclpy.loginfo(f'[{Node.microcontroller}] Mode set to : {self.pxmode}')  
+        self.get_logger().info(f"Mode set to : {self.pxmode}")
         return True
 
     def request_pixhawk(self):
@@ -422,6 +409,14 @@ class Microcontroller(Node):
                 sys.exit(0)
 
     def main(self):
+
+        # CONVERT TO MSG
+        self.msg_heading_msg = Float64()
+        self.jetson_batt_msg = UInt16()
+        self.motor_batt_msg = UInt16()
+        self.mux_state_msg = UInt8()
+
+
         # Publisher
         kill_switch_pub = Topic.kill_switch.createPublisher(self)
         heading_deg_pub = Topic.heading_deg.createPublisher(self)
@@ -436,40 +431,40 @@ class Microcontroller(Node):
         # self.pwm_sub = Topic.pwm.createSubscriber(self._pwm_callback)
         # auto_status_gcs_sub = Topic.auto_status_gcs.createSubscriber(self.auto_status_gcs_cb)
 
-        while not rclpy._shutdown():
+        while rclpy.ok():
             if (
                 self.mc1 == MiconType.NONE
                 or self.mc2 == MiconType.NONE
                 or self.ser_2 is None
             ):
-                # rclpy.logerr_throttle(
-                #     5, f"<=> [{Node.microcontroller}] One of the micon is not found"
-                # )
-                self.get_logger().info(
-                    5000, f"<=> [{Node.microcontroller}] One of the micon is not found"
-                )
+                self.get_logger().error(f"micon not found")
                 self._init_mc()
                 continue
 
-            rclpy.logwarn_once(f"<=> [{Node.microcontroller}] micon found")
-            rclpy.logwarn_throttle(
-                5, f"<=> [{Node.microcontroller}] {self.mc1}, {self.mc2}"
-            )
-
+            self.get_logger().info(f"micon found")
+          
             # data = self._read_sensor_esp32()
             # if not data:
             #    continue
 
+            # Inserting Data
+            self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
+            # aneh errornya, kl pke uint16 error tipe data harus int, kalau pake int error tipe data harus uint16
+            # self.jetson_batt_msg.data = np.uint16(self.jetson_batt) 
+            # self.motor_batt_msg.data = np.uint16(self.motor_batt)
+            # self.mux_state_msg.data = np.uint8(self.mux_state)
+
+
             # Publish data
             kill_switch_pub.publish(self.ks_kill_state)
-            heading_deg_pub.publish(self.pixhawk.msg_heading)
+            heading_deg_pub.publish(self.msg_heading_msg)
             auto_status_remote_pub.publish(self.auto_status_remote)
-            jetson_batt_pub.publish(self.jetson_batt)
-            motor_batt_pub.publish(self.motor_batt)
+            # jetson_batt_pub.publish(self.jetson_batt_msg)
+            # motor_batt_pub.publish(self.motor_batt)
             # internal_temp_pub.publish(self.internal_temp_deg)
-            mux_state_pub.publish(self.mux_state)
-            pixhawk_pub.publish(self.request_pixhawk())
-            pxmode_pub.publish(self.pxmode)
+            # mux_state_pub.publish(self.mux_state)
+            # pixhawk_pub.publish(self.request_pixhawk())
+            # pxmode_pub.publish(self.pxmode)
 
             # if (self.echosounder_dist >= 0 and self.echosounder_conf >= 0):
             # echo_dist_pub.publish(self.echosounder_dist)
@@ -480,17 +475,16 @@ class Microcontroller(Node):
             filtered_avg = 0.0
             N_ITR = 10
 
+            # self.set_rc_channel_pwm(2, 1800)
             rc_chans = self._px_rc_val()
             self._px_set_mode(rc_chans.chan8_raw)
             self._send_pwm(rc_chans)
 
             # self._get_pwm()
-            rclpy.logwarn_throttle(5, f"<=> [{Node.microcontroller}] Sending PWM...")
-
-            rclpy.Rate(60).sleep()
-            rclpy.loginfo_once(
-                f"<=> [{Node.microcontroller}] Successfully initialized node"
-            )
+            self.get_logger().info(f"Sending PWM...")
+    
+            # self.rate.sleep()
+            self.get_logger().info(f"Successfully initialized node")
 
             # if self.ser_0.in_waiting :
             #    raw_ser_1 = self.ser_1.readline().decode()
@@ -504,7 +498,6 @@ def main(args=None):
     rclpy.init(args=args)
     micon = Microcontroller()
     micon.main()
-    print("Running")
 
 if __name__ == "__main__":
     try:
