@@ -480,7 +480,7 @@ class Microcontroller(Node):
             self._px_set_mode(rc_chans.chan8_raw)
             self._send_pwm(rc_chans)
 
-            # self._get_pwm()
+            self._get_pwm()
             self.get_logger().info(f"Sending PWM...")
     
             # self.rate.sleep()
