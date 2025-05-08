@@ -9,18 +9,20 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
-rosidL_generate_interfaces(${PROJECT_NAME}
-  "msg/AutoControl.msg"
-  "msg/Camera.msg"
-  "msg/Config.msg"
-  "msg/Controller.msg"
-  "msg/Coordinate.msg"
-  "msg/KillSwitch.msg"
-  "msg/ObjectCount.msg"
-  "msg/Option.msg"
-  "msg/Pwm.msg"
-  "msg/Pixhawk.msg"
-  "msg/StateObject.msg"
+rosidL_generate_interfaces(${PROJECT_NAME} 
+"msg/AutoControl.msg"
+"msg/Camera.msg"
+"msg/Config.msg"
+"msg/Controller.msg"
+"msg/Detection.msg"
+"msg/KillSwitch.msg"
+"msg/Mission.msg"
+"msg/MuxState.msg"
+"msg/ObjectCount.msg"
+"msg/Option.msg"
+"msg/Pwm.msg"
+"msg/Pixhawk.msg"
+
 )
 # uncomment the following section in order to fill in
 # further dependencies manually.

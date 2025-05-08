@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+
+# Todo
+# Ubah Yang pakai interfaces ini menjadi yang dari core_msgs
 import os
 import fnmatch
 import math
@@ -10,9 +13,11 @@ from rclpy.node import Node
 from pykalman import KalmanFilter
 from pymavlink import mavutil
 from std_msgs.msg import Float64, UInt8, UInt16
-from krbai24_interfaces.msg import Pwm, AutoControl, KillSwitch, Pixhawk
-from krbai24_interfaces.srv import GetParameters, SetParameters
-from krbai24_interfaces.msg import ParameterValue, ParameterType, Parameter
+from core_msgs.msg import Pwm, KillSwitch, Pixhawk, AutoControl
+from rcl_interfaces.srv import GetParameters, SetParameters
+from rcl_interfaces.msg import ParameterValue, ParameterType, Parameter
+
+
 from utils.config import (
     AutoState,
     Node as NodeName,
@@ -172,7 +177,7 @@ class Microcontroller(Node):
     def _px_set_mode(self, chan8_raw: int):
         # choose PxMode based on channel 8
         if chan8_raw <= 1300:
-            mode = PxMode.HOLD
+            mode = PxMode.HOLD #
         else:
             mode = PxMode.MANUAL
         if mode != self.pxmode:

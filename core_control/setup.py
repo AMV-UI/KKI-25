@@ -21,7 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'motor_controller = core_control.motor_controller:main',
-            'microcontroller = core_control.microcontroller:main'
+            'microcontroller_rov = core_control.microcontroller_rov:main'
         ],
     },
 )
