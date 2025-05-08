@@ -1,4 +1,4 @@
-##############################################
+#~/.fzf/install#############################################
 # Created from template ros2.dockerfile.jinja
 ##############################################
 
@@ -126,10 +126,33 @@ ENV LD_LIBRARY_PATH=/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib
 FROM full AS gazebo
 
 ENV DEBIAN_FRONTEND=noninteractive
-# Install gazebo
+# Install gazebo and other packages
 RUN wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
   && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null \
   && apt-get update && apt-get install -q -y --no-install-recommends \
     ros-humble-ros-gz \
+    tmux \
+    tree \
+    netcat \
+    telnetd \
+    iputils-ping \
+    zsh \
+    ca-certificates \
+    neovim \
+    gedit \
   && rm -rf /var/lib/apt/lists/*
 ENV DEBIAN_FRONTEND=
+
+# Add customisations here
+RUN echo "source /opt/ros/humble/setup.bash" >> /home/ros/.bashrc
+
+RUN pip install --no-cache-dir \
+    numpy \
+    pandas \
+    serial \
+    pymavlink \
+    pykalman \
+    py_trees \
+    adafruit-circuitpython-simplemath==2.0.13
+
+

@@ -1,0 +1,14 @@
+name: Run Docker In Linux With GUI
+services:
+    # install xhost and run "sudo xhost local:root" before running docker compose to allow GUI
+    ros2-humble-linux:
+        stdin_open: true
+        tty: true
+        network_mode: host
+        environment:
+            - DISPLAY=$DISPLAY
+        volumes:
+            - /tmp/.X11-unix:/tmp/.X11-unix
+            - $HOME/amvWorkspace:/amvRepo # Set this to your ROS code / workspace folder
+        privileged: true
+        image: evan052006/ros2-humble
