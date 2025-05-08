@@ -349,7 +349,8 @@ class Microcontroller(Node):
             0,
             0,
         )
-        rclpy.logerr_throttle(5, f"<=> [{Node.microcontroller}] Arming motors ...") 
+        # rclpy.logerr_throttle(5, f"<=> [{Node.microcontroller}] Arming motors ...") 
+        self.get_logger().info(5000, f"<=> [{Node.microcontroller}] Arming motors ...")
         self.ser_2.motors_armed_wait()
         rclpy.logwarn_once(f"<=> [{Node.microcontroller}] Motor Armed!")
 
@@ -441,8 +442,11 @@ class Microcontroller(Node):
                 or self.mc2 == MiconType.NONE
                 or self.ser_2 is None
             ):
-                rclpy.logerr_throttle(
-                    5, f"<=> [{Node.microcontroller}] One of the micon is not found"
+                # rclpy.logerr_throttle(
+                #     5, f"<=> [{Node.microcontroller}] One of the micon is not found"
+                # )
+                self.get_logger().info(
+                    5000, f"<=> [{Node.microcontroller}] One of the micon is not found"
                 )
                 self._init_mc()
                 continue
