@@ -18,7 +18,7 @@ from rcl_interfaces.srv import GetParameters, SetParameters
 from rcl_interfaces.msg import ParameterValue, ParameterType, Parameter
 
 
-from utils.config import (
+from core.utils.config import (
     AutoState,
     Node as NodeName,
     RemoteState,
