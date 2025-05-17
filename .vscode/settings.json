@@ -1,0 +1,6 @@
+{
+    "cmake.sourceDirectory": "/home/fairytale/project/core/core_msgs",
+    "python.analysis.extraPaths": [
+        "./core"
+    ]
+}
