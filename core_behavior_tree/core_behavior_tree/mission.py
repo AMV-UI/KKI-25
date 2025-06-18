@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import threading
-from core.scripts.BT.bt_test import MiniSimulator
+# from core.scripts.BT.bt_test import MiniSimulator
 import rclpy
 from rclpy.node import Node
 import time
@@ -14,61 +14,60 @@ from core.utils.converter import autocontrolToString
 from core.utils.frame_counter import FrameCounter
 from core.utils.factory import MissionFactory
 
-##FindMode dari script lama
-class FindMode:
-    def __init__(self):
-        self.initial_heading = -1
-        self.current_heading = -1
-        self.threshold = 90
-        self.range_low = -1
-        self.range_high = -1
-        self.find_status = "Left" if rclpy.get_param(Param.TRACK) == "A" else "Right"
-        self.GO_LEFT = -200
-        self.GO_RIGHT = 200
-        self.dir_map = {
-            "Right": self.GO_RIGHT,
-            "Left": self.GO_LEFT,
-        }
+# class FindMode:
+#     def __init__(self):
+#         self.initial_heading = -1
+#         self.current_heading = -1
+#         self.threshold = 90
+#         self.range_low = -1
+#         self.range_high = -1
+#         self.find_status = "Left" if rclpy.get_param(Param.TRACK) == "A" else "Right"
+#         self.GO_LEFT = -200
+#         self.GO_RIGHT = 200
+#         self.dir_map = {
+#             "Right": self.GO_RIGHT,
+#             "Left": self.GO_LEFT,
+#         }
 
-    def set_initial_heading(self, heading):
-        self.initial_heading = heading
+#     def set_initial_heading(self, heading):
+#         self.initial_heading = heading
 
-    def set_range(self, direction):
-        if rclpy.get_param(Param.TRACK) == "A":
-            self.range_low = Direction.A[direction] - self.threshold
-            self.range_high = Direction.A[direction] + self.threshold
-        else:
-            self.range_low = Direction.B[direction] - self.threshold
-            self.range_high = Direction.B[direction] + self.threshold
+#     def set_range(self, direction):
+#         if rclpy.get_param(Param.TRACK) == "A":
+#             self.range_low = Direction.A[direction] - self.threshold
+#             self.range_high = Direction.A[direction] + self.threshold
+#         else:
+#             self.range_low = Direction.B[direction] - self.threshold
+#             self.range_high = Direction.B[direction] + self.threshold
 
-    def get_heading(self, raw_heading):
-        heading = raw_heading - self.initial_heading
-        if heading < 0:
-            heading = 360 + heading
-        return heading
+#     def get_heading(self, raw_heading):
+#         heading = raw_heading - self.initial_heading
+#         if heading < 0:
+#             heading = 360 + heading
+#         return heading
 
-    def get_state(self, raw_heading):
-        self.current_heading = self.get_heading(raw_heading)
-        # Handle out-of-bounds cases
-        lb = abs(self.current_heading - self.range_low)
-        if self.range_low == 0:
-            lb = min(lb, abs(self.current_heading - 360))
+#     def get_state(self, raw_heading):
+#         self.current_heading = self.get_heading(raw_heading)
+#         # Handle out-of-bounds cases
+#         lb = abs(self.current_heading - self.range_low)
+#         if self.range_low == 0:
+#             lb = min(lb, abs(self.current_heading - 360))
 
-        ub = abs(self.current_heading - self.range_high)
-        if self.range_high == 0:
-            ub = min(ub, abs(self.current_heading - 360))
+#         ub = abs(self.current_heading - self.range_high)
+#         if self.range_high == 0:
+#             ub = min(ub, abs(self.current_heading - 360))
 
-        if (
-            not (self.range_low if self.range_low == 360 else 0)
-            < self.current_heading
-            < (self.range_high if self.range_high != 0 else 360)
-        ):
-            if lb < ub:
-                self.find_status = "Right"
-            else:
-                self.find_status = "Left"
+#         if (
+#             not (self.range_low if self.range_low == 360 else 0)
+#             < self.current_heading
+#             < (self.range_high if self.range_high != 0 else 360)
+#         ):
+#             if lb < ub:
+#                 self.find_status = "Right"
+#             else:
+#                 self.find_status = "Left"
 
-        return self.dir_map[self.find_status]
+#         return self.dir_map[self.find_status]
 
 
 ## Perhatikan input dia pakai py_trees.blackboard.Client bukan behavior, jadi gabisa pakai MissionFactory
@@ -201,7 +200,7 @@ class PXModeSubscriber(py_trees.behaviour.Behaviour):
 # Main ROS2 Node
 class BehaviorTreeNode(Node):
     def __init__(self):
-        super().__init__('behavior_tree_node')
+        super().__init__('testing')
         
         self.tree = self.create_tree()
         self.timer = self.create_timer(0.1, self.tick_tree)

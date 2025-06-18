@@ -307,17 +307,10 @@ class BehaviorTreeNode(Node):
 def main(args=None):
     rclpy.init(args=args)
 
-    # simulator_node = MiniSimulator()
-
-    # Start the behavior tree node
     bt_node = BehaviorTreeNode()
 
-    # Use multithreading to run both nodes
     executor = rclpy.executors.MultiThreadedExecutor()
-    # executor.add_node(simulator_node)
     executor.add_node(bt_node)
-
-    # Create and start the thread for the executor
     executor_thread = threading.Thread(target=executor.spin, daemon=True)
     executor_thread.start()
 
@@ -329,7 +322,6 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
 
-    # Clean shutdown
     rclpy.shutdown()
     executor_thread.join()
 
