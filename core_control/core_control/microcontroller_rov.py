@@ -88,20 +88,20 @@ class Microcontroller(Node):
         )
 
         #param blackboard client
-        self.param_get = self.create_client(GetParameters, "/param_controller/get_parameters")
-        self.param_set = self.create_client(SetParameters, "/param_controller/set_parameters")
+        self.param_get = self.create_client(GetParameters, "/microcontroller/get_parameters")
+        self.param_set = self.create_client(SetParameters, "/microcontroller/set_parameters")
         while not self.param_set.wait_for_service(timeout_sec=1.0):
             self.get_logger().info("Waiting for param service...")
 
         #pubsub
-        self.create_subscription(Pwm, Topic.pwm[0], self._pwm_callback, 10)
-        self.kill_pub = self.create_publisher(KillSwitch, Topic.kill_switch[0], 10)
-        self.heading_pub = self.create_publisher(Float64, Topic.heading_deg[0], 10)
-        self.depth_pub = self.create_publisher(Float64, Topic.state_depth[0], 10)
-        self.jetson_pub = self.create_publisher(UInt16, Topic.jetson_batt[0], 10)
-        self.motor_pub = self.create_publisher(UInt16, Topic.motor_batt[0], 10)
-        self.pixhawk_pub = self.create_publisher(Pixhawk, Topic.pixhawk[0], 10)
-        self.pxmode_pub = self.create_publisher(UInt8, Topic.pxmode[0], 10)
+        Topic.pwm.createSubscriber(self, self._pwm_callback)
+        self.kill_pub = Topic.kill_switch.createPublisher(self)
+        self.heading_pub = Topic.heading_deg.createPublisher(self)
+        self.depth_pub = Topic.state_depth.createPublisher(self)
+        self.jetson_pub = Topic.jetson_batt.createPublisher(self)
+        self.motor_pub = Topic.motor_batt.createPublisher(self)
+        self.pixhawk_pub = Topic.pixhawk.createPublisher(self)
+        self.pxmode_pub = Topic.pxmode.createPublisher(self)
 
         # --- Initialize devices ---
         self._init_devices()
