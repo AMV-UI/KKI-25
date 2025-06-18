@@ -114,6 +114,10 @@ class Topic:
     echosounder_dist = TopicFactory("/core/echosounder/distance", Float64)
     echosounder_conf = TopicFactory("/core/echosounder/confidence", Float64)
 
+    #rov tambahan
+    state_depth = TopicFactory("/rov/depth", Float64)
+    pxmode_uint8 = TopicFactory("/core/micon/pixhawk/mode", UInt8)
+
 class BT:
 
     ### PY_TREES STATUS 

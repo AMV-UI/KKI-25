@@ -57,15 +57,15 @@ class Microcontroller(Node):
         self.ks_kill_state = KillSwitch(data=KillSwitch.DEFAULT)
         self.auto_status_remote = UInt8(data=RemoteState.TBS_MANUAL)
         self.auto_status_gcs = UInt8(data=AutoState.HARDWARE)
-        self.jetson_batt = -1.0
-        self.motor_batt = -1.0
-        self.depth = -1.0
-        self.dht22_raw = -1.0
-        self.tbs_pwm_in = -1.0
-        self.mux_state = -1.0
-        self.heading_deg = -1.0
-        self.echosounder_dist = -1.0
-        self.echosounder_conf = -1
+        self.jetson_batt = 0
+        self.motor_batt = 0
+        self.depth = 0.0
+        self.dht22_raw = 0
+        self.tbs_pwm_in = 0
+        self.mux_state = 0
+        self.heading_deg = 0.0
+        self.echosounder_dist = 0
+        self.echosounder_conf = 1
         self.pixhawk_msg = Pixhawk()
         self.pxmode = PxMode.MANUAL
         self.mc_esp = MiconType.NONE
