@@ -16,7 +16,7 @@ from core.utils.config import Node as NodeConfig, PxMode, Direction, Param, Topi
 from core.utils.converter import autocontrolToString
 from core.utils.frame_counter import FrameCounter
 from core.utils.factory import MissionFactory, ParamFactory, TopicFactory
-
+from geometry_msgs.msg import Twist
 import threading
 
 class TopicToBlackBoard(py_trees.behaviour.Behaviour):
@@ -28,7 +28,7 @@ class TopicToBlackBoard(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(topic_name, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key("ros_node", access=py_trees.common.Access.READ)
         self.node = self.blackboard.ros_node
-    
+
     def setup(self, **kwargs):
         self.subscriber = self.topic_factory.createSubscriber(self.node, self.subscriber_callback)
         return True
@@ -58,11 +58,12 @@ class ManuallyMoveBoat(py_trees.behaviour.Behaviour):
         self.disconnect_manual_mode_after_this_amount_of_ticks = 10
 
 class BaseTestMission(py_trees.behaviour.Behaviour):
-    def __init__(self, name: str):
+    def __init__(self, name: str, command: int = 1):
         super(BaseTestMission, self).__init__(name)
+        self.command = command;
         self.blackboard = py_trees.blackboard.Client(name=self.name)
         self.blackboard.register_key("ros_node", access=py_trees.common.Access.READ)
-        self.blackboard.register_key("mission_counter", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("mission_counter", access=py_trees.common.Access.WRITE)
         
         self.blackboard.register_key(BT.ALL.px_heading[0], access=py_trees.common.Access.READ)
         self.node : Node = self.blackboard.ros_node
@@ -74,18 +75,39 @@ class BaseTestMission(py_trees.behaviour.Behaviour):
             reliability=rclpy.qos.ReliabilityPolicy.RELIABLE
         )
         self.mission_counter_publisher = self.node.create_publisher(UInt8, "/mission_counter", qos)
-    
+        self.command_publisher = self.node.create_publisher(Twist, "/turtle1/cmd_vel", qos)
+
     def update(self) -> Status:
-        stuff = [Status.SUCCESS, Status.FAILURE, Status.RUNNING]
-        status : Status = stuff[round(self.blackboard.get("px_heading"))]
+        heading = self.blackboard.get("px_heading")
+        if heading < 0:
+            heading = 0
+        
+        status = random.choice([Status.SUCCESS, Status.FAILURE, Status.RUNNING])
         match status:
             case Status.SUCCESS:
                 self.node.get_logger().info(f"MISSION {self.blackboard.mission_counter} SUCCESS, CONTINUING :)")
                 msg = UInt8()
                 msg.data = self.blackboard.mission_counter + 1
                 self.mission_counter_publisher.publish(msg)
+                self.blackboard.mission_counter += 1
             case Status.RUNNING:
                 self.node.get_logger().info(f"still doing mission {self.blackboard.mission_counter} ...")
+                #TODO: REPLACE TURTLESIM LOGIC WITH ACTUAL MISSION LOGIC
+                twist_msg = Twist()
+
+                match self.command:
+                    case 1:
+                        twist_msg.linear.x = 2.0
+                        twist_msg.angular.z = 0.0
+                    case 2:
+                        twist_msg.linear.x = -2.0
+                        twist_msg.angular.z = 0.0
+                    case 3:
+                        twist_msg.linear.x = -2.0
+                        twist_msg.angular.z = 0.0
+                self.command_publisher.publish(twist_msg)
+
+                time.sleep(2)
         return status
 
 class FallbackAction(py_trees.behaviour.Behaviour):
@@ -269,15 +291,15 @@ class BehaviorTreeNode(Node):
         mission3_selector = py_trees.composites.Selector(name="mission3Succeed?", memory=True)
         mission_sequence.add_children([mission1_selector, mission2_selector, mission3_selector])
         
-        mission1 = BaseTestMission("mission1")
+        mission1 = BaseTestMission("mission1", 1)
         mission1_fallback = FallbackAction("mission1 Fallback")
         mission1_selector.add_children([mission1, mission1_fallback])
         
-        mission2 = BaseTestMission("mission2")
+        mission2 = BaseTestMission("mission2", 2)
         mission2_fallback = FallbackAction("mission2 Fallback")
         mission2_selector.add_children([mission2, mission2_fallback])
         
-        mission3 = BaseTestMission("mission3")
+        mission3 = BaseTestMission("mission3", 3)
         mission3_fallback = FallbackAction("mission3 Fallback")
         mission3_selector.add_children([mission3, mission3_fallback])
         
