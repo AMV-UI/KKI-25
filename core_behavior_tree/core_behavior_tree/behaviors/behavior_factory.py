@@ -1,6 +1,6 @@
 from .blackboard.blackboard_behaviors import TopicToBlackboard, InitializeBlackboard, PrintBlackboard
 from .mission.mission_behaviors import BaseTestMission, FallbackAction
-from .actions.action_behaviors import ManuallyMoveBoat
+from .actions.action_behaviors import MoveTurtle
 from core.utils.factory import TopicFactory
 from core.utils.config import Topic
 
@@ -35,7 +35,7 @@ class BehaviorFactory:
     @staticmethod
     def create_manual_movement(name: str = "ManualMovement"):
         """Create a manual movement behavior"""
-        return ManuallyMoveBoat(name)
+        return MoveTurtle(name)
     
     @staticmethod
     def create_px_heading_subscriber():

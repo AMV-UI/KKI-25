@@ -22,7 +22,8 @@ class BehaviorTreeNode(Node):
         self.tree = tree_builder.build()
         
         # Set up timer for ticking the tree
-        self.tick_period = 0.1  # 10 Hz
+        # self.tick_period = 0.1  # 10 Hz for prod
+        self.tick_period = 2 #2hz for dev
         self.timer = self.create_timer(self.tick_period, self.tick_tree)
         
         # Visualization

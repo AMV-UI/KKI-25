@@ -40,17 +40,17 @@
 <path fill="none" stroke="black" d="M399.65,-287.92C399.65,-279.72 399.65,-270.72 399.65,-262.49"/>
 <polygon fill="black" stroke="black" points="403.15,-262.27 399.65,-252.27 396.15,-262.27 403.15,-262.27"/>
 </g>
-<!-- Print Blackboard -->
+<!-- BlackboardMonitor -->
 <g id="node19" class="node">
-<title>Print Blackboard</title>
-<ellipse fill="gray" stroke="black" cx="499.65" cy="-234" rx="54.7" ry="18"/>
-<text text-anchor="middle" x="499.65" y="-231.8" font-family="Times,serif" font-size="9.00">Print Blackboard</text>
+<title>BlackboardMonitor</title>
+<ellipse fill="gray" stroke="black" cx="505.65" cy="-234" rx="61.4" ry="18"/>
+<text text-anchor="middle" x="505.65" y="-231.8" font-family="Times,serif" font-size="9.00">BlackboardMonitor</text>
 </g>
-<!-- Root&#45;&gt;Print Blackboard -->
+<!-- Root&#45;&gt;BlackboardMonitor -->
 <g id="edge18" class="edge">
-<title>Root&#45;&gt;Print Blackboard</title>
-<path fill="none" stroke="black" d="M433.51,-287.92C446.03,-277.9 460.07,-266.67 471.97,-257.14"/>
-<polygon fill="black" stroke="black" points="474.21,-259.83 479.84,-250.85 469.84,-254.37 474.21,-259.83"/>
+<title>Root&#45;&gt;BlackboardMonitor</title>
+<path fill="none" stroke="black" d="M435.54,-287.92C448.71,-277.97 463.47,-266.83 476.04,-257.35"/>
+<polygon fill="black" stroke="black" points="478.46,-259.9 484.34,-251.09 474.25,-254.32 478.46,-259.9"/>
 </g>
 <!-- InitBlackboard -->
 <g id="node3" class="node">

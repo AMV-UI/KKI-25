@@ -18,3 +18,7 @@ class BaseBehavior(py_trees.behaviour.Behaviour):
     def node(self) -> Node:
         """Access to the ROS node"""
         return self.blackboard.ros_node
+    
+    def log_state(self):
+        state = {key: getattr(self.blackboard, key, None) for key in self.blackboard.keys()}
+        self.node.get_logger().info(f"[{self.name}] Blackboard: {state}")

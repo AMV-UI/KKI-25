@@ -1,7 +1,7 @@
 import py_trees
-from ..behaviors.mission.mission_behaviors import BaseTestMission, FallbackAction
-from ..behaviors.blackboard.blackboard_behaviors import InitializeBlackboard, PrintBlackboard, TopicToBlackBoard
-from ..behaviors.actions.action_behaviors import ManuallyMoveBoat
+from ..behaviors.mission.mission_behaviors import BaseMission, FallbackAction
+from ..behaviors.blackboard.blackboard_behaviors import InitializeBlackboard, PrintBlackboard, TopicToBlackboard
+from ..behaviors.actions.action_behaviors import MoveTurtle
 from core.utils.config import Topic, BT
 
 class MissionTreeBuilder:
@@ -38,7 +38,7 @@ class MissionTreeBuilder:
         )
         
         init_blackboard = InitializeBlackboard(self.ros_node)
-        init_heading_deg_subscriber = TopicToBlackBoard("px_heading", Topic.heading_deg)
+        init_heading_deg_subscriber = TopicToBlackboard("px_heading", Topic.heading_deg)
         init.add_children([init_blackboard, init_heading_deg_subscriber])
         
         return init
@@ -50,11 +50,8 @@ class MissionTreeBuilder:
             memory=False
         )
         
-        # Create mission sequence
         mission_sequence = self._create_mission_sequence()
-        
-        # Create manual movement guard
-        pxmode_manual = ManuallyMoveBoat("ManualMovement")
+        pxmode_manual = MoveTurtle("ManualMovement")
         
         def check_pxmode(blackboard):
             return True if blackboard.pxmode == "manual" else False
@@ -66,7 +63,6 @@ class MissionTreeBuilder:
             blackboard_keys={"pxmode"}
         )
         
-        # Add children to tasks
         tasks.add_children([
             isManualMoving, 
             mission_sequence, 
@@ -89,7 +85,7 @@ class MissionTreeBuilder:
                 memory=True
             )
             
-            mission = BaseTestMission(f"mission{i}")
+            mission = BaseMission(f"mission{i}")
             fallback = FallbackAction(f"mission{i} Fallback")
             
             mission_selector.add_children([mission, fallback])

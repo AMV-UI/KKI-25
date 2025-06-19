@@ -16,7 +16,7 @@ class BaseMission(BaseBehavior):
         super(BaseMission, self).__init__(name, keys_to_register)
     
     def setup(self, **kwargs) -> None:
-        self.counter_pub = TopicFactory("/mission_counter", UInt8).createPublisher(self)
+        self.counter_pub = TopicFactory("/mission_counter", UInt8).createPublisher(self.node)
     
     def update(self) -> Status:
         # This is a simplified implementation that uses px_heading to determine status

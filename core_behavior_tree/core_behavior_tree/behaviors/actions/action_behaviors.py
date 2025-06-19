@@ -2,19 +2,17 @@ from ..base_behavior import BaseBehavior
 import py_trees
 from py_trees.common import Status
 
-class ManuallyMoveBoat(BaseBehavior):
-    """Behavior for manually controlling the boat's movement"""
-    
+class MoveTurtle(BaseBehavior):
+    """turtle is moving"""    
     def __init__(self, name: str):
-        super(ManuallyMoveBoat, self).__init__(name)
+        super(MoveTurtle, self).__init__(name)
         self.disconnect_manual_mode_after_this_amount_of_ticks = 10
     
     def setup(self, **kwargs) -> None:
         """Set up publishers for motor control"""
         # Here you would set up publishers to control motors, servos, etc.
         # Example:
-        # self.motor_publisher = self.node.create_publisher(
-        #     MotorCommand, '/motor_control', 10)
+        # self.motor_publisher = self.node.create_publisher(MotorCommand, '/motor_control', 10)
         self.node.get_logger().info("Manual boat movement initialized")
         return True
     

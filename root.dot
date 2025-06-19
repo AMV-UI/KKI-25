@@ -38,6 +38,6 @@ mission3 [fillcolor=gray, fontcolor=black, fontsize=9, label=mission3, shape=ell
 "mission3Succeed?" -> "mission3 Fallback";
 Idle [fillcolor=gray, fontcolor=black, fontsize=9, label=Idle, shape=ellipse, style=filled];
 Tasks -> Idle;
-"Print Blackboard" [fillcolor=gray, fontcolor=black, fontsize=9, label="Print Blackboard", shape=ellipse, style=filled];
-Root -> "Print Blackboard";
+BlackboardMonitor [fillcolor=gray, fontcolor=black, fontsize=9, label=BlackboardMonitor, shape=ellipse, style=filled];
+Root -> BlackboardMonitor;
 }

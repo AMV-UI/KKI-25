@@ -3,7 +3,7 @@ from ..base_behavior import BaseBehavior
 import py_trees
 import py_trees.blackboard
 from core.utils.frame_counter import FrameCounter
-from core.utils.factory import TopicFactory
+from core.utils.config import TopicFactory
 from std_msgs.msg import UInt8, Bool, Float64
 import rclpy.qos
 
@@ -30,7 +30,10 @@ class InitializeBlackboard(BaseBehavior):
     
     def __init__(self, node):
         # Register all keys from BT.ALL
-        keys_to_register = {"mission_counter": BT.write}
+        keys_to_register = {
+            "mission_counter": BT.write,
+            "ros_node": BT.write
+            }
         for key, value in vars(BT.ALL).items():
             if not key.startswith("__") and isinstance(value, tuple):
                 keys_to_register[value[0]] = value[1]
