@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 import rclpy
-import os, fnmatch
+import os
+import fnmatch
 import serial
 import traceback
 import math
@@ -12,7 +13,6 @@ from std_msgs.msg import Float64, UInt8, UInt16
 from core_msgs_asv.msg import Pwm, AutoControl, KillSwitch, Pixhawk
 from core.utils.config import (
     AutoState,
-    Node,
     RemoteState,
     Topic,
     MotorReverse,
@@ -20,12 +20,11 @@ from core.utils.config import (
     Param,
     PxMode,
 )
-from core_msgs.msg import *
+# from core_msgs.msg import *
 from adafruit_simplemath import map_range
 from pymavlink import mavutil
 import time
-from rclpy.node import Node 
-
+from rclpy.node import Node
 
 ADS_MAX_VAL = 26096
 GAIN_RATIO = 1069 / 1000
@@ -109,56 +108,34 @@ class Microcontroller(Node):
         self.get_logger().info("<> PWM Subscriber created")
 
     def _init_mc(self):
-        dirs = self._get_micon_dir()
-        # print(dirs)
-        # initialize serial object for sensor mc
-        try:
-            if dirs[0] != "/dev/ttyUSB0":
-                self.ser_1 = serial.Serial(dirs[0], 115200)
+        devs = os.listdir('/dev')
+        acm = [f for f in devs if fnmatch.fnmatch(f, 'ttyACM*')]
+        usb = [f for f in devs if fnmatch.fnmatch(f, 'ttyUSB*')]
+
+        if acm:
+            try:
+                self.ser_1 = serial.Serial(f"/dev/{acm[0]}", 115200, timeout=0.1)
                 self.mc1 = MiconType.ESP32
-                self.ser_2 = mavutil.mavlink_connection(dirs[1], baud=57600)
-                
-
-                self.get_logger().info("<> Waiting for px initiated")
-
-                self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
-                self.ser_2.wait_heartbeat()
-
-
-                self.get_logger().info("<> PX Succesfully initiated")
-                self._px_arm()
-                self.mc2 = MiconType.PX
-            else:
-                self.ser_1 = serial.Serial(dirs[1], 115200)
-                self.mc1 = MiconType.ESP32
-                self.ser_2 = mavutil.mavlink_connection(dirs[0], baud=57600)
-                
-                self.get_logger().info("<> Waiting for px initiated")
-
-                self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
-                self.ser_2.wait_heartbeat()
-                
-                self.get_logger().info("<> PX Succesfully initiated")
-                self._px_arm()
-                self.mc2 = MiconType.PX
-        except Exception as e:
-            self.get_logger().error(f"MC Index not found: {str(e)}")
+            except Exception:
+                self.get_logger().error("Failed to open ESP32 serial port")
+        else:
             self.mc1 = MiconType.NONE
+            self.get_logger().info("No ttyACM* connection")
 
-    def _get_micon_dir(self):
-        dirs = []
-        list_of_files = os.listdir("/dev")
-        pattern = "ttyACM*"
-        for entry in list_of_files:
-            if fnmatch.fnmatch(entry, pattern):
-                dirs.append(f"/dev/{entry}")
-
-        pattern = "ttyUSB*"
-        for entry in list_of_files:
-            if fnmatch.fnmatch(entry, pattern):
-                dirs.append(f"/dev/{entry}")
-
-        return dirs
+        if usb:
+            try:
+                # MAVLink connection
+                self.ser_2 = mavutil.mavlink_connection(f"/dev/{usb[0]}", baud=57600)
+                # handshake
+                self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
+                self.ser_2.wait_heartbeat()
+                self._px_arm()
+                self.mc2 = MiconType.PX
+            except Exception:
+                self.get_logger().error("Failed to open Pixhawk MAVLink port")
+        else:
+            self.mc2 = MiconType.NONE
+            self.get_logger().info("No ttyUSB* connection")
 
     @staticmethod
     def _parse_raw(raw_str):
@@ -206,7 +183,6 @@ class Microcontroller(Node):
             self.echosounder_conf,
         ) = parsed_data
 
-
         return True
 
     def _pwm_callback(self, pwm_msg):
@@ -227,10 +203,8 @@ class Microcontroller(Node):
     def _battery_value(bat_val):
         return (
             (
-                (((bat_val / ADS_MAX_VAL) * (OPEN_DRAIN_RATIO) * 3.3) * (GAIN_RATIO))
-                - (BAT_MIN_VAL)
-            )
-            * 100
+                (((bat_val / ADS_MAX_VAL) * (OPEN_DRAIN_RATIO) * 3.3) * (GAIN_RATIO)) - (BAT_MIN_VAL)
+            ) * 100
         ) / (BAT_MAX_VAL - BAT_MIN_VAL)
 
     def _get_filtered_heading(self, heading_deg):
@@ -269,15 +243,13 @@ class Microcontroller(Node):
             #     5, "[{Node.microcontroller}] No message in RC_CHANNELS"
             # )
 
-            self.get_logger().info(f"No message in RC_CHANNELS")
+            self.get_logger().info("No message in RC_CHANNELS")
             return
         return rc_channels
-
 
     def _send_pwm(self, rc_channels):
         pwm_count = 1
         # pwm_test = ["1600", "1500", "1700", "1600", "1500", "1700", "1700"]+
-
 
         if rc_channels.chan8_raw > 1700:
             try:
@@ -291,13 +263,12 @@ class Microcontroller(Node):
                     # rclpy.logerr_throttle(5, "<=> [{Node.microcontroller}] PWM sent")
 
                     # self.get_logger().error_throttle(5000,  "<=> [{Node.microcontroller}] PWM sent")
-                    self.get_logger().info(f"PWM sent")
+                    self.get_logger().info("PWM sent")
                     pwm_count = pwm_count + 1
                     # time.sleep(0.2)
             except Exception as e:
                 self.get_logger().error(f"PWM Channel cannot pass. Error : {e}")
 
-                
         elif 1301 <= rc_channels.chan8_raw <= 1700:
             try:
                 for pwm_val in self.pwm_chan.channels:
@@ -305,19 +276,17 @@ class Microcontroller(Node):
                         pwm_count = 1
                         break
                     self.set_rc_channel_pwm(pwm_count, 65535)
-                    self.get_logger().info(f"Change mode to Manual control. Throttle PWM.")                    
+                    self.get_logger().info("Change mode to Manual control. Throttle PWM.")
                     pwm_count = pwm_count + 1
 
             except Exception as e:
                 self.get_logger().error(f"Manual Mode: PWM Channel cannot pass. Error : {e}")
         else:
-            self.get_logger().info(f"Error Mode : PWM not sent")
+            self.get_logger().info("Error Mode : PWM not sent")
 
     def _get_pwm(self):
         rc_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
         self.get_logger().info(f"Channel Values : {rc_channels}")
-           
-
 
     def auto_status_gcs_cb(self, msg):
         self.auto_status_gcs.data = msg.data
@@ -337,9 +306,9 @@ class Microcontroller(Node):
             0,
             0,
         )
-        self.get_logger().info(f"Arming motors ...")
+        self.get_logger().info("Arming motors ...")
         self.ser_2.motors_armed_wait()
-        self.get_logger().info(f"Motor Armed!")
+        self.get_logger().info("Motor Armed!")
 
     def _px_set_mode(self, pwm_val):
         if pwm_val <= 1300:
@@ -416,7 +385,6 @@ class Microcontroller(Node):
         self.motor_batt_msg = UInt16()
         self.mux_state_msg = UInt8()
 
-
         # Publisher
         kill_switch_pub = Topic.kill_switch.createPublisher(self)
         heading_deg_pub = Topic.heading_deg.createPublisher(self)
@@ -437,12 +405,12 @@ class Microcontroller(Node):
                 or self.mc2 == MiconType.NONE
                 or self.ser_2 is None
             ):
-                self.get_logger().error(f"micon not found")
+                self.get_logger().error("micon not found")
                 self._init_mc()
                 continue
 
-            self.get_logger().info(f"micon found")
-          
+            self.get_logger().info("micon found")
+
             # data = self._read_sensor_esp32()
             # if not data:
             #    continue
@@ -453,7 +421,6 @@ class Microcontroller(Node):
             # self.jetson_batt_msg.data = np.uint16(self.jetson_batt) 
             # self.motor_batt_msg.data = np.uint16(self.motor_batt)
             # self.mux_state_msg.data = np.uint8(self.mux_state)
-
 
             # Publish data
             kill_switch_pub.publish(self.ks_kill_state)
@@ -481,10 +448,10 @@ class Microcontroller(Node):
             self._send_pwm(rc_chans)
 
             self._get_pwm()
-            self.get_logger().info(f"Sending PWM...")
-    
+            self.get_logger().info("Sending PWM...")
+
             # self.rate.sleep()
-            self.get_logger().info(f"Successfully initialized node")
+            self.get_logger().info("Successfully initialized node")
 
             # if self.ser_0.in_waiting :
             #    raw_ser_1 = self.ser_1.readline().decode()
@@ -494,14 +461,16 @@ class Microcontroller(Node):
             #        self.jetson_batt, self.motor_batt, depth, ks_state, self.dht22_raw, self.tbs_pwm_in, mux_state, heading_deg, self.echosounder_dist, self.echosounder_conf = parsed_data
             #        print(self.jetson_batt)
 
+
 def main(args=None):
     rclpy.init(args=args)
     micon = Microcontroller()
     micon.main()
 
+
 if __name__ == "__main__":
     try:
         main()
 
-    except Exception as e:
+    except Exception:
         rclpy.logerr(traceback.format_exc())
