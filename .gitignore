@@ -9,4 +9,4 @@ log/
 *.svg
 *.dot
 *.pyc
-__pycache__/
+**/__pycache__/

@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-
-
 # Todo
 # Ubah Yang pakai interfaces ini menjadi yang dari core_msgs
 import os
@@ -16,8 +14,6 @@ from std_msgs.msg import Float64, UInt8, UInt16
 from core_msgs.msg import Pwm, KillSwitch, Pixhawk, AutoControl
 from rcl_interfaces.srv import GetParameters, SetParameters
 from rcl_interfaces.msg import ParameterValue, ParameterType, Parameter
-
-
 from core.utils.config import (
     AutoState,
     Node as NodeName,
@@ -44,10 +40,12 @@ SENSOR_VARIANCE = 0.1
 _reverse_map = MotorReverse.map
 _pwm_offset = 15
 
+
 class MiconType:
     ESP32 = 1
     PX = 2
     NONE = -1
+
 
 class Microcontroller(Node):
     def __init__(self):
@@ -87,13 +85,13 @@ class Microcontroller(Node):
             transition_covariance=1e-5,
         )
 
-        #param blackboard client
+        # param blackboard client
         self.param_get = self.create_client(GetParameters, "/microcontroller/get_parameters")
         self.param_set = self.create_client(SetParameters, "/microcontroller/set_parameters")
         while not self.param_set.wait_for_service(timeout_sec=1.0):
             self.get_logger().info("Waiting for param service...")
 
-        #pubsub
+        # pubsub
         Topic.pwm.createSubscriber(self, self._pwm_callback)
         self.kill_pub = Topic.kill_switch.createPublisher(self)
         self.heading_pub = Topic.heading_deg.createPublisher(self)
@@ -117,6 +115,10 @@ class Microcontroller(Node):
                 self.mc_esp = MiconType.ESP32
             except Exception:
                 self.get_logger().error("Failed to open ESP32 serial port")
+        else:
+            self.mc_esp = MiconType.NONE
+            self.get_logger().info("No ttyACM* connection")
+
         if usb:
             try:
                 # MAVLink connection
@@ -128,6 +130,9 @@ class Microcontroller(Node):
                 self.mc_px = MiconType.PX
             except Exception:
                 self.get_logger().error("Failed to open Pixhawk MAVLink port")
+        else:
+            self.mc_px = MiconType.NONE
+            self.get_logger().info("No ttyUSB* connection")
 
     def _pwm_callback(self, msg: Pwm):
         self.pwm_chan = msg
@@ -177,7 +182,7 @@ class Microcontroller(Node):
     def _px_set_mode(self, chan8_raw: int):
         # choose PxMode based on channel 8
         if chan8_raw <= 1300:
-            mode = PxMode.HOLD #
+            mode = PxMode.HOLD
         else:
             mode = PxMode.MANUAL
         if mode != self.pxmode:
@@ -208,7 +213,7 @@ class Microcontroller(Node):
         rc = self.mav.recv_match(type='RC_CHANNELS', blocking=True)
         self._px_set_mode(rc.chan8_raw)
         # send override for channels 1-6
-        vals = [65535]*8
+        vals = [65535] * 8
         for i, v in enumerate(self.pwm_chan.channels[:6]):
             vals[i] = int(v)
         self.mav.mav.rc_channels_override_send(
@@ -247,6 +252,7 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
