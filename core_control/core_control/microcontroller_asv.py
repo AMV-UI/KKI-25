@@ -63,17 +63,17 @@ class Microcontroller(Node):
 
         self.pxmode = "MANUAL"
 
-        self.jetson_batt = -1.0
-        self.motor_batt = -1.0
-        self.depth = -1.0
-        self.dht22_raw = -1.0
-        self.internal_temp_deg = -1.0
-        self.tbs_pwm_in = -1.0
-        self.heading_deg = -1.0
-        self.mux_state = -1.0
+        self.jetson_batt = 0
+        self.motor_batt = 0
+        self.depth = 0
+        self.dht22_raw = 0
+        self.internal_temp_deg = 0.0
+        self.tbs_pwm_in = 0
+        self.heading_deg = 0.0
+        self.mux_state = 0
 
-        self.echosounder_dist = -1.0
-        self.echosounder_conf = -1
+        self.echosounder_dist = 0
+        self.echosounder_conf = 1
 
         self.auto_control = AutoControl()
 
