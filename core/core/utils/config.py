@@ -124,7 +124,15 @@ class BT:
     failure = py_trees.common.Status.FAILURE
     running = py_trees.common.Status.RUNNING
     invalid = py_trees.common.Status.INVALID 
-    success = py_trees.common.Status.SUCCESS 
+    success = py_trees.common.Status.SUCCESS
+
+    ### PY_TREES PERMISSIONS
+    read = py_trees.common.Access.READ
+    write = py_trees.common.Access.WRITE
+
+    ### RCLPY QOS  (Quality Of Service) for PubSub
+    volatile = rclpy.qos.DurabilityPolicy.VOLATILE
+    reliable = rclpy.qos.ReliabilityPolicy.RELIABLE
 
     ### 
     class ALL:
