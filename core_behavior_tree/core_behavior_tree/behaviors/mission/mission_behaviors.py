@@ -1,49 +1,72 @@
 from ..base_behavior import BaseBehavior
-import py_trees
 from py_trees.common import Status
 from std_msgs.msg import UInt8
-import rclpy.qos
 from core.utils.config import BT, TopicFactory
 
 class BaseMission(BaseBehavior):
-    """Base class for mission behaviors that test conditions and report results"""
+    """
+    Base class for mission behaviors that test conditions and report results.
     
-    def __init__(self, name: str):
-        keys_to_register = {
-            "mission_counter": BT.read,
-            "px_heading": BT.read
-        }
-        super(BaseMission, self).__init__(name, keys_to_register)
+    Required Blackboard Keys:
+    - "mission_counter" (read): tracks current mission step.
+    
+    Child classes must:
+    - Add any extra blackboard keys via `extra_keys`
+    - Implement `evaluate()` to return Status
+    """
+    
+    def __init__(self, name: str, extra_keys: dict = None):
+        base_keys = {"mission_counter": BT.read}
+        if extra_keys:
+            base_keys.update(extra_keys)
+        super().__init__(name, base_keys)
     
     def setup(self, **kwargs) -> None:
         self.counter_pub = TopicFactory("/mission_counter", UInt8).createPublisher(self.node)
     
     def update(self) -> Status:
-        # This is a simplified implementation that uses px_heading to determine status
-        # In a real implementation, you would have actual mission logic here
-        
-        # # Map px_heading to a status value for demonstration
-        stuff = [Status.SUCCESS, Status.FAILURE, Status.RUNNING]
-        status = stuff[round(self.blackboard.get("px_heading"))]
-        ############################################################# Only for PlaceHolders for real logic
-        
-        if status == Status.SUCCESS:
-            self.node.get_logger().info(f"MISSION {self.blackboard.mission_counter} SUCCESS, CONTINUING :)")
-            self.counter_pub.publish(UInt8(data=self.blackboard.mission_counter + 1)) #### increment mission counter
+        status = self.evaluate()
+        counter = self.blackboard.mission_counter
 
-        elif status == Status.RUNNING:
-            self.node.get_logger().info(f"Still doing mission {self.blackboard.mission_counter} ...")
-        
+        match status:
+            case Status.SUCCESS:
+                self.node.get_logger().info(f"[{self.name}] MISSION {counter} SUCCESS")
+                self.counter_pub.publish(UInt8(data=counter + 1))
+            case Status.RUNNING:
+                self.node.get_logger().info(f"[{self.name}] Mission {counter} RUNNING")
+            case Status.FAILURE:
+                self.node.get_logger().info(f"[{self.name}] Mission {counter} FAILURE")
+
         return status
-
-
-class FallbackAction(BaseBehavior):
-    """Action to take when a mission fails"""
     
-    def __init__(self, name: str):
-        keys_to_register = {"mission_counter": BT.read}
-        super(FallbackAction, self).__init__(name, keys_to_register)
-        
+    def evaluate(self) -> Status:
+        """
+        Must be overridden in child classes to implement mission-specific logic.
+        """
+        raise NotImplementedError("You must implement evaluate() in your subclass.")
+
+
+class BaseFallback(BaseBehavior):
+    """
+    Base class for fallback actions triggered after a mission failure.
+
+    Required Blackboard Keys:
+    - "mission_counter" (read): tracks the mission ID that failed.
+
+    Child classes must:
+    - Add any extra blackboard keys via `extra_keys`
+    - Implement `execute_fallback()` to define fallback action
+    """
+    
+    def __init__(self, name: str, extra_keys: dict = None):
+        base_keys = {"mission_counter": BT.read}
+        if extra_keys:
+            base_keys.update(extra_keys)
+        super().__init__(name, base_keys)
+    
     def update(self) -> Status:
-        self.node.get_logger().info(f"Mission {self.blackboard.mission_counter} Failure, falling back...")
-        return Status.FAILURE
+        self.execute_fallback()
+        return Status.FAILURE  # Allows selector to move on to next option
+
+    def execute_fallback(self):
+        raise NotImplementedError("You must implement execute_fallback() in your subclass.")

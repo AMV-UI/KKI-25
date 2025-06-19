@@ -1,5 +1,7 @@
 import py_trees
-from ..behaviors.mission.mission_behaviors import BaseMission, FallbackAction
+from ..behaviors.mission.childrens.mission1 import Mission1, Mission1_Fallback
+from ..behaviors.mission.childrens.mission2 import Mission2, Mission2_Fallback
+from ..behaviors.mission.childrens.mission3 import Mission3, Mission3_Fallback
 from ..behaviors.blackboard.blackboard_behaviors import InitializeBlackboard, PrintBlackboard, TopicToBlackboard
 from ..behaviors.actions.action_behaviors import MoveTurtle
 from core.utils.config import Topic, BT
@@ -78,16 +80,21 @@ class MissionTreeBuilder:
             memory=False
         )
         
-        # Create mission selectors
-        for i in range(1, 4):  # Create missions 1-3
+        missions = [
+            (Mission1, Mission1_Fallback),
+            (Mission2, Mission2_Fallback),
+            (Mission3, Mission3_Fallback)
+        ]
+
+        for i, (MissionClass, FallbackClass) in enumerate(missions, start=1):
             mission_selector = py_trees.composites.Selector(
-                name=f"mission{i}Succeed?", 
+                name=f"Mission{i} Success Check",
                 memory=True
             )
             
-            mission = BaseMission(f"mission{i}")
-            fallback = FallbackAction(f"mission{i} Fallback")
-            
+            mission = MissionClass(f"Mission{i}")
+            fallback = FallbackClass(f"Mission{i} Fallback")
+
             mission_selector.add_children([mission, fallback])
             mission_sequence.add_child(mission_selector)
         
