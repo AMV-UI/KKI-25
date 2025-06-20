@@ -7,6 +7,7 @@ import math
 import time
 import serial
 import rclpy
+from pymaybe import maybe
 from rclpy.node import Node
 from pykalman import KalmanFilter
 from pymavlink import mavutil
@@ -55,15 +56,15 @@ class Microcontroller(Node):
         self.ks_kill_state = KillSwitch(data=KillSwitch.DEFAULT)
         self.auto_status_remote = UInt8(data=RemoteState.TBS_MANUAL)
         self.auto_status_gcs = UInt8(data=AutoState.HARDWARE)
-        self.jetson_batt = 0
-        self.motor_batt = 0
-        self.depth = 0.0
-        self.dht22_raw = 0
-        self.tbs_pwm_in = 0
-        self.mux_state = 0
-        self.heading_deg = 0.0
-        self.echosounder_dist = 0
-        self.echosounder_conf = 1
+        self.jetson_batt = maybe(None)
+        self.motor_batt = maybe(None)
+        self.depth = maybe(None)
+        self.dht22_raw = maybe(None)
+        self.tbs_pwm_in = maybe(None)
+        self.mux_state = maybe(None)
+        self.heading_deg = maybe(None)
+        self.echosounder_dist = maybe(None)
+        self.echosounder_conf = maybe(None)
         self.pixhawk_msg = Pixhawk()
         self.pxmode = PxMode.MANUAL
         self.mc_esp = MiconType.NONE
@@ -154,10 +155,10 @@ class Microcontroller(Node):
         vals = [float(x) for x in raw[1:].strip().split(',')]
         (self.jetson_batt, self.motor_batt, depth_raw, ks, self.dht22_raw,
          self.tbs_pwm_in, self.mux_state, heading_raw,
-         self.echosounder_dist, self.echosounder_conf) = vals
+         self.echosounder_dist, self.echosounder_conf) = map(maybe, vals)
         # Kalman filter heading
         _, h_filt = self.kf_imu.filter(heading_raw)
-        self.heading_deg = h_filt[-1][0]
+        self.heading_deg = maybe(h_filt[-1][0])
         # Depth mapping + filter
         dep_val = int(map_range(depth_raw, 0, 4095, 0, 1000)) * 2
         if dep_val < SETPOINT.SETPOINT_DEPTH:
@@ -165,7 +166,7 @@ class Microcontroller(Node):
         else:
             self.set_param('y_speed', -1)
         _, d_filt = self.kf_depth.filter(dep_val)
-        self.depth = d_filt[-1][0]
+        self.depth = maybe(d_filt[-1][0])
         return True
 
     def _px_arm(self):
@@ -231,10 +232,10 @@ class Microcontroller(Node):
                 self._override_rc()
             # publish all
             self.kill_pub.publish(self.ks_kill_state)
-            self.heading_pub.publish(Float64(data=self.heading_deg))
-            self.depth_pub.publish(Float64(data=self.depth))
-            self.jetson_pub.publish(UInt16(data=int(self.jetson_batt)))
-            self.motor_pub.publish(UInt16(data=int(self.motor_batt)))
+            self.heading_pub.publish(Float64(data=self.heading_deg.or_else(0.0)))
+            self.depth_pub.publish(Float64(data=self.depth.or_else(0.0)))
+            self.jetson_pub.publish(UInt16(data=int(self.jetson_batt.or_else(0))))
+            self.motor_pub.publish(UInt16(data=int(self.motor_batt.or_else(0))))
             if self.mc_px == MiconType.PX:
                 self.pixhawk_pub.publish(self.pixhawk_msg)
                 self.pxmode_pub.publish(UInt8(data=self.pxmode))

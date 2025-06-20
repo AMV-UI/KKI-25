@@ -1,0 +1,8 @@
+pandas 
+pymaybe
+pyserial
+pymavlink 
+pykalman 
+py_trees 
+adafruit-circuitpython-simplemath==2.0.13
+

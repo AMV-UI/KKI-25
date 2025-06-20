@@ -146,13 +146,8 @@ ENV DEBIAN_FRONTEND=
 # Add customisations here
 RUN echo "source /opt/ros/humble/setup.bash" >> /home/ros/.bashrc
 
-RUN pip install --no-cache-dir \
-    numpy \
-    pandas \
-    serial \
-    pymavlink \
-    pykalman \
-    py_trees \
-    adafruit-circuitpython-simplemath==2.0.13
-
+COPY requirements.txt .
+RUN pip3 install -r requirements.txt
+RUN rm requirements.txt
+RUN pip uninstall -y numpy
 
