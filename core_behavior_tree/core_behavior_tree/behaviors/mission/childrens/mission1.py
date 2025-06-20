@@ -39,7 +39,7 @@ class Mission1_Fallback(BaseFallback):
 
     def execute_fallback(self):
         twist = Twist()
-        twist.linear.x = 0.0
-        twist.angular.z = 0.0
+        twist.linear.x = -2.0
+        twist.angular.z = 2.0
         self.velocity_pub.publish(twist)
         self.node.get_logger().warn(f"[{self.name}] Fallback executed: stopping turtle")
