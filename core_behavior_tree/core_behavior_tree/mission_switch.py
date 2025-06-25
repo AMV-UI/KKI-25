@@ -17,17 +17,14 @@ class BehaviorTreeNode(Node):
     def __init__(self):
         super().__init__('behavior_tree_node')
         
-        # Build the tree
         tree_builder = MissionTreeBuilder(self)
         self.tree = tree_builder.build()
         
-        # Set up timer for ticking the tree
-        self.tick_period = 0.1  # 10 Hz for prod
+        self.tick_period = 0.1  # 10 Hz for prod / sim
         # self.tick_period = 2 #2hz for dev
         self.timer = self.create_timer(self.tick_period, self.tick_tree)
         
         self.setup_visualization()
-        
         self.tree.setup()
         self.get_logger().info("Behavior tree initialized and ready")
 
@@ -45,8 +42,9 @@ def main(args=None):
     rclpy.init(args=args)
 
     bt_node = BehaviorTreeNode()
+    
 
-    # Set up threaded executor
+    #MultiThreadedExecutor for ascii tree rendering
     executor = rclpy.executors.MultiThreadedExecutor()
     executor.add_node(bt_node)
     executor_thread = threading.Thread(target=executor.spin, daemon=True)

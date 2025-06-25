@@ -12,7 +12,7 @@ class BaseMission(BaseBehavior):
     
     Child classes must:
     - Add any extra blackboard keys via `extra_keys`
-    - Implement `evaluate()` to return Status
+    - Implement `execute_mission()` to return Status
     """
     
     def __init__(self, name: str, extra_keys: dict = None):
@@ -39,7 +39,7 @@ class BaseMission(BaseBehavior):
 
         return status
     
-    def evaluate(self) -> Status:
+    def execute_mission(self) -> Status:
         """
         Must be overridden in child classes to implement mission-specific logic.
         """
@@ -66,7 +66,7 @@ class BaseFallback(BaseBehavior):
     
     def update(self) -> Status:
         self.execute_fallback()
-        return Status.FAILURE  # Allows selector to move on to next option
+        return Status.FAILURE
 
     def execute_fallback(self):
         raise NotImplementedError("You must implement execute_fallback() in your subclass.")

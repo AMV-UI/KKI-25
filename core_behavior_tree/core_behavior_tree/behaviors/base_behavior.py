@@ -1,8 +1,10 @@
 import py_trees
 from rclpy.node import Node
 from core.utils.config import BT
+from py_trees.behaviour import Behaviour
 
-class BaseBehavior(py_trees.behaviour.Behaviour):
+
+class BaseBehavior(Behaviour):
     """Base class for all behaviors that need ROS node access and blackboard functionality"""
     
     def __init__(self, name: str, keys_to_register=None):
