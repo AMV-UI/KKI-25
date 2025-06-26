@@ -10,4 +10,4 @@ log/
 *.dot
 *.pyc
 **/__pycache__/
-.vscode/
+.vscode
