@@ -136,6 +136,7 @@ RUN wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pk
     netcat \
     telnetd \
     iputils-ping \
+    python3-pylsp \
     zsh \
     ca-certificates \
     neovim \
@@ -146,13 +147,12 @@ ENV DEBIAN_FRONTEND=
 # Add customisations here
 RUN echo "source /opt/ros/humble/setup.bash" >> /home/ros/.bashrc
 
-RUN pip install --no-cache-dir \
-    numpy \
-    pandas \
-    serial \
-    pymavlink \
-    pykalman \
-    py_trees \
-    adafruit-circuitpython-simplemath==2.0.13
+# Installs requirements.txt
+COPY requirements.txt .
+RUN pip --no-cache-dir install -r requirements.txt
+RUN rm requirements.txt
 
-
+# PIN NUMPY TO 1.21.5 (for some reason breaks pykalman otherwise)
+# This checks if numpy uninstallation is successful, if failure, we then install n1.21.5
+RUN pip uninstall -y numpy 2>/dev/null || true && \
+    pip install --no-cache-dir numpy==1.21.5
