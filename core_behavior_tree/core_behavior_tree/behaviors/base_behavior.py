@@ -1,0 +1,26 @@
+import py_trees
+from rclpy.node import Node
+from core.utils.config import BT
+from py_trees.behaviour import Behaviour
+
+
+class BaseBehavior(Behaviour):
+    """Base class for all behaviors that need ROS node access and blackboard functionality"""
+    
+    def __init__(self, name: str, keys_to_register=None):
+        super(BaseBehavior, self).__init__(name)
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key("ros_node", access=BT.read)
+        
+        if keys_to_register:
+            for key, access in keys_to_register.items():
+                self.blackboard.register_key(key, access=access)
+                
+    @property
+    def node(self) -> Node:
+        """Access to the ROS node"""
+        return self.blackboard.ros_node
+    
+    def log_state(self):
+        state = {key: getattr(self.blackboard, key, None) for key in self.blackboard.keys()}
+        self.node.get_logger().info(f"[{self.name}] Blackboard: {state}")
