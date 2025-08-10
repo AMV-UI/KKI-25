@@ -1,236 +1,219 @@
 #!/usr/bin/env python3
 
-from statistics import variance
-import rclpy
 import traceback
-import actionlib
-import time
 
-from core_msgs.msg import Bool, Float64, UInt16, UInt32, UInt8
-from sensor_msgs.msg import Joy
+import rclpy
+from rclpy.node import Node
+
 from core_msgs.msg import (
-    KillSwitch,
-    AutoControl,
     Config,
     ObjectCount,
     Controller,
     Pwm,
     Option,
+    KillSwitch,
 )
-
-from core.utils.config import Node, Topic, Param
+from std_msgs.msg import Float64, UInt8
+from core.utils.config import Node as NodeName, Topic, Param, SPEED
 from core.utils.motor import Motor
-from core.utils.converter import autocontrolToString
 
-from core_msgs.msg import (
-    SendMissionAction,
-    SendMissionActionFeedback,
-    SendMissionActionGoal,
-    SendMissionActionResult,
-    SendMissionFeedback,
-    SendMissionGoal,
-    SendMissionResult,
-)
+class MotorController(Node):
 
+    # Docs basiclly
 
-""" Mappings """
-# _kill_switch_map = {
-#     KillSwitch.HARDWARE: Motor.KILL_BUTTON,
-#     KillSwitch.ON: Motor.KILL_ON,
-#     KillSwitch.OFF: Motor.KILL_OFF,
-# }
-
-
-class MotorController:
-    """
-    GET A GOAL FROM:
-        - core_behavior_tree.mission
-    SUBSCRIBES:
-        - TODO:
-    PUBLISHES:
-        - PWM to core_control.microcontroller
-    """
+    # """
+    # GETS A GOAL FROM:
+    #     - Behavior Tree via /mission topic
+    # SUBSCRIBES:
+    #     - /mission (std_msgs/UInt8): Mission ID from the Behavior Tree
+    #     - /kill_switch (core_msgs/KillSwitch)
+    #     - /controller (core_msgs/Controller)
+    #     - ...and other topics for control inputs.
+    # PUBLISHES:
+    #     - PWM to core_control.microcontroller
+    # """
 
     def __init__(self):
-        # actionlib
+        super().__init__(NodeName.motor_controller)
+
+        # Declare parameters for motor speed and adjustment
+        self.declare_parameter(Param.MOTOR_SPEED, SPEED.Maximum)
+        self.declare_parameter(Param.X_SPEED, SPEED.Maximum)
+        
+        # Core motor interface 
         self.motor = Motor()
 
-        # Initialize state variables
-
-        self.yaw_control_effort = float()
-        self.dsc_control_effort = float()
-        # self.killswitch_state = KillSwitch()
-
+        # State variables
+        self.yaw_control_effort = 0.0
+        self.dsc_control_effort = 0.0
         self.object_counted = ObjectCount()
-        self.joy_state = Joy()
+        self.joy_state = Controller()
         self.is_killed = False
-
         self.pwm = Pwm()
-
         self.killswitch_state = KillSwitch()
-        self.killswitch_state.data = KillSwitch.default
+        self.killswitch_state.data = 0 # Default = 0
+        self.dsc = 0.0
+        self.dsc_flag = 0.0
+        self.state_dst = 0.0
+        self.current_mission = 0 # Default mission ID
 
-        # self.bow = rospy.get_param(Param.MOTOR_SPEED)
-        # self.x = rospy.get_param(Param.X_SPEED)
-
-        self.dsc = float()
-        self.dsc_flag = float()
-        self.state_dst = float()
-
-        self.mission_state = AutoControl()
-
-        self.current_strat = Option()
-        self.strat_map = {
-            AutoControl.MANUAL: self.manual,
-            AutoControl.MISSION_FIND_STEP_ONE: self.mission_find_step_one,
-            AutoControl.MISSION_FIND_STEP_TWO: self.mission_find_step_two,
-            AutoControl.MISSION_FIND_STEP_THREE: self.mission_find_step_three,
-            AutoControl.MISSION_STEP_ONE: self.mission_step_one,
-            AutoControl.MISSION_STEP_TWO: self.mission_step_two,
-            AutoControl.MISSION_STEP_THREE: self.mission_step_three,
-            AutoControl.MISSION_POSITION_GREEN_BOX: self.mission_position_green_box,
-            AutoControl.MISSION_TAKE_GREEN_BOX: self.mission_take_green_box,
-            AutoControl.MISSION_POSITION_BLUE_BOX: self.mission_position_blue_box,
-            AutoControl.MISSION_TAKE_BLUE_BOX: self.mission_take_blue_box,
-            AutoControl.MISSION_DOCKING: self.mission_docking,
-            # AutoControl.MISSION_DONE : self.MISSION_DONE
+        # Mapping mission IDs from Behavior Tree to Python functions
+        self.mission_map = {
+            0: self.manual,
+            1: self.mission_find_step_one,
+            2: self.mission_find_step_two,
+            3: self.mission_find_step_three,
+            4: self.mission_step_one,
+            5: self.mission_step_two,
+            6: self.mission_step_three,
+            7: self.mission_position_green_box,
+            8: self.mission_take_green_box,
+            9: self.mission_position_blue_box,
+            10: self.mission_take_blue_box,
+            11: self.mission_docking,
         }
 
-        self.current_mission = AutoControl.MISSION_FIND_STEP_ONE
+        # Subscribers
+        Topic.control_effort_dsc.createSubscriber(self, self._dsc_control_effort_callback)
+        Topic.object_counted.createSubscriber(self, self._obj_counted_callback)
+        Topic.dsc.createSubscriber(self, self._dsc_callback)
+        Topic.state_dst.createSubscriber(self, self._state_dst_callback)
+        Topic.kill_switch.createSubscriber(self, self._killswitch_callback)
+        Topic.controller.createSubscriber(self, self._joy_state_callback)
+        Topic.gcs_config.createSubscriber(self, self._gcs_cam_config_callback)
+        
+        # Primary subscriber for mission ID from Behavior Tree
+        Topic.mission.createSubscriber(self, self.mission_callback)
+
+        #debug
+
+        # Publisher
+        self.pwm_pub = Topic.pwm.createPublisher(self)
+
+        # Timer for the control loop at 50Hz
+        self.timer = self.create_timer(1.0 / 50.0, self._timer_callback)
+
+        self.get_logger().info(f"MotorController node '{NodeName.motor_controller}' initialized with BT")
+
+    # --- Mission Functions ---
+    # Fungsi-fungsi ini sekarang dipanggil berdasarkan ID yang diterima dari BT
 
     def manual(self):
+        # Mission 0, Manual Mode
         for k, v in self.motor.idle().items():
             self.pwm.channels[k] = v
 
     def mission_find_step_one(self):
-        # rospy.loginfo(f"<=> [{Node.motor_controller}] Mission_find_step_one_masuk")
-
+        # Mengambil parameter dari node lalu diberikan ke kelas Motor
+        motor_speed = self.get_parameter(Param.MOTOR_SPEED).value
+       
         for k, v in self.motor.autonomous(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
             control_effort_x=0,
             control_effort_y=300,
+            motor_speed=motor_speed
         ).items():
             self.pwm.channels[k] = v
-
+            
     def mission_step_one(self):
-        # rospy.loginfo(f"<=> [{Node.motor_controller}] Mission_step_one_masuk")
-
+        motor_speed = self.get_parameter(Param.MOTOR_SPEED).value
+        x_speed = self.get_parameter(Param.X_SPEED).value
         for k, v in self.motor.autonomous(
-            # TODO: yaw control effort reconfig value
-            # control_effort_x=dcs
-            control_effort_x=self.dsc
+            control_effort_x=self.dsc,
+            motor_speed=motor_speed,
+            x_speed=x_speed
         ).items():
             self.pwm.channels[k] = v
 
     def mission_find_step_two(self):
-        # rorspy.loginfo(f"<=> [{Node.motor_controller}] Mission_find_step_two_masuk")
-
-        for k, v in self.motor.finding_turn(
-            # control_effort_yaw_bow=self.yaw_control_effort,
+        motor_speed = self.get_parameter(Param.MOTOR_SPEED).value
+        for k, v in self.motor.autonomous(
             control_effort_x=self.state_dst,
             control_effort_y=350,
+            motor_speed=motor_speed
         ).items():
             self.pwm.channels[k] = v
 
     def mission_step_two(self):
-        # rospy.loginfo(f"<=> [{Node.motor_controller}] Mission_step_two_masuk")
-
+        motor_speed = self.get_parameter(Param.MOTOR_SPEED).value
+        x_speed = self.get_parameter(Param.X_SPEED).value
         for k, v in self.motor.autonomous(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
-            control_effort_x=self.dsc
+            control_effort_x=self.dsc,
+            motor_speed=motor_speed,
+            x_speed=x_speed
         ).items():
             self.pwm.channels[k] = v
 
     def mission_find_step_three(self):
-        # rospy.loginfo(f"<=> [{Node.motor_controller}] Mission_find_step_three_masuk")
-
-        for k, v in self.motor.finding_turn(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
-            control_effort_x=self.state_dst
+        motor_speed = self.get_parameter(Param.MOTOR_SPEED).value
+        for k, v in self.motor.autonomous(
+            control_effort_x=self.state_dst,
+            motor_speed=motor_speed
         ).items():
             self.pwm.channels[k] = v
 
     def mission_step_three(self):
-        # rospy.loginfo(f"<=> [{Node.motor_controller}] Mission_step_three_masuk")
-
+        motor_speed = self.get_parameter(Param.MOTOR_SPEED).value
+        x_speed = self.get_parameter(Param.X_SPEED).value
         for k, v in self.motor.autonomous(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
-            control_effort_x=self.dsc
+            control_effort_x=self.dsc,
+            motor_speed=motor_speed,
+            x_speed=x_speed
         ).items():
             self.pwm.channels[k] = v
 
     def mission_position_green_box(self):
-        for k, v in self.motor.finding_turn(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
+        motor_speed = self.get_parameter(Param.MOTOR_SPEED).value
+        for k, v in self.motor.autonomous(
             control_effort_x=self.state_dst,
+            motor_speed=motor_speed
         ).items():
             self.pwm.channels[k] = v
 
     def mission_take_green_box(self):
-        # rospy.loginfo(f"<=> [{Node.motor_controller}] Mission_green_box_masuk")
-
-        for k, v in self.motor.finding_turn(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
+        motor_speed = self.get_parameter(Param.MOTOR_SPEED).value
+        for k, v in self.motor.autonomous(
             control_effort_x=0,
             control_effort_y=0,
+            motor_speed=motor_speed
         ).items():
             self.pwm.channels[k] = v
 
     def mission_position_blue_box(self):
-        for k, v in self.motor.finding_turn(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
+        motor_speed = self.get_parameter(Param.MOTOR_SPEED).value
+        for k, v in self.motor.autonomous(
             control_effort_x=self.state_dst,
+            motor_speed=motor_speed
         ).items():
             self.pwm.channels[k] = v
 
     def mission_take_blue_box(self):
-        # rospy.loginfo(f"<=> [{Node.motor_controller}] Mission_blue_box_masuk")
-
-        for k, v in self.motor.finding_turn(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
+        motor_speed = self.get_parameter(Param.MOTOR_SPEED).value
+        for k, v in self.motor.autonomous(
             control_effort_x=0,
             control_effort_y=0,
+            motor_speed=motor_speed
         ).items():
             self.pwm.channels[k] = v
 
     def mission_docking(self):
         pass
 
-    # def do_motor(self):
-    #     while not rospy.is_shutdown():
-    #         self.pwm.channels = [int(val) for val in self.pwm.channels]
-    #         # Publish pwm
-    #         self.pwm_pub.publish(self.pwm)
-
-    def execute_strategy(self, auto_control_state):
-        """
-        Lookup and executes the strategy based on the current mission state (auto_control_state).
-        """
+    def execute_mission(self, mission_id):
+        # Executes the mission function based dari ID yang di received
         try:
-            # lookup strat
-            strategy_function = self.strat_map.get(auto_control_state, None)
-            # print(strategy_function)
+            mission_func = self.mission_map.get(mission_id)
+            if mission_func:
+                mission_func()
+            else:
+                self.get_logger().warn(f"Mission ID '{mission_id}' not found. Defaulting to manual/idle.")
+                self.manual()
+        except Exception:
+            self.get_logger().error(f"Error executing mission: {traceback.format_exc()}")
+            self.manual() # Fallback to manual/idle jika error
 
-            if strategy_function:
-                strategy_function()
-            # else:
-            #     rospy.logwarn(f"Unknown AutoControl state: {auto_control_state}")
-
-        except KeyError as e:
-            rospy.logerr(f"Strategy not found for AutoControl state: {e}")
-        except Exception as e:
-            rospy.logerr(f"Error while executing strategy: {traceback.format_exc()}")
+    # --- Callback Methodsnya ---
 
     def _gcs_cam_config_callback(self, msg: Config):
-        """Update motor configuration from GCS"""
         self.motor.updateAdjustment(msg.back_adjust, msg.bow_adjust, msg.azimuth_adjust)
 
     def _yaw_control_effort_callback(self, msg: Float64):
@@ -238,9 +221,6 @@ class MotorController:
 
     def _dsc_control_effort_callback(self, msg: Float64):
         self.dsc_control_effort = msg.data
-
-    def _autocontrol_callback(self, msg: AutoControl):
-        self.mission_state.data = msg.data
 
     def _killswitch_callback(self, msg: KillSwitch):
         self.killswitch_state.data = msg.data
@@ -258,48 +238,38 @@ class MotorController:
         self.dsc_flag = msg.data
 
     def mission_callback(self, msg: UInt8):
-        # This method will be called whenever a message is received on the mission topic
-        # self.mission_sub = msg.data
+        #Callback for mission ID from Behavior Tree
+        self.get_logger().info(f"Received new mission ID: {msg.data}")
         self.current_mission = msg.data
+        
+    def _joy_state_callback(self, msg: Controller):
+        self.joy_state = msg
+        self.get_logger().info(
+            f"[JOY] Controller received: data={msg.data}, linear_y={msg.linear_y}, angular_z={msg.angular_z}"
+        )
+
 
     def _state_dst_callback(self, msg: Float64):
         self.state_dst = msg.data
 
-    def main(self) -> None:
-        # SUBCRIBERS
-        dsc_control_effort_sub = Topic.control_effort_dsc.createSubscriber(
-            self._dsc_control_effort_callback
-        )
-        mission_sub = Topic.auto_control.createSubscriber(self._autocontrol_callback)
-        object_counted_subscriber = Topic.object_counted.createSubscriber(
-            self._obj_counted_callback
-        )
-        dsc_subscriber = Topic.dsc.createSubscriber(self._dsc_callback)
-        state_dst_sub = Topic.state_dst.createSubscriber(self._state_dst_callback)
-        self.pwm_pub = Topic.pwm.createPublisher()
-        self.mission_sub = Topic.mission.createSubscriber(self.mission_callback)
+    # --- Main Loop (Timer) ---
 
-        while not rospy.is_shutdown():
-            self.execute_strategy(self.current_mission)
-
-            self.pwm.channels = [int(val) for val in self.pwm.channels]
-            # Publish pwm
-            self.pwm_pub.publish(self.pwm)
-
-            rospy.loginfo_once(
-                f"<> [{Node.motor_controller}] Successfully initialized node"
-            )
-
-            rospy.Rate(50).sleep()
+    def _timer_callback(self):
+        self.execute_mission(self.current_mission)
+        self.pwm.channels = [int(val) for val in self.pwm.channels]
+        self.pwm_pub.publish(self.pwm)
 
 
-if __name__ == "__main__":
+def main(args=None):
+    rclpy.init(args=args)
+    motor_ctrl = MotorController()
     try:
-        # Initialize node
-        rospy.init_node(Node.motor_controller)
+        rclpy.spin(motor_ctrl)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        motor_ctrl.destroy_node()
+        rclpy.shutdown()
 
-        motor_control = MotorController()
-        motor_control.main()
-
-    except Exception as e:
-        rospy.logerr(traceback.format_exc())
+if __name__ == '__main__':
+    main()

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import rclpy
-from utils.config import Channel, Param, SPEED
+from utils.config import Param, SPEED
+from core.utils.config import Channel
+
 from rclpy.node import Node
 
 class Motor(Node):
@@ -52,19 +54,18 @@ class Motor(Node):
             }
         )
 
-    def autonomous(self, control_effort_x=50):
+    def autonomous(self, control_effort_x=50, control_effort_y=200):
         motor_speed = self.get_parameter(Param.MOTOR_SPEED).value
         x_speed = self.get_parameter(Param.X_SPEED).value
-        
+
         return self.__calcAdjustedSpeed(
             {
                 self.channel.MOTOR_X: self.calculateSpeed(
                     int(control_effort_x * x_speed)
-
                 ),
                 self.channel.MOTOR_Y: self.calculateSpeed(
-                    int(200 * motor_speed)
-                ),  # dikasih minus
+                    int(control_effort_y * motor_speed) # ini saya ganti 200 jadi control_effort_y
+                ), # dikasih minus
             }
         )
 
