@@ -1,69 +1,92 @@
 #!/usr/bin/env python3
+"""
+motor_test_basic.py
+- Publishes Twist with linear.x, angular.z
+- Estimates left/right PWM using linear.x & angular.z (differential mixing)
+"""
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import UInt8
-from core_msgs.msg import KillSwitch, Controller, Pwm
+from geometry_msgs.msg import Twist
+import time
+from core.utils.motor import Motor  
 
 class MotorTest(Node):
-    def __init__(self):
-        super().__init__('motor_test_manual')
+    def __init__(self, rate_hz=10, linear_scale=200.0, angular_scale=200.0):
+        super().__init__('motor_test_publisher_basic')
+        self.pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        #self.pub = self.create_publisher(Twist, '/turtle1/cmd_vel', 10) # turtle test
+        self.rate_hz = rate_hz
+        self.dt = 1.0 / rate_hz
+        self.linear_scale = linear_scale
+        self.angular_scale = angular_scale
+        try:
+            self.motor_calc = Motor()
+        except Exception as e:
+            self.get_logger().warn(f'Tidak dapat membuat instance Class Motor: {e}') # Error flagger
+            self.motor_calc = None
+            self.STANDBY = 1500
 
-        # Publisher
-        self.pub_mission = self.create_publisher(UInt8, '/core/mission/current', 10)
-        self.pub_kill    = self.create_publisher(KillSwitch, '/kill_switch', 10)
-        self.pub_joy     = self.create_publisher(Controller, '/controller', 10)
-
-        # Subscriber to lihat PWM
-        self.sub_pwm = self.create_subscription(Pwm, '/pwm', self._pwm_cb, 10)
-
-        self._seq = 0
-        self._pwm_count = 0
-
-        self._timer = self.create_timer(0.5, self._manual_control)  # Tiap 0.5 detik
-        self.get_logger().info('Manual MotorTest started')
-
-    def _manual_control(self):
-        # Aktifkan misi manual (ID = 0)
-        self.pub_mission.publish(UInt8(data=0))
-
-        # Pastikan killswitch OFF
-        self.pub_kill.publish(KillSwitch(data=0))
-
-        # Atur arah gerak secara manual
-        joy = Controller()
-        # Gerakan
-        if self._seq < 3:
-            if self._seq == 0:
-                self.get_logger().info("Maju")
-                joy.linear_y = 300.0
-            elif self._seq == 1:
-                self.get_logger().info("Belok Kiri")
-                joy.angular_z = 300.0
-            elif self._seq == 2:
-                self.get_logger().info("Belok Kanan")
-                joy.angular_z = -300.0
+    def map_twist_to_pwm(self, linear_x, angular_z):
+        linear_ce = int(linear_x * self.linear_scale)
+        angular_ce = int(angular_z * self.angular_scale)
+        left_ce = linear_ce - angular_ce
+        right_ce = linear_ce + angular_ce
+        if self.motor_calc:
+            left_pwm = self.motor_calc.calculateSpeed(left_ce)
+            right_pwm = self.motor_calc.calculateSpeed(right_ce)
         else:
-            self.get_logger().info("Diam")
-            joy.linear_y = 0.0
-            joy.angular_z = 0.0
+            left_pwm = self.STANDBY + left_ce
+            right_pwm = self.STANDBY + right_ce
+        return left_pwm, right_pwm, left_ce, right_ce
 
-        self.pub_joy.publish(joy)
-        self._seq += 1
+    def play_sequence(self):
+        # sequence tuples: (name, linear_x, angular_z, durasi_s)
+        # Tambahkan saja sequence baru di sini
+        seq = [
+            ("idle", 0.0, 0.0, 2.0),
+            ("Maju", 0.5, 0.0, 4.0),
+            ("Kiri", 0.0, 0.6, 3.0),
+            ("Maju", 0.5, 0.0, 4.0),
+            ("Kanan", 0.0, -0.6, 3.0),
+            ("Maju", 0.5, 0.0, 4.0),
+            ("Mundur", -0.5, 0.0, 4.0),
+            ("idle", 0.0, 0.0, 2.0),
+        ]
 
-        if self._seq > 4:
-            self.get_logger().info("Selesai")
-            rclpy.shutdown()
+        try:
+            for name, lx, az, dur in seq:
+                steps = max(1, int(dur * self.rate_hz))
+                self.get_logger().info(f"STEP '{name}': lx={lx} az={az} duration={dur}s -> steps={steps}")
+                start_time = time.time()
+                i = 0
+                while (time.time() - start_time) < dur and rclpy.ok():
+                    msg = Twist()
+                    msg.linear.x = lx
+                    msg.angular.z = az
+                    self.pub.publish(msg)
 
-    def _pwm_cb(self, msg: Pwm):
-        self._pwm_count += 1
-        self.get_logger().info(f'← PWM #{self._pwm_count}: {list(msg.channels)}')
+                    left_pwm, right_pwm, left_ce, right_ce = self.map_twist_to_pwm(lx, az)
+                    self.get_logger().info(f"[{name}] t={i/self.rate_hz:.2f}s -> left_pwm={left_pwm} right_pwm={right_pwm} (ce L={left_ce} R={right_ce})")
+                    
+                    i += 1
+                    rclpy.spin_once(self, timeout_sec=0)
+                    time.sleep(self.dt)
+            self.get_logger().info("Sequence selesai")
+            self.pub.publish(Twist())
+        finally:
+            if self.motor_calc:
+                try:
+                    self.motor_calc.destroy_node()
+                except Exception:
+                    pass
 
 def main(args=None):
     rclpy.init(args=args)
-    node = MotorTest()
-    rclpy.spin(node)
+    node = MotorTest(rate_hz=10)
+    node.play_sequence()
     node.destroy_node()
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
