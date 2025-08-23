@@ -6,8 +6,10 @@ import time
 import traceback
 
 from std_msgs.msg import Float64
-from sensor_msgs.msg import Joy
+from sensor_msgs.msg import Joy, Imu
+from geometry_msgs.msg import Quaternion
 from core_msgs.msg import KillSwitch, Config
+import tf_transformations
 
 from core.utils.config import NodeConfig, Topic, Param
 
@@ -140,29 +142,37 @@ class YawPIDController(Node):
         
         # Control variables
         self.yaw_setpoint = 0.0
-        self.yaw_current = 0.0
-        self.yaw_error = 0.0
+        self.current_yaw = 0.0  # From Pixhawk IMU
+        self.vision_yaw_error = 0.0  # From object detection
         self.yaw_effort = 0.0
         
-        # Control mode flags
-        self.use_direct_error = False  # Set to True if you want to use yaw_error directly
+        # Control modes
+        self.control_mode = "vision"  # "vision", "heading", or "manual"
         self.enabled = True
+        
+        # Vision control parameters
+        self.vision_deadzone = 20.0  # Pixels - ignore small vision errors
+        self.vision_max_error = 320.0  # Max expected pixel error (half screen width)
         
         self._setup_communication()
         
     def _setup_communication(self):
         """Initialize ROS2 subscribers and publishers"""
         
-        # Subscribers
+        # Subscribers for vision-based control
+        self.dsc_sub = self.topic.dsc.createSubscriber(self, self._dsc_callback)
+        
+        # Subscribers for direct control (alternative to vision)
         self.yaw_setpoint_sub = self.topic.yaw_setpoint.createSubscriber(
             self, self._yaw_setpoint_callback
         )
-        self.yaw_current_sub = self.topic.yaw_current.createSubscriber(
-            self, self._yaw_current_callback  
+        
+        # Pixhawk IMU data subscriber
+        self.imu_sub = self.create_subscription(
+            Imu, '/mavros/imu/data', self._imu_callback, 10
         )
-        self.yaw_error_sub = self.topic.yaw_error.createSubscriber(
-            self, self._yaw_error_callback
-        )
+        
+        # Configuration and safety
         self.config_sub = self.topic.pid_config.createSubscriber(
             self, self._config_callback
         )
@@ -175,18 +185,29 @@ class YawPIDController(Node):
         
         self.get_logger().info("YawPIDController communication setup complete")
         
+    def _dsc_callback(self, msg: Float64):
+        """Update vision yaw error from object detection (DSC = Distance from Screen Center)"""
+        self.vision_yaw_error = msg.data
+        self.control_mode = "vision"
+        
     def _yaw_setpoint_callback(self, msg: Float64):
-        """Update yaw setpoint"""
+        """Update yaw setpoint for heading control"""
         self.yaw_setpoint = msg.data
+        self.control_mode = "heading"
         
-    def _yaw_current_callback(self, msg: Float64):
-        """Update current yaw measurement"""
-        self.yaw_current = msg.data
+    def _imu_callback(self, msg: Imu):
+        """Update current yaw from Pixhawk IMU"""
+        # Convert quaternion to euler angles
+        quaternion = [
+            msg.orientation.x,
+            msg.orientation.y, 
+            msg.orientation.z,
+            msg.orientation.w
+        ]
         
-    def _yaw_error_callback(self, msg: Float64):
-        """Update yaw error directly (alternative to setpoint/current)"""
-        self.yaw_error = msg.data
-        self.use_direct_error = True
+        # Extract yaw angle (in radians)
+        euler = tf_transformations.euler_from_quaternion(quaternion)
+        self.current_yaw = euler[2]  # Yaw is the third element (roll, pitch, yaw)
         
     def _config_callback(self, msg: Config):
         """Update PID parameters from configuration"""
@@ -210,17 +231,29 @@ class YawPIDController(Node):
             self.get_logger().info("PID Controller enabled")
     
     def compute_yaw_effort(self):
-        """Compute yaw control effort using PID"""
+        """Compute yaw control effort using PID based on control mode"""
         if not self.enabled:
             return 0.0
+        
+        if self.control_mode == "vision":
+            # Vision-based control (from object detection)
+            # Apply deadzone to reduce jitter from small detection errors
+            if abs(self.vision_yaw_error) < self.vision_deadzone:
+                error = 0.0
+            else:
+                error = self.vision_yaw_error
+                
+            # Normalize error for consistent PID response
+            normalized_error = error / self.vision_max_error
+            effort = self.yaw_pid.compute(0.0, normalized_error)
             
-        if self.use_direct_error:
-            # Use direct error input (from object detection, etc.)
-            # In this case, setpoint is 0 (center) and current is the error
-            effort = self.yaw_pid.compute(0.0, self.yaw_error)
+        elif self.control_mode == "heading":
+            # Heading-based control (using Pixhawk compass)
+            effort = self.yaw_pid.compute(self.yaw_setpoint, self.current_yaw)
+            
         else:
-            # Use setpoint and current value
-            effort = self.yaw_pid.compute(self.yaw_setpoint, self.yaw_current)
+            # Manual or disabled
+            effort = 0.0
             
         return effort
     
@@ -253,9 +286,10 @@ class YawPIDController(Node):
             'kp': self.yaw_pid.kp,
             'ki': self.yaw_pid.ki, 
             'kd': self.yaw_pid.kd,
-            'setpoint': self.yaw_setpoint,
-            'current': self.yaw_current,
-            'error': self.yaw_error if self.use_direct_error else (self.yaw_setpoint - self.yaw_current),
+            'control_mode': self.control_mode,
+            'yaw_setpoint': self.yaw_setpoint,
+            'current_yaw': self.current_yaw,
+            'vision_error': self.vision_yaw_error,
             'effort': self.yaw_effort,
             'enabled': self.enabled
         }
