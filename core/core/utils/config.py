@@ -31,7 +31,7 @@ class Param:
     MOTOR_SPEED = "/motor_controller/motor_speed"
 
 
-class Node:
+class NodeConfig:
     camera_front = "camera_front"
     mission_controller = "mission_controller"
     motor_controller = "motor_controller"
@@ -81,12 +81,13 @@ class Topic:
     mux_state = TopicFactory("/asv/mux_state", UInt8)
 
     # Yaw Controller Thruster (angular z axis)
-    # control_effort_yaw = TopicFactory("/yaw_controller/control_effort", Float64)
-    control_effort_dsc = TopicFactory("/yaw_controller/control_effort", Float64)
-    state_yaw = TopicFactory("/yaw_controller/state", Float64)
-    setpoint_yaw = TopicFactory("/yaw_controller/setpoint", Float64, latch=True)
-    state_dst = TopicFactory("/asv/yaw_controller/state", Float64)
+    yaw_effort = TopicFactory("/yaw_controller/control_effort", Float64)
+    yaw_state = TopicFactory("/yaw_controller/state", Float64)
+    yaw_setpoint = TopicFactory("/yaw_controller/setpoint", Float64, latch=True)
+    yaw_state_dst = TopicFactory("/yaw_controller/state_distance", Float64)
 
+    # Speed Controller Thruster (linear x axis)
+    speed_effort = TopicFactory("/speed_controller/control_effort", Float64)
     # Object Detected
     object_detected = TopicFactory("/asv/vision/object_detected", Bool)
     object_counted = TopicFactory("/core/vision/object_counted", ObjectCount)

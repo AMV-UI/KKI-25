@@ -18,7 +18,7 @@ from core_msgs.msg import (
     Option,
 )
 
-from core.utils.config import Node as NodeConfig, Topic, Param
+from core.utils.config import NodeConfig, Topic, Param
 from core.utils.motor import Motor
 from core.utils.factory import TopicFactory
 
@@ -37,7 +37,8 @@ class MotorController(Node):
     def __init__(self):
         super().__init__('motor_controller')
         
-        self.motor = Motor(delta_effort=150, additional_effort=40)
+        self.motor = Motor(delta_effort=200, additional_effort=50)
+        self.topic = Topic()
 
         self.object_counted = ObjectCount()
         self.joy_state = Joy()
@@ -58,16 +59,26 @@ class MotorController(Node):
 
     def _setup_communication(self):
         """Initialize all ROS2 subscribers and publishers"""
-        # Subscribers
-        self.dsc_control_effort_sub = TopicFactory('control_effort_dsc', Float64).createSubscriber(self, self._dsc_control_effort_callback)
-        self.mission_sub = TopicFactory('auto_control', AutoControl).createSubscriber(self, self._autocontrol_callback)
-        self.object_counted_subscriber = TopicFactory('object_counted', ObjectCount).createSubscriber(self, self._obj_counted_callback)
-        self.dsc_subscriber = TopicFactory('dsc', Float64).createSubscriber(self, self._dsc_callback)
-        self.state_dst_sub = TopicFactory('state_dst', Float64).createSubscriber(self, self._state_dst_callback)
-        self.mission_subscriber = TopicFactory('mission', UInt8).createSubscriber(self, self.mission_callback)
+
+        ##OLD
+        # # Subscribers
+        # self.dsc_control_effort_sub = self.topic.dsc_control_effort.createSubscriber(self, self._dsc_control_effort_callback)
+        # self.mission_sub = self.topic.auto_control.createSubscriber(self, self._autocontrol_callback)
+        # self.object_counted_subscriber = self.topic.object_counted.createSubscriber(self, self._obj_counted_callback)
+        # self.dsc_subscriber = self.topic.dsc.createSubscriber(self, self._dsc_callback)
+        # self.state_dst_sub = self.topic.state_dst.createSubscriber(self, self._state_dst_callback)
+        # self.mission_subscriber = self.topic.mission.createSubscriber(self, self.mission_callback)
         
+        # # Publishers
+        # self.pwm_pub = self.topic.pwm.createPublisher(self)
+
+        ##NEW
+        # Subscribers
+        self.yaw_effort_sub = self.topic.yaw_effort.createSubscriber(self, self._yaw_effort_callback)
+        self.speed_effort_sub = self.topic.speed_effort.createSubscriber(self, self._speed_effort_callback)
+
         # Publishers
-        self.pwm_pub = TopicFactory('pwm', Pwm).createPublisher(self)
+        self.pwm_pub = self.topic.pwm.createPublisher(self)
 
     def display_pwm_status(self):
         """Display current PWM configuration"""
@@ -98,7 +109,7 @@ class MotorController(Node):
 
         for k, v in self.motor.autonomous(
             yaw_effort=0,
-            speed_effort=self.dsc
+            speed_effort=self.speed_effort
         ).items():
             self.pwm.channels[k] = v
 
@@ -106,7 +117,7 @@ class MotorController(Node):
         self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_find_step_two_masuk")
 
         for k, v in self.motor.autonomous(
-            yaw_effort=self.state_dst,
+            yaw_effort=self.yaw_effort,
             speed_effort=350,
         ).items():
             self.pwm.channels[k] = v
@@ -116,7 +127,7 @@ class MotorController(Node):
 
         for k, v in self.motor.autonomous(
             yaw_effort=0,
-            speed_effort=self.dsc
+            speed_effort=self.speed_effort
         ).items():
             self.pwm.channels[k] = v
 
@@ -124,7 +135,7 @@ class MotorController(Node):
         self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_find_step_three_masuk")
 
         for k, v in self.motor.autonomous(
-            yaw_effort=self.state_dst,
+            yaw_effort=self.yaw_effort,
             speed_effort=0
         ).items():
             self.pwm.channels[k] = v
@@ -134,13 +145,13 @@ class MotorController(Node):
 
         for k, v in self.motor.autonomous(
             yaw_effort=0,
-            speed_effort=self.dsc
+            speed_effort=self.speed_effort
         ).items():
             self.pwm.channels[k] = v
 
     def mission_position_green_box(self):
         for k, v in self.motor.autonomous(
-            yaw_effort=self.state_dst,
+            yaw_effort=self.yaw_effort,
             speed_effort=0,
         ).items():
             self.pwm.channels[k] = v
@@ -156,7 +167,7 @@ class MotorController(Node):
 
     def mission_position_blue_box(self):
         for k, v in self.motor.autonomous(
-            yaw_effort=self.state_dst,
+            yaw_effort=self.yaw_effort,
             speed_effort=0,
         ).items():
             self.pwm.channels[k] = v
@@ -179,36 +190,18 @@ class MotorController(Node):
         # Note: updateAdjustment method needs to be implemented in Motor class
         pass
 
-    def _yaw_control_effort_callback(self, msg: Float64):
-        self.yaw_control_effort = msg.data
+    def _yaw_effort_callback(self, msg: Float64):
+        self.yaw_effort = msg.data
 
-    def _dsc_control_effort_callback(self, msg: Float64):
-        self.dsc_control_effort = msg.data
-
-    def _autocontrol_callback(self, msg: AutoControl):
-        self.mission_state.data = msg.data
+    def _speed_effort_callback(self, msg: Float64):
+        self.speed_effort = msg.data
 
     def _killswitch_callback(self, msg: KillSwitch):
         self.killswitch_state.data = msg.data
 
-    def _obj_counted_callback(self, msg: ObjectCount):
-        self.object_counted = msg
-
     def _joy_state_callback(self, msg: Controller):
         self.joy_state = msg
 
-    def _dsc_callback(self, msg: Float64):
-        self.dsc = msg.data
-
-    def _dsc_flag_callback(self, msg: Float64):
-        self.dsc_flag = msg.data
-
-    def mission_callback(self, msg: UInt8):
-        """This method will be called whenever a message is received on the mission topic"""
-        self.current_mission = msg.data
-
-    def _state_dst_callback(self, msg: Float64):
-        self.state_dst = msg.data
 
     def run(self):
         """Main execution loop"""
@@ -230,7 +223,7 @@ class MotorController(Node):
         except Exception as e:
             self.get_logger().error(f"Error in control loop: {traceback.format_exc()}")
 
-    def test_sequence(self):
+    def test_sequence(self, timer):
         """Test sequence to validate motor functionality"""
         self.get_logger().info("Starting motor test sequence...")
         
@@ -240,28 +233,28 @@ class MotorController(Node):
             for k, v in self.motor.autonomous(yaw_effort=0, speed_effort=200).items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
-            time.sleep(2)
+            time.sleep(timer)
 
             # Move backward
             self.get_logger().info("Moving backward...")
             for k, v in self.motor.autonomous(yaw_effort=0, speed_effort=-200).items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
-            time.sleep(2)
+            time.sleep(timer)
 
             # Turn right
             self.get_logger().info("Turning right...")
-            for k, v in self.motor.autonomous(yaw_effort=100, speed_effort=0).items():
-                self.pwm.channels[k] = v
-            self.pwm_pub.publish(self.pwm)
-            time.sleep(2)
-
-            # Turn left
-            self.get_logger().info("Turning left...")
             for k, v in self.motor.autonomous(yaw_effort=-100, speed_effort=0).items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
-            time.sleep(2)
+            time.sleep(timer)
+
+            # Turn left
+            self.get_logger().info("Turning left...")
+            for k, v in self.motor.autonomous(yaw_effort=100, speed_effort=0).items():
+                self.pwm.channels[k] = v
+            self.pwm_pub.publish(self.pwm)
+            time.sleep(timer)
 
             # Stop
             self.get_logger().info("Stopping...")
@@ -275,15 +268,15 @@ class MotorController(Node):
         except Exception as e:
             self.get_logger().error(f"Error during motor test sequence: {traceback.format_exc()}")
 
-            
+
 def main(args=None):
     try:
         rclpy.init(args=args)
 
         motor_control = MotorController()
-        motor_control.run()
-        motor_control.test_sequence()
-        
+        # motor_control.run()
+        motor_control.test_sequence(1)
+
         # Spin the node
         rclpy.spin(motor_control)
         
@@ -292,7 +285,6 @@ def main(args=None):
     finally:
         if rclpy.ok():
             rclpy.shutdown()
-
 
 if __name__ == "__main__":
     main()
