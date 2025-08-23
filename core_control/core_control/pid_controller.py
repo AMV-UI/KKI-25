@@ -62,34 +62,26 @@ class PIDController:
         if dt is None:
             dt = current_time - self._last_time
         
-        # Skip computation if dt is too small
         if dt < self.sample_time:
             return self._last_output
-            
-        # Calculate error
+         
         error = setpoint - current_value
         
-        # Proportional term
         proportional = self.kp * error
         
-        # Integral term with windup prevention
         self._integral += error * dt
         self._integral = max(min(self._integral, self._integral_limit), -self._integral_limit)
         integral = self.ki * self._integral
         
-        # Derivative term
         if dt > 0:
             derivative = self.kd * (error - self._last_error) / dt
         else:
             derivative = 0.0
             
-        # Calculate total output
         output = proportional + integral + derivative
         
-        # Apply output limits
         output = max(min(output, self.output_limits[1]), self.output_limits[0])
         
-        # Store values for next iteration
         self._last_error = error
         self._last_time = current_time
         self._last_output = output

@@ -22,9 +22,10 @@ from core.utils.config import (
 )
 # from core_msgs.msg import *
 from adafruit_simplemath import map_range
-from pymavlink import mavutil
 import time
 from rclpy.node import Node
+import sys
+
 
 ADS_MAX_VAL = 26096
 GAIN_RATIO = 1069 / 1000
@@ -56,6 +57,7 @@ class Microcontroller(Node):
 
         # Node
         # self.node = Node()
+        self.imu = None
 
         # States from pico
         self.ks_kill_state = KillSwitch()
@@ -104,8 +106,6 @@ class Microcontroller(Node):
             observation_covariance=sensor_variance,
             transition_covariance=1e-5,
         )
-        self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
-        self.get_logger().info("<> PWM Subscriber created")
 
     def _init_mc(self):
         devs = os.listdir('/dev')
@@ -143,7 +143,7 @@ class Microcontroller(Node):
             return [float(e) for e in raw_str.replace("\r\n", "").split(",")]
         except Exception as e:
             print(e)
-            print("imgay")
+            print("imgay") #legacy angkatan 22
             return None
 
     @staticmethod
@@ -334,48 +334,148 @@ class Microcontroller(Node):
         self.get_logger().info(f"Mode set to : {self.pxmode}")
         return True
 
-    def request_pixhawk(self):
-        while True:
-            time.sleep(0.1)
-            try:
-                self.ser_2.mav.param_request_read_send(
-                    self.ser_2.target_system,
-                    self.ser_2.target_component,
-                    b"COMPASS_OFS_X",
-                    -1,
-                )
-
-                msg = self.ser_2.recv_match(type="ATTITUDE", blocking=True)
-                yaw_deg = math.degrees(msg.yaw)
-                if yaw_deg < 0:
-                    yaw_deg += 360
-
+    def _request_px(self, timeout=1.0):
+        """
+        Request Pixhawk position data with timeout and error handling
+        
+        Args:
+            timeout (float): Maximum time to wait for data
+            
+        Returns:
+            Pixhawk message or None if failed
+        """
+        start_time = time.time()
+        
+        try:
+            # Get GPS position data
+            msg_coor = None
+            while (time.time() - start_time) < timeout:
                 msg_coor = self.ser_2.recv_match(
-                    type="GLOBAL_POSITION_INT", blocking=True
+                    type="GLOBAL_POSITION_INT", blocking=False
                 )
-                lat = msg_coor.lat / 1e7
-                lon = msg_coor.lon / 1e7
-                alt = (
-                    msg_coor.alt / 1000
-                )  # Altitude in meters (millimeters in the message)
+                if msg_coor:
+                    break
+                time.sleep(0.01)  # Small delay to prevent CPU spinning
+                
+            if not msg_coor:
+                self.get_logger().warn("No GPS position data received")
+                return None
+                
+            # Get VFR_HUD data
+            alignment = None
+            remaining_time = timeout - (time.time() - start_time)
+            if remaining_time > 0:
+                start_vfr = time.time()
+                while (time.time() - start_vfr) < remaining_time:
+                    alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=False)
+                    if alignment:
+                        break
+                    time.sleep(0.01)
+                    
+            if not alignment:
+                self.get_logger().warn("No VFR_HUD data received")
+                return None
+                
+            # Validate GPS coordinates
+            lat = msg_coor.lat / 1e7
+            lon = msg_coor.lon / 1e7
+            
+            # Basic GPS validation
+            if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                self.get_logger().warn(f"Invalid GPS coordinates: lat={lat}, lon={lon}")
+                return None
+                
+            # Update Pixhawk message
+            self.pixhawk.lat = lat
+            self.pixhawk.lon = lon
+            self.pixhawk.alt = msg_coor.alt / 1000.0  # Convert to meters
+            self.pixhawk.msg_heading = alignment.heading
+            self.pixhawk.msg_spd = alignment.groundspeed
+            
+            return self.pixhawk
+            
+        except Exception as e:
+            self.get_logger().error(f"Error requesting Pixhawk data: {e}")
+            return None
 
-                alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=True)
+    def _request_px_imu(self, timeout=0.5):
+        """
+        Request Pixhawk IMU data with timeout and error handling
+        
+        Args:
+            timeout (float): Maximum time to wait for data
+            
+        Returns:
+            IMU yaw angle in degrees or None if failed
+        """
+        start_time = time.time()
+        
+        try:
+            # Get ATTITUDE message
+            msg = None
+            while (time.time() - start_time) < timeout:
+                msg = self.ser_2.recv_match(type="ATTITUDE", blocking=False)
+                if msg:
+                    break
+                time.sleep(0.01)
+                
+            if not msg:
+                self.get_logger().warn("No IMU attitude data received")
+                return None
+                
+            # Convert yaw to degrees
+            yaw_deg = math.degrees(msg.yaw)
+            
+            # Normalize to 0-360 range
+            if yaw_deg < 0:
+                yaw_deg += 360
+            elif yaw_deg >= 360:
+                yaw_deg -= 360
+                
+            # Validate yaw range
+            if not (0 <= yaw_deg <= 360):
+                self.get_logger().warn(f"Invalid yaw angle: {yaw_deg}")
+                return None
+                
+            self.imu = yaw_deg
+            return self.imu
+            
+        except Exception as e:
+            self.get_logger().error(f"Error requesting IMU data: {e}")
+            return None
 
-                msg_spd = alignment.groundspeed  # Ground speed in m/s
-                msg_heading = alignment.heading
-                # airspeed = msg.airspeed  # Airspeed in m/s
+    def _init_compass_calibration(self):
+        """
+        Initialize compass calibration (call once during startup)
+        """
+        try:
+            self.ser_2.mav.param_request_read_send(
+                self.ser_2.target_system,
+                self.ser_2.target_component,
+                b"COMPASS_OFS_X",
+                -1,
+            )
+            self.get_logger().info("Compass calibration parameters requested")
+        except Exception as e:
+            self.get_logger().error(f"Error requesting compass calibration: {e}")
 
-                self.pixhawk.lat = lat
-                self.pixhawk.lon = lon
-                self.pixhawk.alt = alt
-                self.pixhawk.msg_heading = msg_heading
-                self.pixhawk.msg_spd = msg_spd
-
-                return self.pixhawk
-
-            except Exception as error:
-                print(error)
-                sys.exit(0)
+    def _update_pixhawk_data(self):
+        """
+        Non-blocking update of Pixhawk data for use in main loop
+        """
+        # Update GPS/navigation data (less frequent)
+        if not hasattr(self, '_last_px_update') or (time.time() - self._last_px_update) > 0.2:
+            px_data = self._request_px(timeout=0.1)
+            if px_data:
+                self._last_px_update = time.time()
+                
+        # Update IMU data (more frequent)
+        if not hasattr(self, '_last_imu_update') or (time.time() - self._last_imu_update) > 0.05:
+            imu_data = self._request_px_imu(timeout=0.05)
+            if imu_data is not None:
+                self._last_imu_update = time.time()
+                
+        return self.pixhawk, self.imu
 
     def main(self):
 
@@ -386,91 +486,79 @@ class Microcontroller(Node):
         self.mux_state_msg = UInt8()
 
         # Publisher
-        kill_switch_pub = Topic.kill_switch.createPublisher(self)
-        heading_deg_pub = Topic.heading_deg.createPublisher(self)
-        auto_status_remote_pub = Topic.auto_status_remote.createPublisher(self)
-        jetson_batt_pub = Topic.jetson_batt.createPublisher(self)
-        motor_batt_pub = Topic.motor_batt.createPublisher(self)
-        mux_state_pub = Topic.mux_state.createPublisher(self)
-        pixhawk_pub = Topic.pixhawk.createPublisher(self)
-        pxmode_pub = Topic.pxmode.createPublisher(self)
+        self.kill_switch_pub = Topic.kill_switch.createPublisher(self)
+        self.heading_deg_pub = Topic.heading_deg.createPublisher(self)
+        self.auto_status_remote_pub = Topic.auto_status_remote.createPublisher(self)
+        self.jetson_batt_pub = Topic.jetson_batt.createPublisher(self)
+        self.motor_batt_pub = Topic.motor_batt.createPublisher(self)
+        self.mux_state_pub = Topic.mux_state.createPublisher(self)
+        self.pixhawk_pub = Topic.pixhawk.createPublisher(self)
+        self.pxmode_pub = Topic.pxmode.createPublisher(self)
+        self.get_logger().info("<> Pixhawk Publisher created")
 
         # Subscriber
-        # self.pwm_sub = Topic.pwm.createSubscriber(self._pwm_callback)
+        self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
+        self.get_logger().info("<> PWM Subscriber created")
         # auto_status_gcs_sub = Topic.auto_status_gcs.createSubscriber(self.auto_status_gcs_cb)
 
-        while rclpy.ok():
-            if (
-                self.mc1 == MiconType.NONE
-                or self.mc2 == MiconType.NONE
-                or self.ser_2 is None
-            ):
+        # Initialize compass calibration once
+        self._init_compass_calibration()
+        
+        # Create timer for periodic updates instead of while loop
+        self.timer = self.create_timer(0.02, self._main_loop_callback)  # 50Hz
+        
+        self.get_logger().info("Microcontroller node started")
+
+    def _main_loop_callback(self):
+        """Main loop callback executed at 50Hz"""
+        try:
+            if (self.mc1 == MiconType.NONE or 
+                self.mc2 == MiconType.NONE or 
+                self.ser_2 is None):
                 self.get_logger().error("micon not found")
                 self._init_mc()
-                continue
-
-            self.get_logger().info("micon found")
-
-            # data = self._read_sensor_esp32()
-            # if not data:
-            #    continue
-
-            # Inserting Data
-            self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
-            # aneh errornya, kl pke uint16 error tipe data harus int, kalau pake int error tipe data harus uint16
-            # self.jetson_batt_msg.data = np.uint16(self.jetson_batt) 
-            # self.motor_batt_msg.data = np.uint16(self.motor_batt)
-            # self.mux_state_msg.data = np.uint8(self.mux_state)
-
+                return
+                
+            # Update Pixhawk data non-blocking
+            pixhawk_data, imu_data = self._update_pixhawk_data()
+            
+            # Update other sensor data
+            data = self._read_sensor_esp32()
+            
+            # Prepare messages
+            self.msg_heading_msg.data = float(self.pixhawk.msg_heading) if pixhawk_data else 0.0
+            
             # Publish data
-            kill_switch_pub.publish(self.ks_kill_state)
-            heading_deg_pub.publish(self.msg_heading_msg)
-            auto_status_remote_pub.publish(self.auto_status_remote)
-            # jetson_batt_pub.publish(self.jetson_batt_msg)
-            # motor_batt_pub.publish(self.motor_batt)
-            # internal_temp_pub.publish(self.internal_temp_deg)
-            # mux_state_pub.publish(self.mux_state)
-            # pixhawk_pub.publish(self.request_pixhawk())
-            # pxmode_pub.publish(self.pxmode)
+            if pixhawk_data:
+                self.pixhawk_pub.publish(pixhawk_data)
+            if imu_data is not None:
+                imu_msg = Float64()
+                imu_msg.data, _ = self._get_filtered_heading(imu_data)
+                self.heading_deg_pub.publish(imu_msg)
+            if data:
+                self.jetson_batt_msg.data = int(self._battery_value(self.jetson_batt))
+                self.motor_batt_msg.data = int(self._battery_value(self.motor_batt))
+                self.mux_state_msg.data = int(self.mux_state)
 
-            # if (self.echosounder_dist >= 0 and self.echosounder_conf >= 0):
-            # echo_dist_pub.publish(self.echosounder_dist)
-            # echo_conf_pub.publish(self.echosounder_conf)
+                self.kill_switch_pub.publish(self.ks_kill_state)
+                self.jetson_batt_pub.publish(self.jetson_batt_msg)
+                self.motor_batt_pub.publish(self.motor_batt_msg)
+                self.mux_state_pub.publish(self.mux_state_msg)
 
-            # print(self.jetson_batt, "gay")
-
-            filtered_avg = 0.0
-            N_ITR = 10
-
-            # self.set_rc_channel_pwm(2, 1800)
+            # Handle PWM
             rc_chans = self._px_rc_val()
-            self._px_set_mode(rc_chans.chan8_raw)
-            self._send_pwm(rc_chans)
-
-            self._get_pwm()
-            self.get_logger().info("Sending PWM...")
-
-            # self.rate.sleep()
-            self.get_logger().info("Successfully initialized node")
-
-            # if self.ser_0.in_waiting :
-            #    raw_ser_1 = self.ser_1.readline().decode()
-            #    print(raw_ser_1)
-            #    if raw_ser_1[0] == "s":
-            #        parsed_data = self._parse_raw(raw_ser_1[1:])
-            #        self.jetson_batt, self.motor_batt, depth, ks_state, self.dht22_raw, self.tbs_pwm_in, mux_state, heading_deg, self.echosounder_dist, self.echosounder_conf = parsed_data
-            #        print(self.jetson_batt)
+            if rc_chans:
+                self._px_set_mode(rc_chans.chan8_raw)
+                self._send_pwm(rc_chans)
+                
+        except Exception as e:
+            self.get_logger().error(f"Error in main loop: {e}")
 
 
 def main(args=None):
     rclpy.init(args=args)
-    micon = Microcontroller()
-    micon.main()
-
-
-if __name__ == "__main__":
-    try:
-        main()
-
-    except Exception:
-        rclpy.logerr(traceback.format_exc())
+    microcontroller_node = Microcontroller()
+    microcontroller_node.main()
+    rclpy.spin(microcontroller_node)
+    microcontroller_node.destroy_node()
+    rclpy.shutdown()
