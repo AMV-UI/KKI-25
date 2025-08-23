@@ -21,15 +21,14 @@ class Motor(Node):
     # Kill switch values
     KILL_BUTTON, KILL_ON, KILL_OFF = 1200, 1500, 1800
 
-    def __init__(self, offset_horizontal=100, motor_adjust=0):  # Reduced for T200
+    def __init__(self, delta_effort=100, additional_effort=0):  # Reduced for T200
         super().__init__('motor')
-        self.FORWARD = self.STANDBY + offset_horizontal
-        self.BACKWARD = self.STANDBY - offset_horizontal
-        self.motor_adjust = motor_adjust
+        self.FORWARD = self.STANDBY + delta_effort
+        self.BACKWARD = self.STANDBY - delta_effort
+        self.motor_adjust = additional_effort
 
         self.channel = Channel
         
-        # Declare parameters
         self.declare_parameter(Param.MOTOR_SPEED, SPEED.Maximum)
         self.declare_parameter(Param.X_SPEED, SPEED.Maximum)
 
@@ -55,7 +54,7 @@ class Motor(Node):
 
     def _check_and_log_pwm(self, motor_commands, action_name="Unknown"):
         """
-        Check PWM values for both motors and log the information
+        Check PWM values and validate for both motors and log the information
         """
         left_motor_pwm = motor_commands.get(self.channel.MOTOR_X, self.STANDBY)
         right_motor_pwm = motor_commands.get(self.channel.MOTOR_Y, self.STANDBY)
@@ -194,8 +193,18 @@ class Motor(Node):
     def autonomous(self, yaw_effort=0, speed_effort=0):
         """
         Autonomous movement using PID outputs:
-        - yaw_effort: correction from heading PID (left vs right bias)
+        - yaw_effort: correction from heading PID (left vs right bias), the higher the value, the sharper right turn
         - speed_effort: correction from speed PID (overall forward/backward throttle)
+
+        Example:
+        motor.autonomous(yaw_effort=0, speed_effort=100)
+        Result: Both motors at 1600 PWM (equal thrust forward)
+
+        motor.autonomous(yaw_effort=50, speed_effort=100)
+        # Result: 
+        # Left motor: 1500 + (100-50) = 1550 PWM
+        # Right motor: 1500 + (100+50) = 1650 PWM
+        # Vehicle moves forward while turning right
         """
         
         left_pwm = self.calculateSpeed(speed_effort - yaw_effort)
@@ -209,7 +218,6 @@ class Motor(Node):
 
 
     def set_speed_profile(self, profile_name):
-        """Set speed profile instead of using static methods"""
         speed_profiles = {
             'reset': (SPEED.Maximum, SPEED.Maximum),
             'half_detected': (SPEED.MediumFast, SPEED.Medium),
