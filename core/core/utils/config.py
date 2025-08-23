@@ -47,6 +47,10 @@ class Node:
 
 
 class Topic:
+
+    # Motor_controller
+    controller = TopicFactory('/controller', Controller)
+
     # Autocontrol/Mode
     auto_control = TopicFactory("asv/auto_control/", AutoControl)
 

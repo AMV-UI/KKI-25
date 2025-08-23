@@ -2,11 +2,11 @@
 
 from statistics import variance
 import rclpy
+from rclpy.node import Node
 import traceback
-import actionlib
 import time
 
-from core_msgs.msg import Bool, Float64, UInt16, UInt32, UInt8
+from std_msgs.msg import Bool, Float64, UInt16, UInt32, UInt8
 from sensor_msgs.msg import Joy
 from core_msgs.msg import (
     KillSwitch,
@@ -18,48 +18,26 @@ from core_msgs.msg import (
     Option,
 )
 
-from core.utils.config import Node, Topic, Param
+from core.utils.config import Node as NodeConfig, Topic, Param
 from core.utils.motor import Motor
-from core.utils.converter import autocontrolToString
-
-from core_msgs.msg import (
-    SendMissionAction,
-    SendMissionActionFeedback,
-    SendMissionActionGoal,
-    SendMissionActionResult,
-    SendMissionFeedback,
-    SendMissionGoal,
-    SendMissionResult,
-)
+from core.utils.factory import TopicFactory
 
 
-""" Mappings """
-# _kill_switch_map = {
-#     KillSwitch.HARDWARE: Motor.KILL_BUTTON,
-#     KillSwitch.ON: Motor.KILL_ON,
-#     KillSwitch.OFF: Motor.KILL_OFF,
-# }
-
-
-class MotorController:
+class MotorController(Node):
     """
-    GET A GOAL FROM:
-        - core_behavior_tree.mission
-    SUBSCRIBES:
-        - TODO:
+    WILL BE USED IN:
+    - Core Behavior Tree
+
+    USES:
+    - Motor Node in core.utils
     PUBLISHES:
         - PWM to core_control.microcontroller
     """
 
     def __init__(self):
-        # actionlib
-        self.motor = Motor()
-
-        # Initialize state variables
-
-        self.yaw_control_effort = float()
-        self.dsc_control_effort = float()
-        # self.killswitch_state = KillSwitch()
+        super().__init__('motor_controller')
+        
+        self.motor = Motor(delta_effort=150, additional_effort=40)
 
         self.object_counted = ObjectCount()
         self.joy_state = Joy()
@@ -68,170 +46,138 @@ class MotorController:
         self.pwm = Pwm()
 
         self.killswitch_state = KillSwitch()
-        self.killswitch_state.data = KillSwitch.default
-
-        # self.bow = rospy.get_param(Param.MOTOR_SPEED)
-        # self.x = rospy.get_param(Param.X_SPEED)
+        self.killswitch_state.data = KillSwitch.DEFAULT
 
         self.dsc = float()
         self.dsc_flag = float()
         self.state_dst = float()
+        self.yaw_control_effort = float()
+        self.dsc_control_effort = float()
 
-        self.mission_state = AutoControl()
+        self._setup_communication()
 
-        self.current_strat = Option()
-        self.strat_map = {
-            AutoControl.MANUAL: self.manual,
-            AutoControl.MISSION_FIND_STEP_ONE: self.mission_find_step_one,
-            AutoControl.MISSION_FIND_STEP_TWO: self.mission_find_step_two,
-            AutoControl.MISSION_FIND_STEP_THREE: self.mission_find_step_three,
-            AutoControl.MISSION_STEP_ONE: self.mission_step_one,
-            AutoControl.MISSION_STEP_TWO: self.mission_step_two,
-            AutoControl.MISSION_STEP_THREE: self.mission_step_three,
-            AutoControl.MISSION_POSITION_GREEN_BOX: self.mission_position_green_box,
-            AutoControl.MISSION_TAKE_GREEN_BOX: self.mission_take_green_box,
-            AutoControl.MISSION_POSITION_BLUE_BOX: self.mission_position_blue_box,
-            AutoControl.MISSION_TAKE_BLUE_BOX: self.mission_take_blue_box,
-            AutoControl.MISSION_DOCKING: self.mission_docking,
-            # AutoControl.MISSION_DONE : self.MISSION_DONE
-        }
+    def _setup_communication(self):
+        """Initialize all ROS2 subscribers and publishers"""
+        # Subscribers
+        self.dsc_control_effort_sub = TopicFactory('control_effort_dsc', Float64).createSubscriber(self, self._dsc_control_effort_callback)
+        self.mission_sub = TopicFactory('auto_control', AutoControl).createSubscriber(self, self._autocontrol_callback)
+        self.object_counted_subscriber = TopicFactory('object_counted', ObjectCount).createSubscriber(self, self._obj_counted_callback)
+        self.dsc_subscriber = TopicFactory('dsc', Float64).createSubscriber(self, self._dsc_callback)
+        self.state_dst_sub = TopicFactory('state_dst', Float64).createSubscriber(self, self._state_dst_callback)
+        self.mission_subscriber = TopicFactory('mission', UInt8).createSubscriber(self, self.mission_callback)
+        
+        # Publishers
+        self.pwm_pub = TopicFactory('pwm', Pwm).createPublisher(self)
 
-        self.current_mission = AutoControl.MISSION_FIND_STEP_ONE
+    def display_pwm_status(self):
+        """Display current PWM configuration"""
+        status = self.motor.get_pwm_status()
+        self.get_logger().info("PWM Configuration:")
+        self.get_logger().info(f"  - Range: {status['pwm_range']['min']} to {status['pwm_range']['max']}")
+        self.get_logger().info(f"  - Standby: {status['pwm_range']['standby']}")
+        self.get_logger().info(f"  - Forward: {status['pwm_range']['forward']}")
+        self.get_logger().info(f"  - Backward: {status['pwm_range']['backward']}")
+        self.get_logger().info(f"  - Motor Adjust: {status['motor_adjust']}")
+        self.get_logger().info("=" * 60)
 
     def manual(self):
         for k, v in self.motor.idle().items():
             self.pwm.channels[k] = v
 
     def mission_find_step_one(self):
-        # rospy.loginfo(f"<=> [{Node.motor_controller}] Mission_find_step_one_masuk")
+        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_find_step_one_masuk")
 
         for k, v in self.motor.autonomous(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
-            control_effort_x=0,
-            control_effort_y=300,
+            yaw_effort=0,
+            speed_effort=300,
         ).items():
             self.pwm.channels[k] = v
 
     def mission_step_one(self):
-        # rospy.loginfo(f"<=> [{Node.motor_controller}] Mission_step_one_masuk")
+        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_step_one_masuk")
 
         for k, v in self.motor.autonomous(
-            # TODO: yaw control effort reconfig value
-            # control_effort_x=dcs
-            control_effort_x=self.dsc
+            yaw_effort=0,
+            speed_effort=self.dsc
         ).items():
             self.pwm.channels[k] = v
 
     def mission_find_step_two(self):
-        # rorspy.loginfo(f"<=> [{Node.motor_controller}] Mission_find_step_two_masuk")
+        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_find_step_two_masuk")
 
-        for k, v in self.motor.finding_turn(
-            # control_effort_yaw_bow=self.yaw_control_effort,
-            control_effort_x=self.state_dst,
-            control_effort_y=350,
+        for k, v in self.motor.autonomous(
+            yaw_effort=self.state_dst,
+            speed_effort=350,
         ).items():
             self.pwm.channels[k] = v
 
     def mission_step_two(self):
-        # rospy.loginfo(f"<=> [{Node.motor_controller}] Mission_step_two_masuk")
+        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_step_two_masuk")
 
         for k, v in self.motor.autonomous(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
-            control_effort_x=self.dsc
+            yaw_effort=0,
+            speed_effort=self.dsc
         ).items():
             self.pwm.channels[k] = v
 
     def mission_find_step_three(self):
-        # rospy.loginfo(f"<=> [{Node.motor_controller}] Mission_find_step_three_masuk")
+        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_find_step_three_masuk")
 
-        for k, v in self.motor.finding_turn(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
-            control_effort_x=self.state_dst
+        for k, v in self.motor.autonomous(
+            yaw_effort=self.state_dst,
+            speed_effort=0
         ).items():
             self.pwm.channels[k] = v
 
     def mission_step_three(self):
-        # rospy.loginfo(f"<=> [{Node.motor_controller}] Mission_step_three_masuk")
+        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_step_three_masuk")
 
         for k, v in self.motor.autonomous(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
-            control_effort_x=self.dsc
+            yaw_effort=0,
+            speed_effort=self.dsc
         ).items():
             self.pwm.channels[k] = v
 
     def mission_position_green_box(self):
-        for k, v in self.motor.finding_turn(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
-            control_effort_x=self.state_dst,
+        for k, v in self.motor.autonomous(
+            yaw_effort=self.state_dst,
+            speed_effort=0,
         ).items():
             self.pwm.channels[k] = v
 
     def mission_take_green_box(self):
-        # rospy.loginfo(f"<=> [{Node.motor_controller}] Mission_green_box_masuk")
+        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_green_box_masuk")
 
-        for k, v in self.motor.finding_turn(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
-            control_effort_x=0,
-            control_effort_y=0,
+        for k, v in self.motor.autonomous(
+            yaw_effort=0,
+            speed_effort=0,
         ).items():
             self.pwm.channels[k] = v
 
     def mission_position_blue_box(self):
-        for k, v in self.motor.finding_turn(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
-            control_effort_x=self.state_dst,
+        for k, v in self.motor.autonomous(
+            yaw_effort=self.state_dst,
+            speed_effort=0,
         ).items():
             self.pwm.channels[k] = v
 
     def mission_take_blue_box(self):
-        # rospy.loginfo(f"<=> [{Node.motor_controller}] Mission_blue_box_masuk")
+        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_blue_box_masuk")
 
-        for k, v in self.motor.finding_turn(
-            # TODO: yaw control effort reconfig value
-            # control_effort_yaw_bow=self.yaw_control_effort,
-            control_effort_x=0,
-            control_effort_y=0,
+        for k, v in self.motor.autonomous(
+            yaw_effort=0,
+            speed_effort=0,
         ).items():
             self.pwm.channels[k] = v
 
     def mission_docking(self):
-        pass
-
-    # def do_motor(self):
-    #     while not rospy.is_shutdown():
-    #         self.pwm.channels = [int(val) for val in self.pwm.channels]
-    #         # Publish pwm
-    #         self.pwm_pub.publish(self.pwm)
-
-    def execute_strategy(self, auto_control_state):
-        """
-        Lookup and executes the strategy based on the current mission state (auto_control_state).
-        """
-        try:
-            # lookup strat
-            strategy_function = self.strat_map.get(auto_control_state, None)
-            # print(strategy_function)
-
-            if strategy_function:
-                strategy_function()
-            # else:
-            #     rospy.logwarn(f"Unknown AutoControl state: {auto_control_state}")
-
-        except KeyError as e:
-            rospy.logerr(f"Strategy not found for AutoControl state: {e}")
-        except Exception as e:
-            rospy.logerr(f"Error while executing strategy: {traceback.format_exc()}")
+        for k, v in self.motor.idle().items():
+            self.pwm.channels[k] = v
 
     def _gcs_cam_config_callback(self, msg: Config):
         """Update motor configuration from GCS"""
-        self.motor.updateAdjustment(msg.back_adjust, msg.bow_adjust, msg.azimuth_adjust)
+        # Note: updateAdjustment method needs to be implemented in Motor class
+        pass
 
     def _yaw_control_effort_callback(self, msg: Float64):
         self.yaw_control_effort = msg.data
@@ -258,48 +204,95 @@ class MotorController:
         self.dsc_flag = msg.data
 
     def mission_callback(self, msg: UInt8):
-        # This method will be called whenever a message is received on the mission topic
-        # self.mission_sub = msg.data
+        """This method will be called whenever a message is received on the mission topic"""
         self.current_mission = msg.data
 
     def _state_dst_callback(self, msg: Float64):
         self.state_dst = msg.data
 
-    def main(self) -> None:
-        # SUBCRIBERS
-        dsc_control_effort_sub = Topic.control_effort_dsc.createSubscriber(
-            self._dsc_control_effort_callback
-        )
-        mission_sub = Topic.auto_control.createSubscriber(self._autocontrol_callback)
-        object_counted_subscriber = Topic.object_counted.createSubscriber(
-            self._obj_counted_callback
-        )
-        dsc_subscriber = Topic.dsc.createSubscriber(self._dsc_callback)
-        state_dst_sub = Topic.state_dst.createSubscriber(self._state_dst_callback)
-        self.pwm_pub = Topic.pwm.createPublisher()
-        self.mission_sub = Topic.mission.createSubscriber(self.mission_callback)
+    def run(self):
+        """Main execution loop"""
+        # Display initial PWM status
+        self.display_pwm_status()
 
-        while not rospy.is_shutdown():
-            self.execute_strategy(self.current_mission)
+        self.timer = self.create_timer(0.02, self.control_loop)  # 50Hz
+        
+        self.get_logger().info(f"<> [{NodeConfig.motor_controller}] Successfully initialized node")
+
+    def control_loop(self):
+        """Main control loop executed at 50Hz"""
+        try:
 
             self.pwm.channels = [int(val) for val in self.pwm.channels]
-            # Publish pwm
+
             self.pwm_pub.publish(self.pwm)
+            
+        except Exception as e:
+            self.get_logger().error(f"Error in control loop: {traceback.format_exc()}")
 
-            rospy.loginfo_once(
-                f"<> [{Node.motor_controller}] Successfully initialized node"
-            )
+    def test_sequence(self):
+        """Test sequence to validate motor functionality"""
+        self.get_logger().info("Starting motor test sequence...")
+        
+        try:
+            # Move forward
+            self.get_logger().info("Moving forward...")
+            for k, v in self.motor.autonomous(yaw_effort=0, speed_effort=200).items():
+                self.pwm.channels[k] = v
+            self.pwm_pub.publish(self.pwm)
+            time.sleep(2)
 
-            rospy.Rate(50).sleep()
+            # Move backward
+            self.get_logger().info("Moving backward...")
+            for k, v in self.motor.autonomous(yaw_effort=0, speed_effort=-200).items():
+                self.pwm.channels[k] = v
+            self.pwm_pub.publish(self.pwm)
+            time.sleep(2)
+
+            # Turn right
+            self.get_logger().info("Turning right...")
+            for k, v in self.motor.autonomous(yaw_effort=100, speed_effort=0).items():
+                self.pwm.channels[k] = v
+            self.pwm_pub.publish(self.pwm)
+            time.sleep(2)
+
+            # Turn left
+            self.get_logger().info("Turning left...")
+            for k, v in self.motor.autonomous(yaw_effort=-100, speed_effort=0).items():
+                self.pwm.channels[k] = v
+            self.pwm_pub.publish(self.pwm)
+            time.sleep(2)
+
+            # Stop
+            self.get_logger().info("Stopping...")
+            for k, v in self.motor.idle().items():
+                self.pwm.channels[k] = v
+            self.pwm_pub.publish(self.pwm)
+            time.sleep(2)
+
+            self.get_logger().info("Motor test sequence completed successfully.")
+
+        except Exception as e:
+            self.get_logger().error(f"Error during motor test sequence: {traceback.format_exc()}")
+
+            
+def main(args=None):
+    try:
+        rclpy.init(args=args)
+
+        motor_control = MotorController()
+        motor_control.run()
+        motor_control.test_sequence()
+        
+        # Spin the node
+        rclpy.spin(motor_control)
+        
+    except Exception as e:
+        print(f"Error in main: {traceback.format_exc()}")
+    finally:
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":
-    try:
-        # Initialize node
-        rospy.init_node(Node.motor_controller)
-
-        motor_control = MotorController()
-        motor_control.main()
-
-    except Exception as e:
-        rospy.logerr(traceback.format_exc())
+    main()

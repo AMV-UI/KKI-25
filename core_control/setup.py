@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             'motor_controller = core_control.motor_controller:main',
             'microcontroller_rov = core_control.microcontroller_rov:main',
+            'motor_test = scripts.motor_test:main',
             'microcontroller_asv = core_control.microcontroller_asv:main'
         ],
     },
