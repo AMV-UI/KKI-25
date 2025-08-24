@@ -82,11 +82,11 @@ class Topic:
     diagnostics = TopicFactory("/core/diagnostics", String)
 
 
-    # Yaw Controller Thruster (angular z axis)
-    yaw_effort = TopicFactory("/core/yaw_controller/control_effort", Float64)
-    yaw_state = TopicFactory("/core/yaw_controller/state", Float64)
-    yaw_setpoint = TopicFactory("/core/yaw_controller/setpoint", Float64, latch=True)
-    yaw_state_dst = TopicFactory("/core/yaw_controller/state_distance", Float64)
+    # PID Controller Topics
+    yaw_effort = TopicFactory("/core/pid_controller/control_effort", Float64)
+    yaw_state = TopicFactory("/core/pid_controller/state", Float64)
+    yaw_setpoint = TopicFactory("/core/pid_controller/setpoint", Float64, latch=True)
+    yaw_dst = TopicFactory("/core/pid_controller/distance", Float64)
 
     # Speed Controller Thruster (linear x axis)
     speed_effort = TopicFactory("/core/speed_controller/control_effort", Float64)
