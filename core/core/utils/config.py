@@ -35,7 +35,7 @@ class NodeConfig:
     camera_front = "camera_front"
     mission_controller = "mission_controller"
     motor_controller = "motor_controller"
-    pid_publisher = "pid_publisher"
+    pid_controller = "pid_controller"
     mission_control = "mission_controller"
     microcontroller = "microcontroller"
     cam_recorder = "cam_recorder"

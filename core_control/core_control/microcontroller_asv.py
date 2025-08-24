@@ -11,6 +11,7 @@ from pymavlink import mavutil
 from pykalman import KalmanFilter
 from std_msgs.msg import Float64, UInt8, UInt16
 from core_msgs_asv.msg import Pwm, AutoControl, KillSwitch, Pixhawk
+
 from core.utils.config import (
     AutoState,
     RemoteState,
@@ -19,6 +20,7 @@ from core.utils.config import (
     SETPOINT,
     Param,
     PxMode,
+    NodeConfig
 )
 # from core_msgs.msg import *
 from adafruit_simplemath import map_range
@@ -50,7 +52,7 @@ class MiconType:
 
 class Microcontroller(Node):
     def __init__(self):
-        super().__init__('Microcontroller')  # Initialize the parent Node class
+        super().__init__(NodeConfig.microcontroller)
         self.pwm_chan = Pwm()
         self.mc1 = MiconType.NONE
         self.mc2 = MiconType.NONE
@@ -484,6 +486,7 @@ class Microcontroller(Node):
         self.jetson_batt_msg = UInt16()
         self.motor_batt_msg = UInt16()
         self.mux_state_msg = UInt8()
+        self.imu_msg = Float64()
 
         # Publisher
         self.kill_switch_pub = Topic.kill_switch.createPublisher(self)
@@ -532,9 +535,8 @@ class Microcontroller(Node):
             if pixhawk_data:
                 self.pixhawk_pub.publish(pixhawk_data)
             if imu_data is not None:
-                imu_msg = Float64()
-                imu_msg.data, _ = self._get_filtered_heading(imu_data)
-                self.heading_deg_pub.publish(imu_msg)
+                self.imu_msg.data, _ = self._get_filtered_heading(imu_data)
+                self.heading_deg_pub.publish(self.imu_msg)
             if data:
                 self.jetson_batt_msg.data = int(self._battery_value(self.jetson_batt))
                 self.motor_batt_msg.data = int(self._battery_value(self.motor_batt))
@@ -558,7 +560,10 @@ class Microcontroller(Node):
 def main(args=None):
     rclpy.init(args=args)
     microcontroller_node = Microcontroller()
+
+    # microcontroller_node._test_dummy_data()
     microcontroller_node.main()
+
     rclpy.spin(microcontroller_node)
     microcontroller_node.destroy_node()
     rclpy.shutdown()

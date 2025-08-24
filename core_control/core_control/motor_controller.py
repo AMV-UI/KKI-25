@@ -35,7 +35,7 @@ class MotorController(Node):
     """
 
     def __init__(self):
-        super().__init__('motor_controller')
+        super().__init__(NodeConfig.motor_controller)
         
         self.motor = Motor(delta_effort=200, additional_effort=50)
         self.topic = Topic()
