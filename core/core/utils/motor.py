@@ -23,6 +23,11 @@ class Motor(Node):
 
     def __init__(self, delta_effort=100, additional_effort=0):  # Reduced for T200
         super().__init__('motor')
+        """
+        delta_effort: Speed adjustment from standby (e.g., 100 for T200)
+        additional_effort: Fine-tuning adjustment (e.g., 0 for T200)
+        Channel: MOTOR_X (left), MOTOR_Y (right)
+        """
         self.FORWARD = self.STANDBY + delta_effort
         self.BACKWARD = self.STANDBY - delta_effort
         self.motor_adjust = additional_effort
