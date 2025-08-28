@@ -38,7 +38,6 @@ class MotorController(Node):
         super().__init__(NodeConfig.motor_controller)
         
         self.motor = Motor(delta_effort=200, additional_effort=50)
-        self.topic = Topic()
 
         self.object_counted = ObjectCount()
         self.joy_state = Joy()
@@ -52,8 +51,8 @@ class MotorController(Node):
         self.dsc = float()
         self.dsc_flag = float()
         self.state_dst = float()
-        self.yaw_control_effort = float()
-        self.dsc_control_effort = float()
+        self.yaw_effort = float()
+        self.speed_effort = float()
 
         self._setup_communication()
 
@@ -74,11 +73,11 @@ class MotorController(Node):
 
         ##NEW
         # Subscribers
-        self.yaw_effort_sub = self.topic.yaw_effort.createSubscriber(self, self._yaw_effort_callback)
-        self.speed_effort_sub = self.topic.speed_effort.createSubscriber(self, self._speed_effort_callback)
+        self.yaw_effort_sub = Topic.yaw_effort.createSubscriber(self, self._yaw_effort_callback)
+        self.speed_effort_sub = Topic.speed_effort.createSubscriber(self, self._speed_effort_callback)
 
         # Publishers
-        self.pwm_pub = self.topic.pwm.createPublisher(self)
+        self.pwm_pub = Topic.pwm.createPublisher(self)
 
     def display_pwm_status(self):
         """Display current PWM configuration"""
@@ -92,103 +91,18 @@ class MotorController(Node):
         self.get_logger().info("=" * 60)
 
     def manual(self):
+        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] MotorController Manual Mode")
         for k, v in self.motor.idle().items():
             self.pwm.channels[k] = v
 
-    def mission_find_step_one(self):
-        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_find_step_one_masuk")
-
+    def auto(self):
+        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] MotorController Auto Mode")
         for k, v in self.motor.autonomous(
-            yaw_effort=0,
-            speed_effort=300,
-        ).items():
-            self.pwm.channels[k] = v
-
-    def mission_step_one(self):
-        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_step_one_masuk")
-
-        for k, v in self.motor.autonomous(
-            yaw_effort=0,
+            yaw_effort=self.yaw_control_effort,
             speed_effort=self.speed_effort
         ).items():
             self.pwm.channels[k] = v
 
-    def mission_find_step_two(self):
-        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_find_step_two_masuk")
-
-        for k, v in self.motor.autonomous(
-            yaw_effort=self.yaw_effort,
-            speed_effort=350,
-        ).items():
-            self.pwm.channels[k] = v
-
-    def mission_step_two(self):
-        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_step_two_masuk")
-
-        for k, v in self.motor.autonomous(
-            yaw_effort=0,
-            speed_effort=self.speed_effort
-        ).items():
-            self.pwm.channels[k] = v
-
-    def mission_find_step_three(self):
-        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_find_step_three_masuk")
-
-        for k, v in self.motor.autonomous(
-            yaw_effort=self.yaw_effort,
-            speed_effort=0
-        ).items():
-            self.pwm.channels[k] = v
-
-    def mission_step_three(self):
-        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_step_three_masuk")
-
-        for k, v in self.motor.autonomous(
-            yaw_effort=0,
-            speed_effort=self.speed_effort
-        ).items():
-            self.pwm.channels[k] = v
-
-    def mission_position_green_box(self):
-        for k, v in self.motor.autonomous(
-            yaw_effort=self.yaw_effort,
-            speed_effort=0,
-        ).items():
-            self.pwm.channels[k] = v
-
-    def mission_take_green_box(self):
-        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_green_box_masuk")
-
-        for k, v in self.motor.autonomous(
-            yaw_effort=0,
-            speed_effort=0,
-        ).items():
-            self.pwm.channels[k] = v
-
-    def mission_position_blue_box(self):
-        for k, v in self.motor.autonomous(
-            yaw_effort=self.yaw_effort,
-            speed_effort=0,
-        ).items():
-            self.pwm.channels[k] = v
-
-    def mission_take_blue_box(self):
-        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] Mission_blue_box_masuk")
-
-        for k, v in self.motor.autonomous(
-            yaw_effort=0,
-            speed_effort=0,
-        ).items():
-            self.pwm.channels[k] = v
-
-    def mission_docking(self):
-        for k, v in self.motor.idle().items():
-            self.pwm.channels[k] = v
-
-    def _gcs_cam_config_callback(self, msg: Config):
-        """Update motor configuration from GCS"""
-        # Note: updateAdjustment method needs to be implemented in Motor class
-        pass
 
     def _yaw_effort_callback(self, msg: Float64):
         self.yaw_effort = msg.data
@@ -274,8 +188,9 @@ def main(args=None):
         rclpy.init(args=args)
 
         motor_control = MotorController()
-        # motor_control.run()
-        motor_control.test_sequence(1)
+        motor_control.run()
+        motor_control
+        # motor_control.test_sequence(1)
 
         # Spin the node
         rclpy.spin(motor_control)

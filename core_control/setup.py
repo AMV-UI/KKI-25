@@ -1,5 +1,6 @@
 from setuptools import find_packages, setup
-
+import os
+from glob import glob
 package_name = 'core_control'
 
 setup(
@@ -10,6 +11,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -24,6 +26,7 @@ setup(
             'microcontroller_rov = core_control.microcontroller_rov:main',
             'motor_test = scripts.motor_test:main',
             'microcontroller_asv = core_control.microcontroller_asv:main',
+            'pid_controller = core_control.pid_controller:main',
             'micon = core_control.microcontroller:main',
             'pid_test = scripts.pid_test:main',
         ],
