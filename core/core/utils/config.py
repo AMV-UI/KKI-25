@@ -244,6 +244,7 @@ class PxMode:
 
 class SETPOINT:
     SETPOINT_YAW = 320
+    SETPOINT_DSC = 0
 
 
 class MotorReverse:

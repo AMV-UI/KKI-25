@@ -12,21 +12,18 @@ class PIDController(Node):
         """
         PID Controller for Yaw Control
         Publishes to:
-        - /core/pid_controller/control_effort
+        - yaw_effort => /core/pid_controller/control_effort
         Subscribes to:
-        - /core/pid_controller/state (current yaw)
-        - /core/pid_controller/distance (current distance to setpoint)
+        - yaw_dsc => /core/pid_controller/distance (current distance to setpoint)
+
+        the idea is to minimize the error (dsc) to stable oscillating error state.
+        reference: https://ni.scene7.com/is/image/ni/12fbdcae1636?scl=1
         """
         super().__init__(NodeConfig.pid_controller)
         
-        self.pid = PID(0.8, 0.1, 0.8, setpoint=SETPOINT.SETPOINT_YAW)
-        self.pid.output_limits = (-300, 300)  # Allow negative values for bidirectional control
-        #need to be tested
+        self.pid = PID(0.8, 0.1, 0.8, setpoint=SETPOINT.SETPOINT_DSC)
         
         self.control = Float64()
-        self.yaw_state = float(SETPOINT.SETPOINT_YAW)
-        self.yaw_dsc = 0.0
-        
         # subscribers
         # self.yaw_state_subscriber = Topic.yaw_state.createSubscriber(self, self.yaw_state_callback)
         self.yaw_dsc_subscriber = Topic.yaw_dsc.createSubscriber(self, self.yaw_dsc_callback)
@@ -36,10 +33,6 @@ class PIDController(Node):
         
         self.timer = self.create_timer(0.1, self.control_loop)  # 10Hz control loop
         self.get_logger().info(f"[{NodeConfig.pid_controller}] PID Controller initialized")
-
-    # def yaw_state_callback(self, msg):
-    #     """Callback for yaw state updates"""
-    #     self.yaw_state = msg.data
 
     def yaw_dsc_callback(self, msg):
         """Callback for yaw dsc updates"""
