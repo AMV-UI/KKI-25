@@ -141,25 +141,262 @@ class DepthController(Node):
 
         return output
     
+    # def visualize_avoidance(self, frame, depth_norm):
+    #     """
+    #     Pick the farthest X position (max depth) as avoidance direction,
+    #     lock Y to the middle of the frame.
+    #     """
+    #     h, w = depth_norm.shape
+    #     vis = frame.copy()
+
+    #     # Step 1: Find column (x) with maximum depth (farthest point)
+    #     col_depth = depth_norm.mean(axis=0)  # average depth per column
+    #     best_x = int(np.argmax(col_depth))   # column with farthest depth
+    #     ref_y = h // 2                       # always middle row
+    #     ref_point = (best_x, ref_y)
+
+    #     # Step 2: Draw the reference point and arrow
+    #     cv2.circle(vis, ref_point, 8, (0, 255, 0), -1)              # green ref point
+    #     cv2.arrowedLine(vis, (w // 2, h - 20), ref_point, (255, 0, 0), 2)  # arrow from bottom center
+
+    #     return vis
+    
     def visualize_avoidance(self, frame, depth_norm):
         """
-        Pick the farthest X position (max depth) as avoidance direction,
-        lock Y to the middle of the frame.
+        Enhanced obstacle avoidance visualization with multiple strategies:
+        1. Obstacle detection and safety zones
+        2. Path planning with clearance analysis
+        3. Multi-level threat assessment
+        4. Dynamic safe corridor identification
         """
         h, w = depth_norm.shape
         vis = frame.copy()
-
-        # Step 1: Find column (x) with maximum depth (farthest point)
-        col_depth = depth_norm.mean(axis=0)  # average depth per column
-        best_x = int(np.argmax(col_depth))   # column with farthest depth
-        ref_y = h // 2                       # always middle row
-        ref_point = (best_x, ref_y)
-
-        # Step 2: Draw the reference point and arrow
-        cv2.circle(vis, ref_point, 8, (0, 255, 0), -1)              # green ref point
-        cv2.arrowedLine(vis, (w // 2, h - 20), ref_point, (255, 0, 0), 2)  # arrow from bottom center
-
+        
+        # Configuration parameters
+        obstacle_threshold = 0.3  # Objects closer than this are obstacles
+        safety_margin = 0.15      # Additional safety buffer
+        corridor_width = 60       # Minimum safe corridor width in pixels
+        look_ahead_rows = int(h * 0.7)  # How far ahead to analyze (70% of frame)
+        
+        # Step 1: Create obstacle mask
+        obstacle_mask = depth_norm < obstacle_threshold
+        danger_mask = depth_norm < (obstacle_threshold + safety_margin)
+        
+        # Step 2: Analyze horizontal corridors at different depths
+        safe_corridors = []
+        threat_levels = []
+        
+        # Analyze from middle to top of frame (looking ahead)
+        analysis_rows = range(h//3, h//3 + look_ahead_rows//2, 10)
+        
+        for y in analysis_rows:
+            if y >= h:
+                continue
+                
+            row_obstacles = obstacle_mask[y, :]
+            row_dangers = danger_mask[y, :]
+            
+            # Find continuous safe segments
+            safe_segments = self._find_safe_segments(row_obstacles, corridor_width)
+            danger_segments = self._find_safe_segments(~row_dangers, corridor_width//2)
+            
+            for start_x, end_x in safe_segments:
+                corridor_center = (start_x + end_x) // 2
+                corridor_width_actual = end_x - start_x
+                
+                # Calculate threat level based on surrounding dangers
+                threat = self._calculate_threat_level(depth_norm, corridor_center, y, danger_mask)
+                
+                safe_corridors.append({
+                    'center_x': corridor_center,
+                    'y': y,
+                    'width': corridor_width_actual,
+                    'threat': threat,
+                    'start_x': start_x,
+                    'end_x': end_x
+                })
+        
+        # Step 3: Visualize obstacles and danger zones
+        # Red overlay for obstacles
+        vis[obstacle_mask] = vis[obstacle_mask] * 0.3 + np.array([0, 0, 255]) * 0.7
+        
+        # Yellow overlay for danger zones
+        danger_only = danger_mask & ~obstacle_mask
+        vis[danger_only] = vis[danger_only] * 0.6 + np.array([0, 255, 255]) * 0.4
+        
+        # Step 4: Draw safe corridors with threat-based coloring
+        for corridor in safe_corridors:
+            x, y = corridor['center_x'], corridor['y']
+            width = corridor['width']
+            threat = corridor['threat']
+            
+            # Color based on threat level: Green (safe) → Yellow → Red (dangerous)
+            if threat < 0.3:
+                color = (0, 255, 0)      # Green - very safe
+            elif threat < 0.6:
+                color = (0, 255, 255)    # Yellow - moderate risk
+            else:
+                color = (0, 165, 255)    # Orange - higher risk
+            
+            # Draw corridor boundaries
+            cv2.line(vis, (corridor['start_x'], y), (corridor['end_x'], y), color, 2)
+            
+            # Draw center point
+            cv2.circle(vis, (x, y), 3, color, -1)
+        
+        # Step 5: Select optimal path
+        best_path = self._select_optimal_path(safe_corridors, w//2, h//2)
+        
+        if best_path:
+            # Draw the selected path
+            path_points = [(corridor['center_x'], corridor['y']) for corridor in best_path]
+            
+            # Draw path line
+            for i in range(len(path_points) - 1):
+                cv2.line(vis, path_points[i], path_points[i+1], (255, 255, 0), 3)
+            
+            # Draw final target
+            if path_points:
+                target = path_points[0]  # Closest safe point
+                cv2.circle(vis, target, 12, (255, 255, 0), 3)
+                cv2.circle(vis, target, 6, (0, 255, 255), -1)
+                
+                # Draw navigation arrow from bottom center
+                start_arrow = (w // 2, h - 30)
+                cv2.arrowedLine(vis, start_arrow, target, (255, 255, 0), 4, tipLength=0.3)
+                
+                # Add text overlay with navigation info
+                nav_text = f"Target: ({target[0]}, {target[1]})"
+                cv2.putText(vis, nav_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                
+                # Calculate and display turn direction
+                center_x = w // 2
+                turn_direction = "STRAIGHT" if abs(target[0] - center_x) < 20 else ("LEFT" if target[0] < center_x else "RIGHT")
+                turn_angle = int(np.degrees(np.arctan2(target[0] - center_x, h - target[1])))
+                
+                cv2.putText(vis, f"Direction: {turn_direction} ({turn_angle}°)", (10, 60), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        
+        # Step 6: Draw distance grid and safety zones
+        self._draw_distance_grid(vis, depth_norm)
+        
+        # Step 7: Add legend
+        self._draw_legend(vis)
+        
         return vis
+
+    def _find_safe_segments(self, binary_mask, min_width):
+        """Find continuous safe segments in a binary mask."""
+        segments = []
+        in_segment = False
+        start_x = 0
+        
+        for x in range(len(binary_mask)):
+            if not binary_mask[x] and not in_segment:  # Start of safe segment
+                start_x = x
+                in_segment = True
+            elif binary_mask[x] and in_segment:  # End of safe segment
+                if x - start_x >= min_width:
+                    segments.append((start_x, x))
+                in_segment = False
+        
+        # Handle segment that goes to the end
+        if in_segment and len(binary_mask) - start_x >= min_width:
+            segments.append((start_x, len(binary_mask)))
+        
+        return segments
+
+    def _calculate_threat_level(self, depth_norm, x, y, danger_mask):
+        """Calculate threat level around a point."""
+        h, w = depth_norm.shape
+        
+        # Sample area around the point
+        sample_size = 20
+        x1 = max(0, x - sample_size)
+        x2 = min(w, x + sample_size)
+        y1 = max(0, y - sample_size)
+        y2 = min(h, y + sample_size)
+        
+        area_danger = danger_mask[y1:y2, x1:x2]
+        area_depth = depth_norm[y1:y2, x1:x2]
+        
+        # Threat based on nearby dangers and average depth
+        danger_ratio = np.sum(area_danger) / area_danger.size
+        avg_depth = np.mean(area_depth)
+        
+        # Combine factors: more danger = higher threat, less depth = higher threat
+        threat = danger_ratio + (1 - avg_depth) * 0.5
+        
+        return np.clip(threat, 0, 1)
+
+    def _select_optimal_path(self, safe_corridors, center_x, center_y):
+        """Select optimal path through safe corridors."""
+        if not safe_corridors:
+            return []
+        
+        # Group corridors by depth (y-coordinate)
+        corridors_by_depth = {}
+        for corridor in safe_corridors:
+            y = corridor['y']
+            if y not in corridors_by_depth:
+                corridors_by_depth[y] = []
+            corridors_by_depth[y].append(corridor)
+        
+        # Select best corridor at each depth level
+        path = []
+        last_x = center_x
+        
+        for y in sorted(corridors_by_depth.keys()):
+            corridors_at_depth = corridors_by_depth[y]
+            
+            # Score corridors based on: width, low threat, proximity to last position
+            best_corridor = None
+            best_score = -float('inf')
+            
+            for corridor in corridors_at_depth:
+                # Scoring factors
+                width_score = corridor['width'] / 100.0  # Normalize width
+                threat_score = 1 - corridor['threat']     # Lower threat = better
+                proximity_score = 1 / (1 + abs(corridor['center_x'] - last_x) / 50.0)  # Closer = better
+                
+                total_score = width_score * 0.4 + threat_score * 0.4 + proximity_score * 0.2
+                
+                if total_score > best_score:
+                    best_score = total_score
+                    best_corridor = corridor
+            
+            if best_corridor:
+                path.append(best_corridor)
+                last_x = best_corridor['center_x']
+        
+        return path[:5]  # Limit path length
+
+    def _draw_distance_grid(self, vis, depth_norm):
+        """Draw distance grid overlay."""
+        h, w = depth_norm.shape
+        
+        # Draw horizontal lines for distance zones
+        for i, distance in enumerate([0.2, 0.4, 0.6, 0.8]):
+            y_pos = int(h * (1 - distance))
+            color = (100, 100, 100)
+            cv2.line(vis, (0, y_pos), (w, y_pos), color, 1)
+            cv2.putText(vis, f"{distance:.1f}", (w - 40, y_pos - 5), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+
+    def _draw_legend(self, vis):
+        """Draw legend for the visualization."""
+        legend_items = [
+            ("Red: Obstacles", (0, 0, 255)),
+            ("Yellow: Danger Zone", (0, 255, 255)),
+            ("Green: Safe Path", (0, 255, 0)),
+            ("Cyan: Target", (255, 255, 0))
+        ]
+        
+        y_offset = 90
+        for i, (text, color) in enumerate(legend_items):
+            y_pos = y_offset + i * 25
+            cv2.rectangle(vis, (10, y_pos - 10), (30, y_pos + 5), color, -1)
+            cv2.putText(vis, text, (35, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
 
 
