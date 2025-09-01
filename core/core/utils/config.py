@@ -36,6 +36,7 @@ class NodeConfig:
     mission_controller = "mission_controller"
     motor_controller = "motor_controller"
     pid_controller = "pid_controller"
+    depth_controller = "depth_controller"
     mission_control = "mission_controller"
     microcontroller = "microcontroller"
     cam_recorder = "cam_recorder"
@@ -244,6 +245,7 @@ class PxMode:
 
 class SETPOINT:
     SETPOINT_YAW = 320
+    SETPOINT_DSC = 0
 
 
 class MotorReverse:
