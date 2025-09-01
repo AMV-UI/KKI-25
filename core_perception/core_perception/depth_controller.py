@@ -163,242 +163,222 @@ class DepthController(Node):
     
     def visualize_avoidance(self, frame, depth_norm):
         """
-        Enhanced obstacle avoidance visualization with multiple strategies:
-        1. Obstacle detection and safety zones
-        2. Path planning with clearance analysis
-        3. Multi-level threat assessment
-        4. Dynamic safe corridor identification
+        Maritime obstacle avoidance for ASV (Autonomous Surface Vehicle):
+        1. Focus on water surface level (ignore sky/horizon)
+        2. Detect obstacles on water (boats, buoys, debris)
+        3. Find safe navigation corridor on water surface
         """
         h, w = depth_norm.shape
         vis = frame.copy()
         
-        # Configuration parameters
-        obstacle_threshold = 0.3  # Objects closer than this are obstacles
-        safety_margin = 0.15      # Additional safety buffer
-        corridor_width = 60       # Minimum safe corridor width in pixels
-        look_ahead_rows = int(h * 0.7)  # How far ahead to analyze (70% of frame)
+        # ASV Configuration - focus on water surface navigation
+        water_level_start = int(h * 0.4)    # Start analyzing from 40% down (ignore sky)
+        water_level_end = int(h * 0.85)     # Stop at 85% (ignore boat hull/deck)
         
-        # Step 1: Create obstacle mask
-        obstacle_mask = depth_norm < obstacle_threshold
-        danger_mask = depth_norm < (obstacle_threshold + safety_margin)
+        obstacle_threshold = 0.25           # Objects closer than this on water surface
+        min_safe_corridor = 80              # Minimum safe passage width in pixels
+        look_ahead_distance = 100           # How far ahead to check (pixels)
         
-        # Step 2: Analyze horizontal corridors at different depths
+        # Step 1: Focus only on water surface area
+        water_region = depth_norm[water_level_start:water_level_end, :]
+        water_vis_region = vis[water_level_start:water_level_end, :]
+        
+        # Step 2: Detect obstacles on water surface
+        # Find objects that are significantly closer than the average water depth
+        water_median_depth = np.median(water_region)
+        obstacle_mask = water_region < (water_median_depth - 0.15)  # Obstacles stick out from water
+        
+        # Step 3: Analyze horizontal navigation corridors
         safe_corridors = []
-        threat_levels = []
         
-        # Analyze from middle to top of frame (looking ahead)
-        analysis_rows = range(h//3, h//3 + look_ahead_rows//2, 10)
+        # Check multiple rows in the water region for safe passages
+        check_rows = range(0, water_region.shape[0], 15)  # Every 15 pixels
         
-        for y in analysis_rows:
-            if y >= h:
+        for row_idx in check_rows:
+            if row_idx >= water_region.shape[0]:
                 continue
                 
-            row_obstacles = obstacle_mask[y, :]
-            row_dangers = danger_mask[y, :]
+            row_obstacles = obstacle_mask[row_idx, :]
             
             # Find continuous safe segments
-            safe_segments = self._find_safe_segments(row_obstacles, corridor_width)
-            danger_segments = self._find_safe_segments(~row_dangers, corridor_width//2)
+            safe_segments = self._find_water_safe_segments(row_obstacles, min_safe_corridor)
             
             for start_x, end_x in safe_segments:
                 corridor_center = (start_x + end_x) // 2
-                corridor_width_actual = end_x - start_x
+                corridor_width = end_x - start_x
+                actual_y = water_level_start + row_idx
                 
-                # Calculate threat level based on surrounding dangers
-                threat = self._calculate_threat_level(depth_norm, corridor_center, y, danger_mask)
+                # Calculate safety score (prefer wider, more centered corridors)
+                center_bias = 1.0 - abs(corridor_center - w//2) / (w//2)  # Prefer center
+                width_score = min(corridor_width / 150.0, 1.0)  # Prefer wider corridors
                 
                 safe_corridors.append({
                     'center_x': corridor_center,
-                    'y': y,
-                    'width': corridor_width_actual,
-                    'threat': threat,
+                    'y': actual_y,
+                    'width': corridor_width,
+                    'safety_score': (center_bias * 0.3 + width_score * 0.7),
                     'start_x': start_x,
-                    'end_x': end_x
+                    'end_x': end_x,
+                    'distance_ahead': actual_y - water_level_start
                 })
         
-        # Step 3: Visualize obstacles and danger zones
-        # Red overlay for obstacles
-        vis[obstacle_mask] = vis[obstacle_mask] * 0.3 + np.array([0, 0, 255]) * 0.7
+        # Step 4: Visualize water surface area and obstacles
+        # Draw water analysis region boundary
+        cv2.rectangle(vis, (0, water_level_start), (w, water_level_end), (0, 255, 255), 2)
+        cv2.putText(vis, "WATER SURFACE ANALYSIS", (10, water_level_start - 10), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
         
-        # Yellow overlay for danger zones
-        danger_only = danger_mask & ~obstacle_mask
-        vis[danger_only] = vis[danger_only] * 0.6 + np.array([0, 255, 255]) * 0.4
+        # Highlight obstacles on water surface (red)
+        obstacle_coords = np.where(obstacle_mask)
+        for i in range(len(obstacle_coords[0])):
+            y_abs = water_level_start + obstacle_coords[0][i]
+            x_abs = obstacle_coords[1][i]
+            cv2.circle(vis, (x_abs, y_abs), 3, (0, 0, 255), -1)
         
-        # Step 4: Draw safe corridors with threat-based coloring
+        # Step 5: Draw safe corridors
         for corridor in safe_corridors:
             x, y = corridor['center_x'], corridor['y']
-            width = corridor['width']
-            threat = corridor['threat']
+            safety = corridor['safety_score']
             
-            # Color based on threat level: Green (safe) → Yellow → Red (dangerous)
-            if threat < 0.3:
-                color = (0, 255, 0)      # Green - very safe
-            elif threat < 0.6:
-                color = (0, 255, 255)    # Yellow - moderate risk
+            # Color based on safety score: Green (very safe) → Yellow (less safe)
+            if safety > 0.7:
+                color = (0, 255, 0)      # Green - excellent corridor
+            elif safety > 0.4:
+                color = (0, 255, 255)    # Yellow - good corridor
             else:
-                color = (0, 165, 255)    # Orange - higher risk
+                color = (0, 165, 255)    # Orange - acceptable corridor
             
             # Draw corridor boundaries
-            cv2.line(vis, (corridor['start_x'], y), (corridor['end_x'], y), color, 2)
+            cv2.line(vis, (corridor['start_x'], y), (corridor['end_x'], y), color, 3)
+            cv2.circle(vis, (x, y), 5, color, -1)
+        
+        # Step 6: Select best navigation target
+        best_target = self._select_best_water_target(safe_corridors, w//2)
+        
+        if best_target:
+            target_x, target_y = best_target['center_x'], best_target['y']
             
-            # Draw center point
-            cv2.circle(vis, (x, y), 3, color, -1)
-        
-        # Step 5: Select optimal path
-        best_path = self._select_optimal_path(safe_corridors, w//2, h//2)
-        
-        if best_path:
-            # Draw the selected path
-            path_points = [(corridor['center_x'], corridor['y']) for corridor in best_path]
+            # Draw the selected target
+            cv2.circle(vis, (target_x, target_y), 15, (255, 255, 0), 3)
+            cv2.circle(vis, (target_x, target_y), 8, (0, 255, 255), -1)
             
-            # Draw path line
-            for i in range(len(path_points) - 1):
-                cv2.line(vis, path_points[i], path_points[i+1], (255, 255, 0), 3)
+            # Draw navigation arrow from bottom center of water region
+            start_arrow = (w // 2, water_level_end - 20)
+            cv2.arrowedLine(vis, start_arrow, (target_x, target_y), (255, 255, 0), 6, tipLength=0.2)
             
-            # Draw final target
-            if path_points:
-                target = path_points[0]  # Closest safe point
-                cv2.circle(vis, target, 12, (255, 255, 0), 3)
-                cv2.circle(vis, target, 6, (0, 255, 255), -1)
-                
-                # Draw navigation arrow from bottom center
-                start_arrow = (w // 2, h - 30)
-                cv2.arrowedLine(vis, start_arrow, target, (255, 255, 0), 4, tipLength=0.3)
-                
-                # Add text overlay with navigation info
-                nav_text = f"Target: ({target[0]}, {target[1]})"
-                cv2.putText(vis, nav_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-                
-                # Calculate and display turn direction
-                center_x = w // 2
-                turn_direction = "STRAIGHT" if abs(target[0] - center_x) < 20 else ("LEFT" if target[0] < center_x else "RIGHT")
-                turn_angle = int(np.degrees(np.arctan2(target[0] - center_x, h - target[1])))
-                
-                cv2.putText(vis, f"Direction: {turn_direction} ({turn_angle}°)", (10, 60), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            # Calculate steering direction
+            center_x = w // 2
+            steering_offset = target_x - center_x
+            steering_angle = int(np.degrees(np.arctan2(steering_offset, water_level_end - target_y)))
+            
+            if abs(steering_offset) < 30:
+                direction = "STRAIGHT"
+                color = (0, 255, 0)
+            elif steering_offset < 0:
+                direction = "PORT (LEFT)"
+                color = (0, 0, 255)
+            else:
+                direction = "STARBOARD (RIGHT)"
+                color = (255, 0, 0)
+            
+            # Navigation display
+            cv2.putText(vis, f"ASV Navigation: {direction}", (10, 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+            cv2.putText(vis, f"Steering Angle: {steering_angle}°", (10, 60), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.putText(vis, f"Corridor Width: {best_target['width']}px", (10, 90), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        else:
+            # Emergency situation - no safe corridor found
+            cv2.putText(vis, "WARNING: NO SAFE CORRIDOR!", (w//4, h//2), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 3)
+            cv2.putText(vis, "REDUCE SPEED / STOP", (w//4, h//2 + 40), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
         
-        # Step 6: Draw distance grid and safety zones
-        self._draw_distance_grid(vis, depth_norm)
-        
-        # Step 7: Add legend
-        self._draw_legend(vis)
+        # Step 7: Add maritime navigation info
+        self._draw_maritime_legend(vis, water_median_depth)
         
         return vis
 
-    def _find_safe_segments(self, binary_mask, min_width):
-        """Find continuous safe segments in a binary mask."""
+    def _find_water_safe_segments(self, obstacle_row, min_width):
+        """Find continuous safe segments on water surface."""
         segments = []
-        in_segment = False
+        in_safe_zone = True
         start_x = 0
         
-        for x in range(len(binary_mask)):
-            if not binary_mask[x] and not in_segment:  # Start of safe segment
-                start_x = x
-                in_segment = True
-            elif binary_mask[x] and in_segment:  # End of safe segment
+        for x in range(len(obstacle_row)):
+            if obstacle_row[x] and in_safe_zone:  # Hit obstacle, end safe zone
                 if x - start_x >= min_width:
                     segments.append((start_x, x))
-                in_segment = False
+                in_safe_zone = False
+            elif not obstacle_row[x] and not in_safe_zone:  # Clear water, start safe zone
+                start_x = x
+                in_safe_zone = True
         
-        # Handle segment that goes to the end
-        if in_segment and len(binary_mask) - start_x >= min_width:
-            segments.append((start_x, len(binary_mask)))
+        # Handle safe zone that goes to the end
+        if in_safe_zone and len(obstacle_row) - start_x >= min_width:
+            segments.append((start_x, len(obstacle_row)))
         
         return segments
 
-    def _calculate_threat_level(self, depth_norm, x, y, danger_mask):
-        """Calculate threat level around a point."""
-        h, w = depth_norm.shape
-        
-        # Sample area around the point
-        sample_size = 20
-        x1 = max(0, x - sample_size)
-        x2 = min(w, x + sample_size)
-        y1 = max(0, y - sample_size)
-        y2 = min(h, y + sample_size)
-        
-        area_danger = danger_mask[y1:y2, x1:x2]
-        area_depth = depth_norm[y1:y2, x1:x2]
-        
-        # Threat based on nearby dangers and average depth
-        danger_ratio = np.sum(area_danger) / area_danger.size
-        avg_depth = np.mean(area_depth)
-        
-        # Combine factors: more danger = higher threat, less depth = higher threat
-        threat = danger_ratio + (1 - avg_depth) * 0.5
-        
-        return np.clip(threat, 0, 1)
-
-    def _select_optimal_path(self, safe_corridors, center_x, center_y):
-        """Select optimal path through safe corridors."""
+    def _select_best_water_target(self, safe_corridors, center_x):
+        """Select best navigation target on water surface."""
         if not safe_corridors:
-            return []
+            return None
         
-        # Group corridors by depth (y-coordinate)
-        corridors_by_depth = {}
+        # Prefer corridors that are:
+        # 1. Closer to the boat (higher y value in image)
+        # 2. Have high safety score
+        # 3. Are reasonably centered
+        
+        best_corridor = None
+        best_score = -1
+        
         for corridor in safe_corridors:
-            y = corridor['y']
-            if y not in corridors_by_depth:
-                corridors_by_depth[y] = []
-            corridors_by_depth[y].append(corridor)
-        
-        # Select best corridor at each depth level
-        path = []
-        last_x = center_x
-        
-        for y in sorted(corridors_by_depth.keys()):
-            corridors_at_depth = corridors_by_depth[y]
+            # Distance factor (closer is better, but not too close)
+            distance_factor = min(corridor['distance_ahead'] / 50.0, 1.0)
+            if distance_factor < 0.2:  # Too close
+                distance_factor = 0.1
             
-            # Score corridors based on: width, low threat, proximity to last position
-            best_corridor = None
-            best_score = -float('inf')
+            # Safety factor
+            safety_factor = corridor['safety_score']
             
-            for corridor in corridors_at_depth:
-                # Scoring factors
-                width_score = corridor['width'] / 100.0  # Normalize width
-                threat_score = 1 - corridor['threat']     # Lower threat = better
-                proximity_score = 1 / (1 + abs(corridor['center_x'] - last_x) / 50.0)  # Closer = better
-                
-                total_score = width_score * 0.4 + threat_score * 0.4 + proximity_score * 0.2
-                
-                if total_score > best_score:
-                    best_score = total_score
-                    best_corridor = corridor
+            # Total score
+            total_score = distance_factor * 0.6 + safety_factor * 0.4
             
-            if best_corridor:
-                path.append(best_corridor)
-                last_x = best_corridor['center_x']
+            if total_score > best_score:
+                best_score = total_score
+                best_corridor = corridor
         
-        return path[:5]  # Limit path length
+        return best_corridor
 
-    def _draw_distance_grid(self, vis, depth_norm):
-        """Draw distance grid overlay."""
-        h, w = depth_norm.shape
+    def _draw_maritime_legend(self, vis, water_depth):
+        """Draw maritime-specific legend and info."""
+        h, w = vis.shape[:2]
         
-        # Draw horizontal lines for distance zones
-        for i, distance in enumerate([0.2, 0.4, 0.6, 0.8]):
-            y_pos = int(h * (1 - distance))
-            color = (100, 100, 100)
-            cv2.line(vis, (0, y_pos), (w, y_pos), color, 1)
-            cv2.putText(vis, f"{distance:.1f}", (w - 40, y_pos - 5), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
-
-    def _draw_legend(self, vis):
-        """Draw legend for the visualization."""
+        # Legend background
+        cv2.rectangle(vis, (w - 250, 10), (w - 10, 150), (0, 0, 0), -1)
+        cv2.rectangle(vis, (w - 250, 10), (w - 10, 150), (255, 255, 255), 2)
+        
         legend_items = [
-            ("Red: Obstacles", (0, 0, 255)),
-            ("Yellow: Danger Zone", (0, 255, 255)),
-            ("Green: Safe Path", (0, 255, 0)),
-            ("Cyan: Target", (255, 255, 0))
+            ("Red dots: Obstacles", (0, 0, 255)),
+            ("Green line: Safe corridor", (0, 255, 0)),
+            ("Yellow: Navigation target", (0, 255, 255)),
+            ("Cyan box: Water analysis", (255, 255, 0))
         ]
         
-        y_offset = 90
+        cv2.putText(vis, "ASV Navigation", (w - 240, 30), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        
         for i, (text, color) in enumerate(legend_items):
-            y_pos = y_offset + i * 25
-            cv2.rectangle(vis, (10, y_pos - 10), (30, y_pos + 5), color, -1)
-            cv2.putText(vis, text, (35, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-
-
+            y_pos = 50 + i * 20
+            cv2.circle(vis, (w - 235, y_pos), 5, color, -1)
+            cv2.putText(vis, text, (w - 220, y_pos + 5), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+        
+        # Water depth info
+        cv2.putText(vis, f"Water depth: {water_depth:.2f}", (w - 240, 140), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
 
     def run(self):
