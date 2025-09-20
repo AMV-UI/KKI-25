@@ -10,7 +10,7 @@ import numpy as np
 from pymavlink import mavutil
 from pykalman import KalmanFilter
 from std_msgs.msg import Float64, UInt8, UInt16
-from core_msgs_asv.msg import Pwm, AutoControl, KillSwitch, Pixhawk
+from core_msgs.msg import Pwm, AutoControl, KillSwitch, Pixhawk
 
 from core.utils.config import (
     AutoState,
@@ -343,7 +343,7 @@ class Microcontroller(Node):
         Args:
             timeout (float): Maximum time to wait for data
             
-        Returns:
+        Returns :
             Pixhawk message or None if failed
         """
         start_time = time.time()
