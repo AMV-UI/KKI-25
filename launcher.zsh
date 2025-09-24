@@ -1,5 +1,8 @@
 #!/usr/bin/env zsh
 
+sudo chmod 666 /dev/ttyACM0
+sudo chmod 666 /dev/ttyUSB0
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$SCRIPT_DIR"
 

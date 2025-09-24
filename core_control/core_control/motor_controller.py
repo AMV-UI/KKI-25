@@ -31,7 +31,7 @@ class MotorController(Node):
     USES:
     - Motor Node in core.utils
     PUBLISHES:
-        - PWM to core_control.microcontroller
+    - PWM to core_control.microcontroller
     """
 
     def __init__(self):
