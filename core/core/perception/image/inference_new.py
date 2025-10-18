@@ -1,6 +1,6 @@
 import cv2
 import math
-import rospy
+# import rospy
 import base64
 import datetime
 import time
@@ -8,19 +8,23 @@ import asyncio
 
 from ultralytics import YOLO
 from std_msgs.msg import String
-from utils.config import Topic
+from core.utils.config import Topic
 from io import BytesIO
-from kki24.msg import ObjectCount
-from utils.config import Param, SPEED
-from utils.motor import Motor
-from utils.image.camera_bottom import BottomCamera
+from core_msgs.msg import ObjectCount
+from core.utils.config import Param, SPEED
+from core.utils.motor import Motor
+from core.perception.image.camera_bottom import BottomCamera
+
+from rclpy.node import Node
 
 
 class ObjectDetector:
     def __init__(
-        self, model_path, class_names, camera_index, width=640, height=480, fps=30
+        self, model_path, node, class_names, camera_index, width=640, height=480, fps=30
     ):
+        self.motor = Motor()
         # Camera
+        self.node = node
         self.model = YOLO(model_path)
         self.class_names = class_names
         self.cap = cv2.VideoCapture(camera_index)
@@ -30,7 +34,7 @@ class ObjectDetector:
 
         self.camera_bottom = BottomCamera()
         # Track
-        self.track = rospy.get_param(Param.TRACK)
+        # self.track = rospy.get_param(Param.TRACK)
 
         # PID
         self.pid_adjust = 300
@@ -46,8 +50,8 @@ class ObjectDetector:
         self.blue_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
 
         # Publisher
-        self.dscPub = Topic.dsc.createPublisher()
-        self.cameraBottomPub = Topic.image_blue_box.createPublisher()
+        self.dscPub = Topic.dsc.createPublisher(self.node)
+        self.cameraBottomPub = Topic.image_blue_box.createPublisher(self.node)
 
     def draw_detections(self, img, results):
         """Draw detection boxes and labels on frame"""
@@ -106,7 +110,7 @@ class ObjectDetector:
         # self.minimum_blue_box_area = 200
         # self.minimum_green_box_area = 200
         for r in results:
-            self.track = rospy.get_param(Param.TRACK)
+            # self.track = rospy.get_param(Param.TRACK)
             boxes = r.boxes
             for box in boxes:
                 # Get bounding box coordinates
@@ -161,15 +165,15 @@ class ObjectDetector:
                     detected = status
 
                     if detected:
-                        Motor.full_detected()
+                        self.motor.full_detected()
 
                     return img, yaw_state, detected
 
         if self.max_red < self.max_green * self.treshold:
-            Motor.one_is_closer_detected()
+            self.motor.one_is_closer_detected()
             self.max_red = -1
         elif self.max_green < self.max_red * self.treshold:
-            Motor.one_is_closer_detected()
+            self.motor.one_is_closer_detected()
             self.max_green = -1
 
         self.mid_red = (self.red["x1"] + self.red["x2"]) // 2
@@ -187,23 +191,23 @@ class ObjectDetector:
             dsc_x = mid_x - width
             # dsc_y = mid_y - height
 
-            Motor.full_detected()
+            self.motor.full_detected()
             yaw_state = dsc_x
         # Half Motor
         else:
             # Only Green Buoy
             if self.max_green != -1:
-                Motor.half_detected()
+                self.motor.half_detected()
                 yaw_state = self.pid_adjust * (-1 if self.track == "A" else 1)
 
             # Only Red Buoy
             elif self.max_red != -1:
-                Motor.half_detected()
+                self.motor.half_detected()
                 yaw_state = self.pid_adjust * (1 if self.track == "A" else -1)
 
             # No Buoy
             else:
-                Motor.not_detected()
+                self.motor.not_detected()
                 yaw_state = 0
 
         if self.max_green != -1 or self.max_red != -1:
@@ -217,14 +221,14 @@ class ObjectDetector:
                 ) // 2
                 yaw_state = mid_x - width
                 detected = True
-                Motor.full_detected()
+                self.motor.full_detected()
             elif self.green_box["x1"] != -1:
                 # lintasan B = A, A = B
-                Motor.half_detected()
+                self.motor.half_detected()
                 yaw_state = self.pid_adjust * (-1 if self.track == "A" else 1)
                 detected = True
             else:
-                Motor.half_detected()
+                self.motor.half_detected()
                 yaw_state = self.pid_adjust * (1 if self.track == "A" else 1)
                 detected = True
 

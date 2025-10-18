@@ -193,10 +193,7 @@ def main(args=None):
         rclpy.init(args=args)
 
         motor_control = MotorController()
-        # motor_control.run()
         motor_control.test_sequence(5)
-
-        # Spin the node
         rclpy.spin(motor_control)
         
     except Exception as e:

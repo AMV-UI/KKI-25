@@ -7,8 +7,8 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package="core_perception",
-            executable="depth_controller",
-            name="depth_controller",
+            executable="camera_controller",
+            name="camera_controller",
             output="screen"
         )
     ])
