@@ -26,7 +26,7 @@ class FrontCamera(Node):
         super().__init__("front_camera")
 
         self.detector = ObjectDetector(
-            "/home/amv/models/v12/best.engine",
+            "/home/amv/models/v12/best_v12.engine",
             self,
             [
                 "blueBox",
@@ -38,7 +38,7 @@ class FrontCamera(Node):
                 "red_buoy",
             ],
             #"/dev/topCamera", #udev for real camera
-            "/home/amv/Videos/sim.mp4", #path to video for sim
+            "/home/amv/Videos/asv.mp4", #path to video for sim
         )
         
         self.result = ""
@@ -49,6 +49,7 @@ class FrontCamera(Node):
         self.current_state = StateObject()
         self.current_mission = 1
         self.mission_received = AutoControl()
+        self.show_result = True
 
         # self.micon = Microcontroller().request_pixhawk()
         # rate = rospy.Rate(10)
@@ -74,6 +75,18 @@ class FrontCamera(Node):
             # "/home/amv/Videos/videostore/footage3.mp4",
         )
 
+    def visualize(self, scale=0.6):
+        if self.img is None:
+            return False
+
+        display_img = cv2.resize(self.img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        cv2.imshow("Annotated Output", display_img)
+
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            self.get_logger().info("Exit requested by user (q pressed).")
+            return True
+        return False
+
 
     def do_impros(self):
         if self.current_mission == AutoControl.MISSION_DOCKING:
@@ -84,56 +97,65 @@ class FrontCamera(Node):
 
                 ## TODO: transfer these mechanism to core behavior tree
 
-                if self.current_mission < AutoControl.MISSION_POSITION_GREEN_BOX:
-                    self.img, self.dsc, self.detected = self.detector.process_frame(
-                        "buoy"
-                    )
-                elif self.current_mission < AutoControl.MISSION_POSITION_GREEN_BOX:
-                    self.img, self.dsc, self.detected = self.detector.process_frame(
-                        "green_box"
-                    )
-                elif self.current_mission < AutoControl.MISSION_POSITION_BLUE_BOX:
-                    self.img_64, self.dsc, self.detected = self.detector.process_frame(
-                        "blue_box"
-                    )
-                elif self.current_mission == AutoControl.MISSION_DOCKING:
-                    self.img, self.dsc, self.detected = self.vest.process_frame(
-                        "find_dock"
-                    )
-                elif self.current_mission == AutoControl.MISSION_DOCKING:
-                    self.img, self.dsc, self.detected = self.vest.process_frame(
-                        "docking"
-                    )
+                # if self.current_mission < AutoControl.MISSION_POSITION_GREEN_BOX:
+                #     self.img, self.dsc, self.detected = self.detector.process_frame(
+                #         "buoy"
+                #     )
+                # elif self.current_mission < AutoControl.MISSION_POSITION_GREEN_BOX:
+                #     self.img, self.dsc, self.detected = self.detector.process_frame(
+                #         "green_box"
+                #     )
+                # elif self.current_mission < AutoControl.MISSION_POSITION_BLUE_BOX:
+                #     self.img_64, self.dsc, self.detected = self.detector.process_frame(
+                #         "blue_box"
+                #     )
+                # elif self.current_mission == AutoControl.MISSION_DOCKING:
+                #     self.img, self.dsc, self.detected = self.vest.process_frame(
+                #         "find_dock"
+                #     )
+                # elif self.current_mission == AutoControl.MISSION_DOCKING:
+                #     self.img, self.dsc, self.detected = self.vest.process_frame(
+                #         "docking"
+                #     )
 
-
-                self.detected_pub.publish(self.detected)
+                self.img, self.dsc, self.detected = self.detector.process_frame(
+                    "buoy"
+                )
+ 
+                # self.detected_pub.publish(self.detected)
                 if self.img is None:
                     # rclpy.logerr("Failed to get frame")
                     break
 
-                # Encode the processed frame to JPG format
-                result, encoded_image = cv2.imencode(
-                    ".jpg", self.img, [int(cv2.IMWRITE_JPEG_QUALITY), 20]
-                )
-                if not result:
-                    # rospy.logerr("Failed to encode frame to JPG")
-                    break
+                if self.show_result is True:
+                    exit_status = self.visualize()
+                    if exit_status:
+                        break
+
+
+                # # Encode the processed frame to JPG format
+                # result, encoded_image = cv2.imencode(
+                #     ".jpg", self.img, [int(cv2.IMWRITE_JPEG_QUALITY), 20]
+                # )
+                # if not result:
+                #     # rospy.logerr("Failed to encode frame to JPG")
+                #     break
 
                 # Convert to base64
-                base64_image = base64.b64encode(encoded_image).decode("utf-8")
-                green_box_image = base64.b64encode(self.img_64).decode("utf-8")
+                # base64_image = base64.b64encode(encoded_image).decode("utf-8")
+                # green_box_image = base64.b64encode(self.img_64).decode("utf-8")
 
                 # time.sleep(0.2)
                 # Publish the image
-                self.dsc_pub.publish(self.dsc)
+                # self.dsc_pub.publish(self.dsc)
                 # self.dsc_flag_pub.publish(dsc_flag)
 
                 # if self.current_mission == AutoControl.MISSION_TAKE_GREEN_BOX:
                 #     self.greenBoxPub.publish(base64_image)
-                if self.current_mission == AutoControl.MISSION_TAKE_BLUE_BOX:
-                    self.camera_bottom_pub.publish(self.img_64)
+                # if self.current_mission == AutoControl.MISSION_TAKE_BLUE_BOX:
+                #     self.camera_bottom_pub.publish(self.img_64)
 
-                self.camera_processed_pub.publish(base64_image)
+                # self.camera_processed_pub.publish(base64_image)
                 # rospy.loginfo_throttle(
                 #     5, f"[{Node.camera_front}] Published processed image"
                 # )
