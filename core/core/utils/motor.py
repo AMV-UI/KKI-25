@@ -263,28 +263,44 @@ class Motor(Node):
         }
         return status
 
-    # Keep static methods for backward compatibility but log warnings
-    @staticmethod
-    def reset_param():
-        node = rclpy.create_node('motor_reset_param')
-        node.get_logger().warn("Using deprecated static method. Use set_speed_profile('reset') instead.")
-        node.declare_parameter(Param.MOTOR_SPEED, SPEED.Maximum)
-        node.declare_parameter(Param.X_SPEED, SPEED.Maximum)
-        node.set_parameters([
-            rclpy.parameter.Parameter(Param.MOTOR_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Maximum),
-            rclpy.parameter.Parameter(Param.X_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Maximum)
-        ])
-        node.destroy_node()
 
-    @staticmethod
-    def half_detected():
-        node = rclpy.create_node('motor_half_detected')
-        node.get_logger().warn("Using deprecated static method. Use set_speed_profile('half_detected') instead.")
-        node.set_parameters([
-            rclpy.parameter.Parameter(Param.MOTOR_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.MediumFast),
-            rclpy.parameter.Parameter(Param.X_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Medium)
-        ])
-        node.destroy_node()
+    def reset_param(self):
+        # node = rclpy.create_node('motor_reset_param')
+        # node.get_logger().warn("Using deprecated static method. Use set_speed_profile('reset') instead.")
+        # node.declare_parameter(Param.MOTOR_SPEED, SPEED.Maximum)
+        # node.declare_parameter(Param.X_SPEED, SPEED.Maximum)
+        # node.set_parameters([
+        #     rclpy.parameter.Parameter(Param.MOTOR_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Maximum),
+        #     rclpy.parameter.Parameter(Param.X_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Maximum)
+        # ])
+        # node.destroy_node()
+        self.set_speed_profile('reset')
+
+
+    def half_detected(self):
+        # node = rclpy.create_node('motor_half_detected')
+        # node.get_logger().warn("Using deprecated static method. Use set_speed_profile('half_detected') instead.")
+        # node.set_parameters([
+        #     rclpy.parameter.Parameter(Param.MOTOR_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.MediumFast),
+        #     rclpy.parameter.Parameter(Param.X_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Medium)
+        # ])
+        # node.destroy_node()
+        self.set_speed_profile('half_detected')
+
+
+    def one_is_closer_detected(self):
+        self.set_speed_profile('one_is_closer_detected')
+
+
+    def full_detected(self):
+        self.set_speed_profile('full_detected')
+    
+
+    def not_detected(self):
+        self.set_speed_profile('not_detected')
+
+    def searching(self):
+        self.set_speed_profile('searching')
 
 
 def main(args=None):

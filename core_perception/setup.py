@@ -23,6 +23,7 @@ setup(
     entry_points={
         'console_scripts': [
             'depth_controller = core_perception.depth_controller:main',
+            'camera_controller = core_perception.camera_controller:main',
         ],
     },
 )

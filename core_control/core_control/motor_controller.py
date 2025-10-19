@@ -31,7 +31,7 @@ class MotorController(Node):
     USES:
     - Motor Node in core.utils
     PUBLISHES:
-        - PWM to core_control.microcontroller
+    - PWM to core_control.microcontroller
     """
 
     def __init__(self):
@@ -147,6 +147,7 @@ class MotorController(Node):
             for k, v in self.motor.autonomous(yaw_effort=0, speed_effort=200).items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
+            self.get_logger().info(f"Published PWM: {self.pwm.channels}")
             time.sleep(timer)
 
             # Move backward
@@ -154,6 +155,7 @@ class MotorController(Node):
             for k, v in self.motor.autonomous(yaw_effort=0, speed_effort=-200).items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
+            self.get_logger().info(f"Published PWM: {self.pwm.channels}")
             time.sleep(timer)
 
             # Turn right
@@ -161,6 +163,7 @@ class MotorController(Node):
             for k, v in self.motor.autonomous(yaw_effort=-100, speed_effort=0).items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
+            self.get_logger().info(f"Published PWM: {self.pwm.channels}")
             time.sleep(timer)
 
             # Turn left
@@ -168,6 +171,7 @@ class MotorController(Node):
             for k, v in self.motor.autonomous(yaw_effort=100, speed_effort=0).items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
+            self.get_logger().info(f"Published PWM: {self.pwm.channels}")
             time.sleep(timer)
 
             # Stop
@@ -175,6 +179,7 @@ class MotorController(Node):
             for k, v in self.motor.idle().items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
+            self.get_logger().info(f"Published PWM: {self.pwm.channels}")
             time.sleep(2)
 
             self.get_logger().info("Motor test sequence completed successfully.")
@@ -188,11 +193,7 @@ def main(args=None):
         rclpy.init(args=args)
 
         motor_control = MotorController()
-        motor_control.run()
-        motor_control
-        # motor_control.test_sequence(1)
-
-        # Spin the node
+        motor_control.test_sequence(5)
         rclpy.spin(motor_control)
         
     except Exception as e:

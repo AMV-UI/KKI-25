@@ -17,10 +17,10 @@ def generate_launch_description():
             name="motor_controller",
             output="screen"
         ),
-        Node(
-            package="core_control",
-            executable="pid_controller",
-            name="pid_controller",
-            output="screen"
-        ),
+        # Node(
+        #     package="core_control",
+        #     executable="pid_controller",
+        #     name="pid_controller",
+        #     output="screen"
+        # ),
     ])
