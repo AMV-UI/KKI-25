@@ -3,16 +3,16 @@ from py_trees.common import Status
 from std_msgs.msg import UInt8
 from core.utils.config import BT, TopicFactory
 
-class BaseMission(BaseBehavior):
+class BaseExecution(BaseBehavior):
     """
-    Base class for mission behaviors that test conditions and report results.
+    Base class for mission main execution behaviors that test conditions and report results.
     
     Required Blackboard Keys:
     - "mission_counter" (read): tracks current mission step.
     
     Child classes must:
     - Add any extra blackboard keys via `extra_keys`
-    - Implement `execute_mission()` to return Status
+    - Implement `execute()` to return Status
     """
     
     def __init__(self, name: str, extra_keys: dict = None):
@@ -25,7 +25,7 @@ class BaseMission(BaseBehavior):
         self.counter_pub = TopicFactory("/mission_counter", UInt8).createPublisher(self.node)
     
     def update(self) -> Status:
-        status = self.evaluate()
+        status = self.execute()
         counter = self.blackboard.mission_counter
 
         match status:
@@ -39,11 +39,11 @@ class BaseMission(BaseBehavior):
 
         return status
     
-    def execute_mission(self) -> Status:
+    def execute(self) -> Status:
         """
         Must be overridden in child classes to implement mission-specific logic.
         """
-        raise NotImplementedError("You must implement evaluate() in your subclass.")
+        raise NotImplementedError("You must implement execute() in your subclass.")
 
 
 class BaseFallback(BaseBehavior):
@@ -55,7 +55,7 @@ class BaseFallback(BaseBehavior):
 
     Child classes must:
     - Add any extra blackboard keys via `extra_keys`
-    - Implement `execute_fallback()` to define fallback action
+    - Implement `fallback()` to define fallback action
     """
     
     def __init__(self, name: str, extra_keys: dict = None):
@@ -65,8 +65,8 @@ class BaseFallback(BaseBehavior):
         super().__init__(name, base_keys)
     
     def update(self) -> Status:
-        self.execute_fallback()
+        self.fallback()
         return Status.FAILURE
 
-    def execute_fallback(self):
-        raise NotImplementedError("You must implement execute_fallback() in your subclass.")
+    def fallback(self):
+        raise NotImplementedError("You must implement fallback() in your subclass.")

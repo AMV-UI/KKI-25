@@ -1,16 +1,16 @@
-from ..mission_behaviors import BaseMission, BaseFallback
+from ..mission_behaviors import BaseExecution, BaseFallback
 from geometry_msgs.msg import Twist
 from turtlesim.msg import Pose
 from py_trees.common import Status
 from core.utils.factory import TopicFactory
 import time
 
-class Mission1(BaseMission):
+class Mission1_Execution(BaseExecution):
     """
     Mission1: Hardcoded movement to move the asv on asvsim by publishing the topic on /cmd_vel, refer to the Scripts/Controllers/Core/CoreController.cs
     for the RosTCPConnector connection subscriber on /cmd_vel
     """
-    def __init__(self, name: str = "Mission1"):
+    def __init__(self, name: str = "Mission1_Execution"):
         super().__init__(name)
         self.velocity_pub = None
         self.pose_sub = None
@@ -26,7 +26,7 @@ class Mission1(BaseMission):
     def _pose_callback(self, msg):
         self.current_pose = msg
    
-    def evaluate(self) -> Status:
+    def execute(self) -> Status:
         self.twist.linear.x = 2.0
         self.twist.angular.z = 0.0
         self.velocity_pub.publish(self.twist)
@@ -37,7 +37,7 @@ class Mission1_Fallback(BaseFallback):
     """
     Fallback for Mission1
     """
-    def __init__(self, name: str = "Mission1Fallback"):
+    def __init__(self, name: str = "Mission1_Fallback"):
         super().__init__(name)
         self.start_time = None
         self.fallback_duration = 3.0  
@@ -48,7 +48,7 @@ class Mission1_Fallback(BaseFallback):
         self.velocity_pub = TopicFactory("/cmd_vel", Twist).createPublisher(self.node)
         self.node.get_logger().info(f"[{self.name}] Starting wall collision recovery")
     
-    def execute_fallback(self):
+    def fallback(self):
         if self.start_time is None:
             self.start_time = time.time()
         

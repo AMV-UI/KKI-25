@@ -1,15 +1,15 @@
-from ..mission_behaviors import BaseMission, BaseFallback
+from ..mission_behaviors import BaseExecution, BaseFallback
 from geometry_msgs.msg import Twist
 from py_trees.common import Status
 from core.utils.factory import TopicFactory
 import time
 
-class Mission2(BaseMission):
+class Mission2_Execution(BaseExecution):
     """
     Mission2: Moves the turtle in a triangle using simple state machine.
     """
 
-    def __init__(self, name: str = "Mission2"):
+    def __init__(self, name: str = "Mission2_Execution"):
         super().__init__(name)
         self.velocity_pub = None
         self.twist = Twist()
@@ -20,7 +20,7 @@ class Mission2(BaseMission):
         super().setup()
         self.velocity_pub = TopicFactory("/turtle1/cmd_vel", Twist).createPublisher(self.node)
 
-    def evaluate(self) -> Status:
+    def execute(self) -> Status:
         now = time.time()
         elapsed = now - self.last_time
 
@@ -51,13 +51,13 @@ class Mission2_Fallback(BaseFallback):
     Fallback for Mission2: Stops the turtle safely.
     """
 
-    def __init__(self, name: str = "Mission2Fallback"):
+    def __init__(self, name: str = "Mission2_Fallback"):
         super().__init__(name)
 
     def setup(self, **kwargs):
         self.velocity_pub = TopicFactory("/turtle1/cmd_vel", Twist).createPublisher(self.node)
 
-    def execute_fallback(self):
+    def fallback(self):
         twist = Twist()
         twist.linear.x = 0.0
         twist.angular.z = 0.0
