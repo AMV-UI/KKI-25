@@ -9,9 +9,9 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     target_packages = [
-        "core_perception"
         # "core_perception"
-        # "core_control"
+        # "core_perception"
+        "core_control"
     ]
 
     packages_to_launch = []
