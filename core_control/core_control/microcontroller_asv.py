@@ -109,6 +109,29 @@ class Microcontroller(Node):
             transition_covariance=1e-5,
         )
 
+         # CONVERT TO MSG
+        self.msg_heading_msg = Float64()
+        self.jetson_batt_msg = UInt16()
+        self.motor_batt_msg = UInt16()
+        self.mux_state_msg = UInt8()
+        self.imu_msg = Float64()
+
+        # Publisher
+        # self.kill_switch_pub = Topic.kill_switch.createPublisher(self)
+        # self.heading_deg_pub = Topic.heading_deg.createPublisher(self)
+        # self.auto_status_remote_pub = Topic.auto_status_remote.createPublisher(self)
+        # self.jetson_batt_pub = Topic.jetson_batt.createPublisher(self)
+        # self.motor_batt_pub = Topic.motor_batt.createPublisher(self)
+        # self.mux_state_pub = Topic.mux_state.createPublisher(self)
+        # self.pixhawk_pub = Topic.pixhawk.createPublisher(self)
+        # self.pxmode_pub = Topic.pxmode.createPublisher(self)
+        # self.get_logger().info("<> Pixhawk Publisher created")
+
+        # Subscriber
+        self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
+        self.get_logger().info("<> PWM Subscriber created")
+        # auto_status_gcs_sub = Topic.auto_status_gcs.createSubscriber(self.auto_status_gcs_cb)
+
     def warn_once(self, msg):
         if not hasattr(self, '_warn_once_messages'):
             self._warn_once_messages = set()
@@ -463,33 +486,10 @@ class Microcontroller(Node):
 
     def main(self):
 
-        # CONVERT TO MSG
-        self.msg_heading_msg = Float64()
-        self.jetson_batt_msg = UInt16()
-        self.motor_batt_msg = UInt16()
-        self.mux_state_msg = UInt8()
-        self.imu_msg = Float64()
-
-        # Publisher
-        self.kill_switch_pub = Topic.kill_switch.createPublisher(self)
-        self.heading_deg_pub = Topic.heading_deg.createPublisher(self)
-        self.auto_status_remote_pub = Topic.auto_status_remote.createPublisher(self)
-        self.jetson_batt_pub = Topic.jetson_batt.createPublisher(self)
-        self.motor_batt_pub = Topic.motor_batt.createPublisher(self)
-        self.mux_state_pub = Topic.mux_state.createPublisher(self)
-        self.pixhawk_pub = Topic.pixhawk.createPublisher(self)
-        self.pxmode_pub = Topic.pxmode.createPublisher(self)
-        self.get_logger().info("<> Pixhawk Publisher created")
-
-        # Subscriber
-        self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
-        self.get_logger().info("<> PWM Subscriber created")
-        # auto_status_gcs_sub = Topic.auto_status_gcs.createSubscriber(self.auto_status_gcs_cb)
-
         #self._validate_only_pixhawk()
         self._validate_both_micon()
 
-        while rclpy.ok():  # ROS2 equivalent of rospy.is_shutdown()
+        while rclpy.ok():
             #self._validate_both_micon()  #ganti kalo udah ada esp
             #self._validate_only_pixhawk()
             self.warn_once("micon found")
@@ -519,9 +519,8 @@ class Microcontroller(Node):
             self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
             
             rc_chans = self._px_rc_val()
-            if rc_chans:
-                self._px_set_mode(rc_chans.chan8_raw)
-                self._send_pwm(rc_chans)
+            self._px_set_mode(rc_chans.chan8_raw)
+            self._send_pwm(rc_chans)
 
             self._get_pwm()
             
