@@ -109,28 +109,8 @@ class Microcontroller(Node):
             transition_covariance=1e-5,
         )
 
-         # CONVERT TO MSG
-        self.msg_heading_msg = Float64()
-        self.jetson_batt_msg = UInt16()
-        self.motor_batt_msg = UInt16()
-        self.mux_state_msg = UInt8()
-        self.imu_msg = Float64()
-
-        # Publisher
-        # self.kill_switch_pub = Topic.kill_switch.createPublisher(self)
-        # self.heading_deg_pub = Topic.heading_deg.createPublisher(self)
-        # self.auto_status_remote_pub = Topic.auto_status_remote.createPublisher(self)
-        # self.jetson_batt_pub = Topic.jetson_batt.createPublisher(self)
-        # self.motor_batt_pub = Topic.motor_batt.createPublisher(self)
-        # self.mux_state_pub = Topic.mux_state.createPublisher(self)
-        # self.pixhawk_pub = Topic.pixhawk.createPublisher(self)
-        # self.pxmode_pub = Topic.pxmode.createPublisher(self)
-        # self.get_logger().info("<> Pixhawk Publisher created")
-
-        # Subscriber
         self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
         self.get_logger().info("<> PWM Subscriber created")
-        # auto_status_gcs_sub = Topic.auto_status_gcs.createSubscriber(self.auto_status_gcs_cb)
 
     def warn_once(self, msg):
         if not hasattr(self, '_warn_once_messages'):
@@ -164,6 +144,8 @@ class Microcontroller(Node):
                 esp32_port, px_port = dirs[0], dirs[1]
             else:
                 esp32_port, px_port = dirs[1], dirs[0]
+
+            # self.get_logger().info(esp32_port, px_port)
 
             #ESP32
             self.ser_1 = serial.Serial(esp32_port, 115200)
@@ -406,7 +388,7 @@ class Microcontroller(Node):
         elif 1301 <= pwm_val <= 1700:
             self.pxmode = PxMode.MANUAL
         else:
-            self.pxmode = PxMode.AUTO
+            self.pxmode = PxMode.MANUAL
 
         self.get_logger().info(f"Current Mode : {self.pxmode}")
 
@@ -424,15 +406,15 @@ class Microcontroller(Node):
         self.get_logger().info(f"Mode set to : {self.pxmode}")
         return True
 
-    def _validate_both_micon(self):
-        if (
-                self.mc1 == MiconType.NONE
-                or self.mc2 == MiconType.NONE
-                or self.ser_2 is None
-            ):
-                self.error_throttle(5000, "One of the micon is not found")
-                self._init_mc()
-                # continue
+    # def _validate_both_micon(self):
+    #     if (
+    #             self.mc1 == MiconType.NONE
+    #             or self.mc2 == MiconType.NONE
+    #             or self.ser_2 is None
+    #         ):
+    #             self.error_throttle(5000, "One of the micon is not found")
+    #             self._init_mc()
+    #             continue
 
     def _validate_only_pixhawk(self):
         if (
@@ -486,43 +468,72 @@ class Microcontroller(Node):
 
     def main(self):
 
-        #self._validate_only_pixhawk()
-        self._validate_both_micon()
+        # CONVERT TO MSG
+        self.msg_heading_msg = Float64()
+        self.jetson_batt_msg = UInt16()
+        self.motor_batt_msg = UInt16()
+        self.mux_state_msg = UInt8()
+        self.imu_msg = Float64()
 
-        while rclpy.ok():
+        # Publisher
+        self.kill_switch_pub = Topic.kill_switch.createPublisher(self)
+        self.heading_deg_pub = Topic.heading_deg.createPublisher(self)
+        self.auto_status_remote_pub = Topic.auto_status_remote.createPublisher(self)
+        self.jetson_batt_pub = Topic.jetson_batt.createPublisher(self)
+        self.motor_batt_pub = Topic.motor_batt.createPublisher(self)
+        self.mux_state_pub = Topic.mux_state.createPublisher(self)
+        self.pixhawk_pub = Topic.pixhawk.createPublisher(self)
+        self.pxmode_pub = Topic.pxmode.createPublisher(self)
+        self.get_logger().info("<> Pixhawk Publisher created")
+
+        # auto_status_gcs_sub = Topic.auto_status_gcs.createSubscriber(self.auto_status_gcs_cb)
+
+        #self._validate_only_pixhawk()
+
+        while rclpy.ok():  # ROS2 equivalent of rospy.is_shutdown()
             #self._validate_both_micon()  #ganti kalo udah ada esp
             #self._validate_only_pixhawk()
+            rclpy.spin_once(self, timeout_sec=0.01)
+            if (
+                self.mc1 == MiconType.NONE
+                or self.mc2 == MiconType.NONE
+                or self.ser_2 is None
+            ):
+                self.error_throttle(5000, "One of the micon is not found")
+                self._init_mc()
+                continue
             self.warn_once("micon found")
             self.warn_throttle(5000, f"{self.mc1}, {self.mc2}")
 
 
 
-            #ESP32
-            data = self._read_sensor_esp32()
+
+            # #ESP32
+            # data = self._read_sensor_esp32()
             
-            # Publish data
-            self.kill_switch_pub.publish(self.ks_kill_state)
-            self.heading_deg_pub.publish(self.msg_heading_msg)
-            self.auto_status_remote_pub.publish(self.auto_status_remote)
-            self.jetson_batt_msg.data = int(self._battery_value_safe(self.jetson_batt))
-            self.motor_batt_msg.data = int(self._battery_value_safe(self.motor_batt))
-            self.mux_state_msg.data = int(self.mux_state)
-            self.jetson_batt_pub.publish(self.jetson_batt_msg)
-            self.motor_batt_pub.publish(self.motor_batt_msg)
-            self.mux_state_pub.publish(self.mux_state_msg)
+            # # Publish data
+            # self.kill_switch_pub.publish(self.ks_kill_state)
+            # self.heading_deg_pub.publish(self.msg_heading_msg)
+            # self.auto_status_remote_pub.publish(self.auto_status_remote)
+            # self.jetson_batt_msg.data = int(self._battery_value_safe(self.jetson_batt))
+            # self.motor_batt_msg.data = int(self._battery_value_safe(self.motor_batt))
+            # self.mux_state_msg.data = int(self.mux_state)
+            # self.jetson_batt_pub.publish(self.jetson_batt_msg)
+            # self.motor_batt_pub.publish(self.motor_batt_msg)
+            # self.mux_state_pub.publish(self.mux_state_msg)
             
-            # Request and publish pixhawk data
-            pixhawk_data = self.request_pixhawk()
-            self.pixhawk_pub.publish(pixhawk_data)
+            # # Request and publish pixhawk data
+            # pixhawk_data = self.request_pixhawk()
+            # self.pixhawk_pub.publish(pixhawk_data)
             
-            # Update heading message
-            self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
+            # # Update heading message
+            # self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
             
             rc_chans = self._px_rc_val()
             self._px_set_mode(rc_chans.chan8_raw)
             self._send_pwm(rc_chans)
 
-            self._get_pwm()
+            # self._get_pwm()
             
             self.warn_throttle(5000, "Sending PWM...")
             

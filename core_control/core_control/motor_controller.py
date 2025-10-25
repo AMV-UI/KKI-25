@@ -144,7 +144,7 @@ class MotorController(Node):
         try:
             # Move forward
             self.get_logger().info("Moving forward...")
-            for k, v in self.motor.autonomous(yaw_effort=0, speed_effort=200).items():
+            for k, v in self.motor.autonomous(yaw_effort=0, speed_effort=100).items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
             self.get_logger().info(f"Published PWM: {self.pwm.channels}")
@@ -152,7 +152,7 @@ class MotorController(Node):
 
             # Move backward
             self.get_logger().info("Moving backward...")
-            for k, v in self.motor.autonomous(yaw_effort=0, speed_effort=-200).items():
+            for k, v in self.motor.autonomous(yaw_effort=0, speed_effort=-100).items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
             self.get_logger().info(f"Published PWM: {self.pwm.channels}")
@@ -193,7 +193,7 @@ def main(args=None):
         rclpy.init(args=args)
 
         motor_control = MotorController()
-        motor_control.test_sequence(5)
+        motor_control.test_sequence(10)
         rclpy.spin(motor_control)
         
     except Exception as e:

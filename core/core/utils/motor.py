@@ -21,7 +21,7 @@ class Motor(Node):
     # Kill switch values
     KILL_BUTTON, KILL_ON, KILL_OFF = 1200, 1500, 1800
 
-    def __init__(self, delta_effort=100, additional_effort=0):  # Reduced for T200
+    def __init__(self, delta_effort=200, additional_effort=0):  # Reduced for T200
         super().__init__('motor')
         """
         delta_effort: Speed adjustment from standby (e.g., 100 for T200)
@@ -195,31 +195,44 @@ class Motor(Node):
         })
         return self._check_and_log_pwm(motor_commands, "straight_with_conf")
 
-    def autonomous(self, yaw_effort=0, speed_effort=0):
-        """
-        Autonomous movement using PID outputs:
-        - yaw_effort: correction from heading PID (left vs right bias), the higher the value, the sharper right turn
-        - speed_effort: correction from speed PID (overall forward/backward throttle)
+    # def autonomous(self, yaw_effort=0, speed_effort=0):
+    #     """
+    #     Autonomous movement using PID outputs:
+    #     - yaw_effort: correction from heading PID (left vs right bias), the higher the value, the sharper right turn
+    #     - speed_effort: correction from speed PID (overall forward/backward throttle)
 
-        Example:
-        motor.autonomous(yaw_effort=0, speed_effort=100)
-        Result: Both motors at 1600 PWM (equal thrust forward)
+    #     Example:
+    #     motor.autonomous(yaw_effort=0, speed_effort=100)
+    #     Result: Both motors at 1600 PWM (equal thrust forward)
 
-        motor.autonomous(yaw_effort=50, speed_effort=100)
-        # Result: 
-        # Left motor: 1500 + (100-50) = 1550 PWM
-        # Right motor: 1500 + (100+50) = 1650 PWM
-        # Vehicle moves forward while turning right
-        """
+    #     motor.autonomous(yaw_effort=50, speed_effort=100)
+    #     # Result: 
+    #     # Left motor: 1500 + (100-50) = 1550 PWM
+    #     # Right motor: 1500 + (100+50) = 1650 PWM
+    #     # Vehicle moves forward while turning right
+    #     """
         
-        left_pwm = self.calculateSpeed(speed_effort - yaw_effort)
-        right_pwm = self.calculateSpeed(speed_effort + yaw_effort)
+    #     left_pwm = self.calculateSpeed(speed_effort - yaw_effort)
+    #     right_pwm = self.calculateSpeed(speed_effort + yaw_effort)
 
+    #     motor_commands = self.__calcAdjustedSpeed({
+    #         self.channel.MOTOR_X: left_pwm,
+    #         self.channel.MOTOR_Y: right_pwm,
+    #     })
+    #     return self._check_and_log_pwm(motor_commands, "autonomous")
+
+    def autonomous(self, yaw_effort=0, speed_effort=0):
+        motor_speed = self.get_parameter(Param.MOTOR_SPEED).value
+        x_speed = self.get_parameter(Param.X_SPEED).value
+
+        left_pwm = self.calculateSpeed(speed_effort - yaw_effort * x_speed)
+        right_pwm = self.calculateSpeed(speed_effort + yaw_effort * motor_speed)
         motor_commands = self.__calcAdjustedSpeed({
             self.channel.MOTOR_X: left_pwm,
             self.channel.MOTOR_Y: right_pwm,
         })
         return self._check_and_log_pwm(motor_commands, "autonomous")
+
 
 
     def set_speed_profile(self, profile_name):
