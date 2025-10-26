@@ -49,7 +49,7 @@ class FrontCamera(Node):
         self.current_state = StateObject()
         self.current_mission = 1
         self.mission_received = AutoControl()
-        self.show_result = True
+        self.show_result = False
 
         # self.micon = Microcontroller().request_pixhawk()
         # rate = rospy.Rate(10)
@@ -133,21 +133,21 @@ class FrontCamera(Node):
                         break
 
 
-                # # Encode the processed frame to JPG format
-                # result, encoded_image = cv2.imencode(
-                #     ".jpg", self.img, [int(cv2.IMWRITE_JPEG_QUALITY), 20]
-                # )
-                # if not result:
-                #     # rospy.logerr("Failed to encode frame to JPG")
-                #     break
+                # Encode the processed frame to JPG format
+                result, encoded_image = cv2.imencode(
+                    ".jpg", self.img, [int(cv2.IMWRITE_JPEG_QUALITY), 20]
+                )
+                if not result:
+                    # rospy.logerr("Failed to encode frame to JPG")
+                    break
 
-                # Convert to base64
+                # # Convert to base64
                 # base64_image = base64.b64encode(encoded_image).decode("utf-8")
                 # green_box_image = base64.b64encode(self.img_64).decode("utf-8")
 
                 # time.sleep(0.2)
                 # Publish the image
-                # self.dsc_pub.publish(self.dsc)
+                self.dsc_pub.publish(self.dsc)
                 # self.dsc_flag_pub.publish(dsc_flag)
 
                 # if self.current_mission == AutoControl.MISSION_TAKE_GREEN_BOX:
@@ -169,24 +169,24 @@ class FrontCamera(Node):
         self.current_mission = msg.data
 
     def main(self):
-        ## PUBLISHERS
+        # PUBLISHERS
         # self.camera_processed_pub = Topic.camera_processed.createPublisher(self)
         # self.camera_bottom_pub = Topic.camera_bottom.createPublisher(self)
-        # self.dsc_pub = Topic.dsc.createPublisher(self)
-        # self.dsc_flag_pub = Topic.dsc_flag.createPublisher(self)
-        # self.detected_pub = Topic.detected.createPublisher(self)
+        self.dsc_pub = Topic.dsc.createPublisher(self)
+        self.dsc_flag_pub = Topic.dsc_flag.createPublisher(self)
+        self.detected_pub = Topic.detected.createPublisher(self)
 
-        ## SUBSCRIBERS
+        # SUBSCRIBERS
         # self.current_mission_sub = Topic.mission.createSubscriber(self.mission_callback)
 
-        #
-        # # self.blueBoxPub = Topic.image_blue_box.createPublisher()
-        # # self.greenBoxPub = Topic.image_green_box.createPublisher()
+        
+        # self.blueBoxPub = Topic.image_blue_box.createPublisher()
+        # self.greenBoxPub = Topic.image_green_box.createPublisher()
 
 
-        # # self.state_pub = Topic.state_object.createPublisher()
-        # # self.state_yaw_pub = Topic.state_yaw.createPublisher()
-        # # self.object_counted_pub = Topic.object_counted.createPublisher()
+        # self.state_pub = Topic.state_object.createPublisher()
+        # self.state_yaw_pub = Topic.state_yaw.createPublisher()
+        # self.object_counted_pub = Topic.object_counted.createPublisher()
         #
         # Main Mission
         self.do_impros()

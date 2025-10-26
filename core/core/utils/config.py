@@ -25,10 +25,11 @@ class Param:
     KI = "/yaw_controller/yaw_controller/Ki"
     KD = "/yaw_controller/yaw_controller/Kd"
     THRESHOLD = "/camera_front/threshold"
-    TRACK = "/"
+    TRACK = "/mission/track"
     BOW_SPEED = "/motor_controller/bow_speed"
     X_SPEED = "/motor_controller/x_speed"
     MOTOR_SPEED = "/motor_controller/motor_speed"
+    CONF_THRESHOLD= "/mission/confidence_threshold"
 
 
 class NodeConfig:

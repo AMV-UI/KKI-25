@@ -22,7 +22,7 @@ class ObjectDetector:
     def __init__(
         self, model_path, node, class_names, camera_index, width=640, height=480, fps=30
     ):
-        self.motor = Motor()
+        self.motor = Motor(node, offset_horizontal=200, motor_adjust=0)
         # Camera
         self.node = node
         self.model = YOLO(model_path)
@@ -34,7 +34,7 @@ class ObjectDetector:
 
         self.camera_bottom = BottomCamera()
         # Track
-        # self.track = rospy.get_param(Param.TRACK)
+        self.track = self.node.get_parameter(Param.TRACK).value
 
         # PID
         self.pid_adjust = 300
@@ -184,27 +184,21 @@ class ObjectDetector:
                 confidence = float(box.conf[0])
                 cls = int(box.cls[0])
 
-                # if confidence < 0.3:
-                #     continue
-
                 label = self.normalize_class_name(cls)
 
                 if label == "greenBuoy":
                     confidence *= self.bias
                 
-                if label == "redBuoy":
-                    if confidence > self.max_red:
-                        self.max_red = confidence
-                        self.red = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
-                        detected = True
+                if confidence < 0.3:
+                    continue
 
-                elif label == "greenBuoy":
-                    if confidence > self.max_green:
-                        self.max_green = confidence
-                        self.green = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
-                        detected = True
+                area = abs(x2 - x1) * abs(y2 - y1)
+                if mission == "buoy":
+                    img, self.red, self.green = self.buoy_detected(
+                        img, x1, y1, x2, y2, area, label
+                    )
 
-        # Draw results
+
         if self.red:
             cv2.rectangle(img, (self.red["x1"], self.red["y1"]), (self.red["x2"], self.red["y2"]), (0, 0, 255), 2)
             cv2.putText(img, f"Red {self.max_red:.2f}", (self.red["x1"], self.red["y1"] - 5),
@@ -218,48 +212,66 @@ class ObjectDetector:
         # Draw reference center
         cv2.circle(img, (width, height), 4, (255, 255, 255), -1)
 
+        if self.max_red < self.max_green * self.treshold:
+            self.motor.one_is_closer_detected()
+            self.max_red = -1
+        elif self.max_green < self.max_red * self.treshold:
+            self.motor.one_is_closer_detected()
+            self.max_green = -1
+
+        self.mid_red = (self.red["x1"] + self.red["x2"]) // 2
+        self.mid_green = (self.green["x1"] + self.green["x2"]) // 2
+
+        # Full Motor
+        if self.max_red != -1 and self.max_green != -1:
+            mid_x = (self.mid_green + self.mid_red) // 2
+
+            # mid_y = (
+            #     max(self.red["y1"], self.green["y1"])
+            #     + min(self.red["y2"], self.green["y2"])
+            # ) // 2
+
+            dsc_x = mid_x - width
+            # dsc_y = mid_y - height
+
+            self.motor.full_detected()
+            yaw_state = dsc_x
+
+
+        # Half Motor
+        else:
+            # Only Green Buoy
+            if self.max_green != -1:
+                self.motor.half_detected()
+                yaw_state = self.pid_adjust * (-1 if self.track == "A" else 1)
+
+            # Only Red Buoy
+            elif self.max_red != -1:
+                self.motor.half_detected()
+                yaw_state = self.pid_adjust * (1 if self.track == "A" else -1)
+
+            # No Buoy
+            else:
+                self.motor.not_detected()
+                yaw_state = 0
+
+        if self.max_green != -1 or self.max_red != -1:
+            detected = True
+
         return img, yaw_state, detected
 
 
 
-    def buoy_detected(self, cls, img, x1, y1, x2, y2, confidence, area):
+    def buoy_detected(self, img, x1, y1, x2, y2, area, label):
         red = self.red
         green = self.green
-
-        if self.class_names[cls] == "redBuoy" or self.class_names[cls] == "red_buoy":
-            color = (0, 0, 255)
-            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-            cv2.putText(
-                img,
-                self.class_names[cls] + " " + str(confidence),
-                (x1, y1),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                color,
-                2,
-            )
-
+        
+        if label == "redBuoy":
             if self.max_red < area:
                 self.max_red = area
                 red = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
 
-        elif (
-            self.class_names[cls] == "greenBuoy"
-            or self.class_names[cls] == "green_buoy"
-        ):
-            # self.obj_count.red += 1
-            color = (0, 255, 0)
-            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-            cv2.putText(
-                img,
-                self.class_names[cls] + " " + str(confidence),
-                (x1, y1),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                color,
-                2,
-            )
-
+        elif label == "greenBuoy":
             if self.max_green < area:
                 self.max_green = area
                 green = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
