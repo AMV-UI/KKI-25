@@ -88,7 +88,7 @@ class MotorController(Node):
         # Subscribers
         self.yaw_effort_sub = Topic.yaw_effort.createSubscriber(self, self._yaw_effort_callback)
         self.speed_effort_sub = Topic.speed_effort.createSubscriber(self, self._speed_effort_callback)
-        self.dsc_sub = self.topic.dsc.createSubscriber(self, self._dsc_callback)
+        self.dsc_sub = Topic.dsc.createSubscriber(self, self._dsc_callback)
 
         # Publishers
         self.pwm_pub = Topic.pwm.createPublisher(self)
@@ -120,7 +120,8 @@ class MotorController(Node):
     def go2Buoys(self):
         self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] MotorController go through 2 buoys mode")
         for k, v in self.motor.autonomous(
-            control_effort_x=self.dsc
+            control_effort_x=self.dsc,
+            control_effort_y=200
         ).items():
             self.pwm.channels[k] = v
 
