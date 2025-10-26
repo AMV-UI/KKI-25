@@ -230,9 +230,8 @@ class ObjectDetector:
             #     max(self.red["y1"], self.green["y1"])
             #     + min(self.red["y2"], self.green["y2"])
             # ) // 2
-
-            dsc_x = mid_x - width
             # dsc_y = mid_y - height
+            dsc_x = mid_x - width
 
             self.motor.full_detected()
             yaw_state = dsc_x

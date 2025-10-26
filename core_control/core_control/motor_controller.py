@@ -88,6 +88,7 @@ class MotorController(Node):
         # Subscribers
         self.yaw_effort_sub = Topic.yaw_effort.createSubscriber(self, self._yaw_effort_callback)
         self.speed_effort_sub = Topic.speed_effort.createSubscriber(self, self._speed_effort_callback)
+        self.dsc_sub = self.topic.dsc.createSubscriber(self, self._dsc_callback)
 
         # Publishers
         self.pwm_pub = Topic.pwm.createPublisher(self)
@@ -108,13 +109,21 @@ class MotorController(Node):
         for k, v in self.motor.idle().items():
             self.pwm.channels[k] = v
 
-    def auto(self):
+    def autonomous(self):
         self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] MotorController Auto Mode")
         for k, v in self.motor.autonomous(
-            yaw_effort=self.yaw_effort,
-            speed_effort=self.speed_effort
+            control_effort_x=self.yaw_effort,
+            control_effort_y=self.speed_effort
         ).items():
             self.pwm.channels[k] = v
+
+    def go2Buoys(self):
+        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] MotorController go through 2 buoys mode")
+        for k, v in self.motor.autonomous(
+            control_effort_x=self.dsc
+        ).items():
+            self.pwm.channels[k] = v
+
 
 
     def _yaw_effort_callback(self, msg: Float64):
@@ -129,24 +138,21 @@ class MotorController(Node):
     def _joy_state_callback(self, msg: Controller):
         self.joy_state = msg
 
+    def _dsc_callback(self, msg: Float64):
+        self.dsc = msg.data
+
 
     def run(self):
         """Main execution loop"""
-        # Display initial PWM status
-        self.display_pwm_status()
-
         self.timer = self.create_timer(0.02, self.loop)  # 50Hz
-        
         self.get_logger().info(f"<> [{NodeConfig.motor_controller}] Successfully initialized node")
 
     def loop(self):
-        """Main control loop executed at 50Hz"""
         try:
-
+            self.go2Buoys()
+            # self.autonomous() #ideally pake autonomous, kontrol cuma dari yaw sama speed effort
             self.pwm.channels = [int(val) for val in self.pwm.channels]
-
             self.pwm_pub.publish(self.pwm)
-            
         except Exception as e:
             self.get_logger().error(f"Error in control loop: {traceback.format_exc()}")
 
@@ -284,7 +290,8 @@ def main(args=None):
         rclpy.init(args=args)
 
         motor_control = MotorController()
-        motor_control.test_sequence(10)
+        # motor_control.test_sequence(10)
+        motor_control.run()
         rclpy.spin(motor_control)
         
     except Exception as e:

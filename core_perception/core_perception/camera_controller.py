@@ -3,7 +3,6 @@
 import traceback
 import cv2
 import rclpy
-# import actionlib
 import numpy as np
 import base64
 import time
@@ -11,15 +10,15 @@ from core.perception.image.inference_new import ObjectDetector
 from core_msgs.msg import StateObject, AutoControl
 from core.utils.config import AutoState, Box, Camera, NodeConfig, Topic, ModelPath, Tower
 from rclpy.node import Node
+from std_msgs.msg import Float64, Bool
 
 class FrontCamera(Node):
     """
-    SUBSCRIBES TO:
-        - None
-    ---
+    Front Camera Node for Object Detection
+    
     PUBLISHES TO:
-        - camera_raw: Raw image/frame from camera
-        - camera_compressed: Compressed image/frame
+        - dsc: Float64 - Yaw control effort
+        - detected: Bool - Detection status
     """
 
     def __init__(self):
@@ -37,49 +36,46 @@ class FrontCamera(Node):
                 "redBuoy",
                 "red_buoy",
             ],
-            #"/dev/topCamera", #udev for real camera
-            "/home/amv/Videos/asv.mp4", #path to video for sim
+            # "/dev/topCamera",  # udev for real camera
+            "/home/amv/Videos/asv.mp4",  # path to video for sim
         )
         
         self.result = ""
         self.dsc = -9999
         self.state = [0, 0, 0, 0]
-        self.img = ""
+        self.img = None
         self.img_64 = ""
         self.current_state = StateObject()
         self.current_mission = 1
         self.mission_received = AutoControl()
         self.show_result = False
+        self.detected = False
 
-        # self.micon = Microcontroller().request_pixhawk()
-        # rate = rospy.Rate(10)
+        # Setup communication
+        self._setup_communication()
+        
+        self.get_logger().info(f"<> [{NodeConfig.camera_front}] Successfully initialized node")
+
+    def _setup_communication(self):
+        """Initialize publishers and subscribers"""
+        # Publishers
+        self.dsc_pub = Topic.dsc.createPublisher(self)
+        self.detected_pub = Topic.detected.createPublisher(self)
+        
+        # Subscribers (if needed)
+        # self.current_mission_sub = Topic.mission.createSubscriber(self, self.mission_callback)
 
     def get_data(self):
         return self.result, self.dsc, self.state
 
-    def init_vest(self):
-        self.vest = ObjectDetector(
-            "/home/amv/Videos/vest.pt",
-            [
-                "googles",
-                "helmet",
-                "no-goggles",
-                "no-helmet",
-                "no-vest",
-                "null",
-                "Person",
-                "vest",
-            ],
-            "/dev/topCamera",  # udev
-            # SIM
-            # "/home/amv/Videos/videostore/footage3.mp4",
-        )
-
     def visualize(self, scale=0.6):
+        """Display annotated frame"""
         if self.img is None:
             return False
 
-        display_img = cv2.resize(self.img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        display_img = cv2.resize(
+            self.img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA
+        )
         cv2.imshow("Annotated Output", display_img)
 
         if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -87,114 +83,48 @@ class FrontCamera(Node):
             return True
         return False
 
+    def process_frame(self):
+        """Process a single frame - called by timer"""
+        try:
+            self.img, self.dsc, self.detected = self.detector.process_frame("buoy")
+            
+            if self.img is None:
+                self.get_logger().warn("Failed to get frame", throttle_duration_sec=5.0)
+                return
 
-    def do_impros(self):
-        if self.current_mission == AutoControl.MISSION_DOCKING:
-            self.init_vest()
-        while rclpy.ok():
-            # Read the frame
-            try:
+            # Visualize if enabled
+            if self.show_result:
+                exit_status = self.visualize()
+                if exit_status:
+                    rclpy.shutdown()
+                    return
 
-                ## TODO: transfer these mechanism to core behavior tree
+            dsc_msg = Float64()
+            dsc_msg.data = float(self.dsc)
+            self.dsc_pub.publish(dsc_msg)
+            
+            detected_msg = Bool()
+            detected_msg.data = self.detected
+            self.detected_pub.publish(detected_msg)
 
-                # if self.current_mission < AutoControl.MISSION_POSITION_GREEN_BOX:
-                #     self.img, self.dsc, self.detected = self.detector.process_frame(
-                #         "buoy"
-                #     )
-                # elif self.current_mission < AutoControl.MISSION_POSITION_GREEN_BOX:
-                #     self.img, self.dsc, self.detected = self.detector.process_frame(
-                #         "green_box"
-                #     )
-                # elif self.current_mission < AutoControl.MISSION_POSITION_BLUE_BOX:
-                #     self.img_64, self.dsc, self.detected = self.detector.process_frame(
-                #         "blue_box"
-                #     )
-                # elif self.current_mission == AutoControl.MISSION_DOCKING:
-                #     self.img, self.dsc, self.detected = self.vest.process_frame(
-                #         "find_dock"
-                #     )
-                # elif self.current_mission == AutoControl.MISSION_DOCKING:
-                #     self.img, self.dsc, self.detected = self.vest.process_frame(
-                #         "docking"
-                #     )
+            self.get_logger().info(
+                f"DSC: {self.dsc:.2f}, Detected: {self.detected}",
+                throttle_duration_sec=2.0
+            )
 
-                self.img, self.dsc, self.detected = self.detector.process_frame(
-                    "buoy"
-                )
- 
-                # self.detected_pub.publish(self.detected)
-                if self.img is None:
-                    # rclpy.logerr("Failed to get frame")
-                    break
-
-                if self.show_result is True:
-                    exit_status = self.visualize()
-                    if exit_status:
-                        break
-
-
-                # Encode the processed frame to JPG format
-                result, encoded_image = cv2.imencode(
-                    ".jpg", self.img, [int(cv2.IMWRITE_JPEG_QUALITY), 20]
-                )
-                if not result:
-                    # rospy.logerr("Failed to encode frame to JPG")
-                    break
-
-                # # Convert to base64
-                # base64_image = base64.b64encode(encoded_image).decode("utf-8")
-                # green_box_image = base64.b64encode(self.img_64).decode("utf-8")
-
-                # time.sleep(0.2)
-                # Publish the image
-                self.dsc_pub.publish(self.dsc)
-                # self.dsc_flag_pub.publish(dsc_flag)
-
-                # if self.current_mission == AutoControl.MISSION_TAKE_GREEN_BOX:
-                #     self.greenBoxPub.publish(base64_image)
-                # if self.current_mission == AutoControl.MISSION_TAKE_BLUE_BOX:
-                #     self.camera_bottom_pub.publish(self.img_64)
-
-                # self.camera_processed_pub.publish(base64_image)
-                # rospy.loginfo_throttle(
-                #     5, f"[{Node.camera_front}] Published processed image"
-                # )
-                # self.fps_counter.calculate(frame)
-                # self.camera_processed_pub.publish(compressImage(frame))
-            except Exception as e:
-                # rospy.logerr_throttle(5, f"<=> [{Node.camera_front}] Improc error,", e)
-                self.get_logger().error(traceback.format_exc())
+        except Exception as e:
+            self.get_logger().error(f"Error in process_frame: {traceback.format_exc()}")
 
     def mission_callback(self, msg):
+        """Update current mission"""
         self.current_mission = msg.data
+        self.get_logger().info(f"Mission changed to: {self.current_mission}")
 
-    def main(self):
-        # PUBLISHERS
-        # self.camera_processed_pub = Topic.camera_processed.createPublisher(self)
-        # self.camera_bottom_pub = Topic.camera_bottom.createPublisher(self)
-        self.dsc_pub = Topic.dsc.createPublisher(self)
-        self.dsc_flag_pub = Topic.dsc_flag.createPublisher(self)
-        self.detected_pub = Topic.detected.createPublisher(self)
-
-        # SUBSCRIBERS
-        # self.current_mission_sub = Topic.mission.createSubscriber(self.mission_callback)
-
-        
-        # self.blueBoxPub = Topic.image_blue_box.createPublisher()
-        # self.greenBoxPub = Topic.image_green_box.createPublisher()
-
-
-        # self.state_pub = Topic.state_object.createPublisher()
-        # self.state_yaw_pub = Topic.state_yaw.createPublisher()
-        # self.object_counted_pub = Topic.object_counted.createPublisher()
-        #
-        # Main Mission
-        self.do_impros()
-    
-
-
-        # rospy.loginfo_once(f"<> [{Node.camera_front}] Successfully initialized Node!")
-
+    def run(self):
+        """Start the main execution loop"""
+        # timer for frame processing (30 FPS = 0.033s)
+        self.timer = self.create_timer(0.033, self.process_frame)
+        self.get_logger().info("Front camera processing started at 30 FPS")
 
 
 def main():
@@ -202,8 +132,17 @@ def main():
     front_cam = FrontCamera()
 
     try:
-        front_cam.main()
+        front_cam.run()
+        rclpy.spin(front_cam)
+        
+    except KeyboardInterrupt:
+        front_cam.get_logger().info("Shutting down front camera node...")
+    except Exception as e:
+        front_cam.get_logger().error(f"Error: {traceback.format_exc()}")
     finally:
+        # Cleanup
+        front_cam.detector.release()
+        cv2.destroyAllWindows()
         front_cam.destroy_node()
         rclpy.shutdown()
 
