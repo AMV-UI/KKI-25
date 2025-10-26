@@ -508,26 +508,26 @@ class Microcontroller(Node):
 
 
 
-            # #ESP32
-            # data = self._read_sensor_esp32()
+            #ESP32
+            data = self._read_sensor_esp32()
             
-            # # Publish data
-            # self.kill_switch_pub.publish(self.ks_kill_state)
-            # self.heading_deg_pub.publish(self.msg_heading_msg)
-            # self.auto_status_remote_pub.publish(self.auto_status_remote)
-            # self.jetson_batt_msg.data = int(self._battery_value_safe(self.jetson_batt))
-            # self.motor_batt_msg.data = int(self._battery_value_safe(self.motor_batt))
-            # self.mux_state_msg.data = int(self.mux_state)
-            # self.jetson_batt_pub.publish(self.jetson_batt_msg)
-            # self.motor_batt_pub.publish(self.motor_batt_msg)
-            # self.mux_state_pub.publish(self.mux_state_msg)
+            # Publish data
+            self.kill_switch_pub.publish(self.ks_kill_state)
+            self.heading_deg_pub.publish(self.msg_heading_msg)
+            self.auto_status_remote_pub.publish(self.auto_status_remote)
+            self.jetson_batt_msg.data = int(self._battery_value_safe(self.jetson_batt))
+            self.motor_batt_msg.data = int(self._battery_value_safe(self.motor_batt))
+            self.mux_state_msg.data = int(self.mux_state)
+            self.jetson_batt_pub.publish(self.jetson_batt_msg)
+            self.motor_batt_pub.publish(self.motor_batt_msg)
+            self.mux_state_pub.publish(self.mux_state_msg)
             
-            # # Request and publish pixhawk data
-            # pixhawk_data = self.request_pixhawk()
-            # self.pixhawk_pub.publish(pixhawk_data)
+            # Request and publish pixhawk data
+            pixhawk_data = self.request_pixhawk()
+            self.pixhawk_pub.publish(pixhawk_data)
             
-            # # Update heading message
-            # self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
+            # Update heading message
+            self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
             
             rc_chans = self._px_rc_val()
             self._px_set_mode(rc_chans.chan8_raw)

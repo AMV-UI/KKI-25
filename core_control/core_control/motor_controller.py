@@ -46,7 +46,11 @@ class MotorController(Node):
 
         # OFFSET, deltas between value => 1500 with delta 200 meaning that value can vary between 1400 - 1700
    
-        self.motor = Motor(self, offset=200, adjust=50)
+        self.motor = Motor(self, offset_horizontal=200, motor_adjust=0)
+
+        # Fast Mode, delta nambah 100
+        # self.motor = Motor(self, offset_horizontal=200, motor_adjust=100)
+
 
         self.object_counted = ObjectCount()
         self.joy_state = Joy()
@@ -153,43 +157,121 @@ class MotorController(Node):
         try:
             # Move forward
             self.get_logger().info("Moving forward...")
-            for k, v in self.motor.autonomous(yaw_effort=0, speed_effort=100).items():
+            for k, v in self.motor.autonomous(control_effort_x=0, control_effort_y=100).items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
             self.get_logger().info(f"Published PWM: {self.pwm.channels}")
             time.sleep(timer)
+
+            # Output PWM with Motor config => Motor(self, offset_horizontal=200, motor_adjust=0)
+                                              # control_effort_x = 0, control_effort_y = 100
+
+            # 1500 => index 0
+            # 0
+            # 1600 => index 2
+            # 0
+            # 0
+            # 0
+            # 0
+            # 0
+
 
             # Move backward
             self.get_logger().info("Moving backward...")
-            for k, v in self.motor.autonomous(yaw_effort=0, speed_effort=-100).items():
+            for k, v in self.motor.autonomous(control_effort_x=0, control_effort_y=-100).items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
             self.get_logger().info(f"Published PWM: {self.pwm.channels}")
             time.sleep(timer)
 
-            # Turn right
-            self.get_logger().info("Turning right...")
-            for k, v in self.motor.autonomous(yaw_effort=-100, speed_effort=0).items():
+            # Output PWM with Motor config => Motor(self, offset_horizontal=200, motor_adjust=0)
+                                            # control_effort_x = 0, control_effort_y = -100
+            # 1500 => index 0
+            # 0
+            # 1400 => index 2
+            # 0
+            # 0
+            # 0
+            # 0
+            # 0
+
+            # Turn right with moving forward
+            self.get_logger().info("Turning right with moving forward")
+            for k, v in self.motor.autonomous(control_effort_x=100, control_effort_y=100).items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
             self.get_logger().info(f"Published PWM: {self.pwm.channels}")
             time.sleep(timer)
 
-            # Turn left
-            self.get_logger().info("Turning left...")
-            for k, v in self.motor.autonomous(yaw_effort=100, speed_effort=0).items():
+            # Output PWM with Motor config => Motor(self, offset_horizontal=200, motor_adjust=0)
+                                            # control_effort_x = 100, control_effort_y = 100
+            # 1600 => index 0
+            # 0
+            # 1600 => index 2
+            # 0
+            # 0
+            # 0
+            # 0
+            # 0
+
+            # Turn left with moving forward
+            self.get_logger().info("Turning left with moving forward")
+            for k, v in self.motor.autonomous(control_effort_x=-100, control_effort_y=100).items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
             self.get_logger().info(f"Published PWM: {self.pwm.channels}")
             time.sleep(timer)
+
+            # Output PWM with Motor config => Motor(self, offset_horizontal=200, motor_adjust=0)
+                                            # control_effort_x = -100, control_effort_y = 100
+            # 1400 => index 0
+            # 0
+            # 1600 => index 2
+            # 0
+            # 0
+            # 0
+            # 0
+            # 0
+
+            # Idle Backward
+            self.get_logger().info("Idle backward")
+            for k, v in self.motor.autonomous(control_effort_x=0, control_effort_y=-100).items():
+                self.pwm.channels[k] = v
+            self.pwm_pub.publish(self.pwm)
+            self.get_logger().info(f"Published PWM: {self.pwm.channels}")
+            time.sleep(timer)
+
+            # Output PWM with Motor config => Motor(self, offset_horizontal=200, motor_adjust=0)
+                                            # control_effort_x = 0, control_effort_y = -100
+            # 1500 => index 0
+            # 0
+            # 1400 => index 2
+            # 0
+            # 0
+            # 0
+            # 0
+            # 0
 
             # Stop
-            self.get_logger().info("Stopping...")
-            for k, v in self.motor.idle().items():
+            self.get_logger().info("Stop")
+            for k, v in self.motor.autonomous(control_effort_x=0, control_effort_y=0).items():
                 self.pwm.channels[k] = v
             self.pwm_pub.publish(self.pwm)
             self.get_logger().info(f"Published PWM: {self.pwm.channels}")
-            time.sleep(2)
+            time.sleep(timer)
+
+            # Output PWM with Motor config => Motor(self, offset_horizontal=200, motor_adjust=0)
+                                            # control_effort_x = 0, control_effort_y = 0
+            # 1500 => index 0
+            # 0
+            # 1500 => index 2
+            # 0
+            # 0
+            # 0
+            # 0
+            # 0
+
+
 
             self.get_logger().info("Motor test sequence completed successfully.")
 
