@@ -37,7 +37,16 @@ class MotorController(Node):
     def __init__(self):
         super().__init__(NodeConfig.motor_controller)
         
-        self.motor = Motor(delta_effort=200, additional_effort=50)
+        # Differential Drive System
+        # YAW, X component => Turn Right (+), Turn Left (-) => channel 0
+        # SPEED, Y component => Forward (+) and Backward (-) => channel 2
+
+        # YAW (Channel 0): 1700=right, 1300=left
+        # SPEED (Channel 2): 1700=forward, 1300=backward
+
+        # OFFSET, deltas between value => 1500 with delta 200 meaning that value can vary between 1400 - 1700
+   
+        self.motor = Motor(self, offset=200, adjust=50)
 
         self.object_counted = ObjectCount()
         self.joy_state = Joy()
@@ -98,7 +107,7 @@ class MotorController(Node):
     def auto(self):
         self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] MotorController Auto Mode")
         for k, v in self.motor.autonomous(
-            yaw_effort=self.yaw_control_effort,
+            yaw_effort=self.yaw_effort,
             speed_effort=self.speed_effort
         ).items():
             self.pwm.channels[k] = v
@@ -122,11 +131,11 @@ class MotorController(Node):
         # Display initial PWM status
         self.display_pwm_status()
 
-        self.timer = self.create_timer(0.02, self.control_loop)  # 50Hz
+        self.timer = self.create_timer(0.02, self.loop)  # 50Hz
         
         self.get_logger().info(f"<> [{NodeConfig.motor_controller}] Successfully initialized node")
 
-    def control_loop(self):
+    def loop(self):
         """Main control loop executed at 50Hz"""
         try:
 
