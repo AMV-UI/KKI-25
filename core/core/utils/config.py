@@ -21,15 +21,15 @@ from core_msgs.msg import (
 
 
 class Param:
-    KP = "/yaw_controller/yaw_controller/Kp"
-    KI = "/yaw_controller/yaw_controller/Ki"
-    KD = "/yaw_controller/yaw_controller/Kd"
-    THRESHOLD = "/camera_front/threshold"
-    TRACK = "/mission/track"
-    BOW_SPEED = "/motor_controller/bow_speed"
-    X_SPEED = "/motor_controller/x_speed"
-    MOTOR_SPEED = "/motor_controller/motor_speed"
-    CONF_THRESHOLD= "/mission/confidence_threshold"
+    KP = ParamFactory("/yaw_controller/yaw_controller/Kp", float)
+    KI = ParamFactory("/yaw_controller/yaw_controller/Ki", float)
+    KD = ParamFactory("/yaw_controller/yaw_controller/Kd", float)
+    THRESHOLD = ParamFactory("/camera_front/threshold", float)
+    TRACK = ParamFactory("/mission/track", str)
+    BOW_SPEED = ParamFactory("/motor_controller/bow_speed", float)
+    X_SPEED = ParamFactory("/motor_controller/x_speed", float)
+    MOTOR_SPEED = ParamFactory("/motor_controller/motor_speed", float)
+    CONF_THRESHOLD = ParamFactory("/mission/confidence_threshold", float)
 
 
 class NodeConfig:
@@ -265,7 +265,7 @@ class ModelPath:
 
 class SPEED:
     Maximum = 1
-    MediumFast = 3
-    Medium = 2
-    Slow = 1
+    MediumFast = 0.7
+    Medium = 0.5
+    Slow = 0.3
     Idle = 0

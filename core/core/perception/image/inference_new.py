@@ -18,11 +18,15 @@ from core.perception.image.camera_bottom import BottomCamera
 
 class ObjectDetector:
     def __init__(
-        self, model_path, node, class_names, camera_index, width=640, height=480, fps=30
+        self, model_path, node, track, class_names, camera_index, width=640, height=480, fps=30
     ):
-        # Camera
+
         self.model = YOLO(model_path)
         self.class_names = class_names
+        self.conf_threshold = 0.2
+        self.node = node
+        self.track = track
+
         self.cap = cv2.VideoCapture(camera_index)
         self.cap.set(1, fps)  # Set FPS
         self.cap.set(3, width)  # Set width
@@ -33,6 +37,17 @@ class ObjectDetector:
 
         # Track
         # self.track = rospy.get_param(Param.TRACK)
+
+        #new param factory implementation [untested]
+        Param.TRACK.createParam(self.node, default_value=self.track)
+        self.track = Param.TRACK.getValue(self.node)
+
+
+        # PARAM EXAMPLES
+        # self.create_example = Param.TRACK.createParam(self.node, default_value=self.track)
+        # self.change_example = Param.TRACK.setParam(self.node, "A")
+        # self.get_example = Param.TRACK.getValue(self.node)
+
 
         # PID
         self.pid_adjust = 300
@@ -48,7 +63,7 @@ class ObjectDetector:
         self.blue_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
 
         # Publisher
-        self.dscPub = Topic.dsc.createPublisher(node)
+        self.dscPub = Topic.dsc.createPublisher(self.node)
         # self.cameraBottomPub = Topic.image_blue_box.createPublisher()
 
     def draw_detections(self, img, results):
@@ -92,7 +107,7 @@ class ObjectDetector:
 
         # results = self.model(img, stream=True, task="detect", verbose=False)
 
-        results = self.model(img, conf=0.4, verbose=False)
+        results = self.model(img, conf=self.conf_threshold, verbose=False)
         # results = self.model(img, stream=True, task='detect')
 
         # red / green buoy
@@ -109,7 +124,6 @@ class ObjectDetector:
         # self.minimum_green_box_area = 200
         for r in results:
             # self.track = rospy.get_param(Param.TRACK)
-            self.track = "A"
             boxes = r.boxes
             for box in boxes:
                 # Get bounding box coordinates
@@ -123,7 +137,12 @@ class ObjectDetector:
 
                 # put box in cam
                 color = (0, 0, 0)
-                area = abs(x1 - x2)
+
+
+
+                # Get area of the box experimentation with actual area instead of x only
+                # area = abs(x1 - x2)
+                area = abs((x2 - x1) * (y2 - y1))
                 if mission == "buoy":
                     img, self.red, self.green = self.buoy_detected(
                         cls, img, x1, y1, x2, y2, confidence, area

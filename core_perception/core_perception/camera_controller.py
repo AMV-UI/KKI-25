@@ -27,6 +27,7 @@ class CameraController(Node):
         self.detector = ObjectDetector(
             "/home/amv/models/v12/best_v12.engine",
             self,
+            "A", # Default track value
             [
                 "blueBox",
                 "docking",
