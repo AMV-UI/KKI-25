@@ -150,8 +150,8 @@ class MotorController(Node):
 
     def loop(self):
         try:
-            self.go2Buoys()
-            # self.autonomous() #ideally pake autonomous, kontrol cuma dari yaw sama speed effort
+            # self.go2Buoys()
+            self.autonomous() #ideally pake autonomous, kontrol cuma dari yaw sama speed effort
             self.pwm.channels = [int(val) for val in self.pwm.channels]
             self.pwm_pub.publish(self.pwm)
         except Exception as e:

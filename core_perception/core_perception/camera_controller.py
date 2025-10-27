@@ -12,7 +12,7 @@ from core.utils.config import AutoState, Box, Camera, NodeConfig, Topic, ModelPa
 from rclpy.node import Node
 from std_msgs.msg import Float64, Bool
 
-class FrontCamera(Node):
+class CameraController(Node):
     """
     Front Camera Node for Object Detection
     
@@ -36,8 +36,8 @@ class FrontCamera(Node):
                 "redBuoy",
                 "red_buoy",
             ],
-            # "/dev/topCamera",  # udev for real camera
-            "/home/amv/Videos/asv.mp4",  # path to video for sim
+            "/dev/topCamera",  # udev for real camera
+            #"/home/amv/Videos/asv.mp4",  # path to video for sim
         )
         
         self.result = ""

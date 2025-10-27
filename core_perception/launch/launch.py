@@ -25,8 +25,8 @@ def generate_launch_description():
         
         Node(
             package="core_perception",
-            executable="camera_front",
-            name="camera_front",
+            executable="camera_controller",
+            name="camera_controller",
             output="screen",
             parameters=[{
                 Param.TRACK: LaunchConfiguration(Param.TRACK),
