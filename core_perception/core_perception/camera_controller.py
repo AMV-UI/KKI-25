@@ -36,8 +36,8 @@ class CameraController(Node):
                 "redBuoy",
                 "red_buoy",
             ],
-            "/dev/topCamera",  # udev for real camera
-            #"/home/amv/Videos/asv.mp4",  # path to video for sim
+            "/dev/video0",  # udev for real camera
+            # "/home/amv/Videos/asv.mp4",  # path to video for sim
         )
         
         self.result = ""
@@ -60,7 +60,7 @@ class CameraController(Node):
         """Initialize publishers and subscribers"""
         # Publishers
         self.dsc_pub = Topic.dsc.createPublisher(self)
-        self.detected_pub = Topic.detected.createPublisher(self)
+        # self.detected_pub = Topic.detected.createPublisher(self)
         
         # Subscribers (if needed)
         # self.current_mission_sub = Topic.mission.createSubscriber(self, self.mission_callback)
@@ -129,7 +129,7 @@ class CameraController(Node):
 
 def main():
     rclpy.init()
-    front_cam = FrontCamera()
+    front_cam = CameraController()
 
     try:
         front_cam.run()

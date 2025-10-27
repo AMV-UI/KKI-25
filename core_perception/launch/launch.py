@@ -8,13 +8,13 @@ from core.utils.config import Param
 
 def generate_launch_description():
     track_arg = DeclareLaunchArgument(
-        Param.TRACK,
+        "track",
         default_value='A',
         description='Mission track (A or B)'
     )
     
     threshold_arg = DeclareLaunchArgument(
-        Param.CONF_THRESHOLD,
+        "conf_threshold",
         default_value='0.3',
         description='Detection confidence threshold'
     )
@@ -29,8 +29,8 @@ def generate_launch_description():
             name="camera_controller",
             output="screen",
             parameters=[{
-                Param.TRACK: LaunchConfiguration(Param.TRACK),
-                Param.CONF_THRESHOLD: LaunchConfiguration(Param.CONF_THRESHOLD),
+                "track": LaunchConfiguration("track"),
+                "conf_threshold": LaunchConfiguration("conf_threshold"),
             }]
         ),
     ])

@@ -140,7 +140,7 @@ class MotorController(Node):
         self.joy_state = msg
 
     def _dsc_callback(self, msg: Float64):
-        self.dsc = msg.data
+        self.dsc = msg.dataMotor
 
 
     def run(self):

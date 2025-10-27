@@ -265,7 +265,7 @@ class ModelPath:
 
 class SPEED:
     Maximum = 1
-    MediumFast = 0.8
-    Medium = 0.5
-    Slow = 0.3
+    MediumFast = 3
+    Medium = 2
+    Slow = 1
     Idle = 0

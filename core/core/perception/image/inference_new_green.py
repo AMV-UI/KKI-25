@@ -26,6 +26,7 @@ class ObjectDetector:
         self.cap.set(1, fps)  # Set FPS
         self.cap.set(3, width)  # Set width
         self.cap.set(4, height)  # Set height
+        self.motor = 
 
         # Track
         self.track = rospy.get_param(Param.TRACK)
