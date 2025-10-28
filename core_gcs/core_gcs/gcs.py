@@ -11,7 +11,7 @@ app = FastAPI()
 def read_status():
     return {"status": "Node is running", "data": "Hello from ROS 2"}
 
-class RestApiNode(Node):
+class Gcs(Node):
     def __init__(self):
         super().__init__('rest_api_node')
         self.get_logger().info("REST API Node started")
@@ -22,7 +22,7 @@ def start_api():
 
 def main(args=None):
     rclpy.init(args=args)
-    node = RestApiNode()
+    node = Gcs()
 
     # Start REST API server in separate thread so it doesn't block ROS
     api_thread = threading.Thread(target=start_api, daemon=True)

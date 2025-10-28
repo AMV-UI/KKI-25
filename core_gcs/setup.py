@@ -22,7 +22,8 @@ setup(
         'console_scripts': [
             'talker = core_gcs.talker:main',
             'gcs = core_gcs.gcs:main',
-            'gcs_socket = core_gcs.gcs_socket:main'
+            'gcs_socket = core_gcs.gcs_socket:main',
+            'listener = core_gcs.socket_listener:main'
         ],
     },
 )
