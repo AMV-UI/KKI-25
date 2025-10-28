@@ -33,7 +33,7 @@ class ObjectDetector:
         self.cap.set(4, height)  # Set height
 
         self.camera_bottom = BottomCamera()
-        self.motor = Motor(self, offset_horizontal=200, motor_adjust=0)
+        self.motor = Motor(self.node, offset_horizontal=200, motor_adjust=0)
 
         # Track
         # self.track = rospy.get_param(Param.TRACK)
@@ -92,7 +92,7 @@ class ObjectDetector:
         success, img = self.cap.read()
         # print("In your mom")
         if not success:
-            return None
+            return None, 0, False
 
         width = self.cap.get(3) // 2  # float `width`
         height = self.cap.get(4) // 2  # float `height`
@@ -183,7 +183,7 @@ class ObjectDetector:
                     detected = status
 
                     if detected:
-                        Motor.full_detected()
+                        self.motor.full_detected()
 
                     return img, yaw_state, detected
 

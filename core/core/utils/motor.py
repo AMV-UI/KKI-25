@@ -55,16 +55,19 @@ class Motor:
         })
 
     def autonomous(self, control_effort_x=50, control_effort_y=300):
-        motor_speed = Param.MOTOR_SPEED.getParam(self.node)
-        x_speed = Param.X_SPEED.getParam(self.node)
+        # Use getValue() instead of getParam() to get the actual value
+        motor_speed = Param.MOTOR_SPEED.getValue(self.node)
+        x_speed = Param.X_SPEED.getValue(self.node)
 
+        self.node.get_logger().debug(f"Autonomous Mode: motor_speed={motor_speed}, x_speed={x_speed}")
         return self.__calcAdjustedSpeed({
             self.channel.MOTOR_X: self.calculateSpeed(int(control_effort_x * x_speed)),
             self.channel.MOTOR_Y: self.calculateSpeed(int(control_effort_y * motor_speed)),
         })
 
     def finding_turn(self, control_effort_x=50, control_effort_y=250):
-        motor_speed = Param.MOTOR_SPEED.getParam(self.node)
+        # Use getValue() instead of getParam()
+        motor_speed = Param.MOTOR_SPEED.getValue(self.node)
 
         return self.__calcAdjustedSpeed({
             self.channel.MOTOR_X: self.calculateSpeed(int(control_effort_x)),
@@ -90,10 +93,9 @@ class Motor:
 
     #TODO: Finish the Conversion of the Param Factory
     def not_detected(self):
-        self.node.set_parameters([
-            Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow),
-            Param.X_SPEED.setParam(self.node, SPEED.Slow),
-        ])
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)
+        Param.X_SPEED.setParam(self.node, SPEED.Slow)
+
     
     def searching(self):
         Param.MOTOR_SPEED.setParam(self.node, SPEED.MediumFast)
