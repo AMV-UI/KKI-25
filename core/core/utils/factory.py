@@ -101,7 +101,7 @@ class ParamFactory:
         self.default_value = None
 
     def createParam(self, node, default_value=None):
-        """Initialize parameter clients"""
+        """Initialize parameter clients and optionally set default value"""
         self.default_value = default_value
         
         self._get_client = node.create_client(
@@ -113,11 +113,49 @@ class ParamFactory:
             f'{self.param_server_node}/set_parameters'
         )
         
-        # Wait for services
-        while not self._get_client.wait_for_service(timeout_sec=1.0):
-            node.get_logger().info(f"Waiting for {self.param_server_node}/get_parameters...")
-        while not self._set_client.wait_for_service(timeout_sec=1.0):
-            node.get_logger().info(f"Waiting for {self.param_server_node}/set_parameters...")
+        # Wait for services with timeout
+        if not self._get_client.wait_for_service(timeout_sec=5.0):
+            raise RuntimeError(f"Service {self.param_server_node}/get_parameters not available")
+        if not self._set_client.wait_for_service(timeout_sec=5.0):
+            raise RuntimeError(f"Service {self.param_server_node}/set_parameters not available")
+        
+        # Only try to initialize if default_value is provided
+        # Don't call getParam here to avoid circular issues
+        if default_value is not None:
+            try:
+                # Directly set the default value without checking first
+                node.get_logger().info(f"Initializing parameter '{self.param_name}' with default value")
+                self.setParam(node, default_value)
+            except Exception as e:
+                node.get_logger().warn(f"Could not set default value for '{self.param_name}': {e}")
+
+    def setParam(self, node, value):
+        """Set parameter on centralized server"""
+        if not self._set_client:
+            raise RuntimeError(f"Parameter '{self.param_name}' not initialized. Call createParam() first.")
+        
+        param = Parameter()
+        param.name = self.param_name
+        param.value = self._create_parameter_value(value)
+        
+        request = SetParameters.Request()
+        request.parameters = [param]
+        future = self._set_client.call_async(request)
+        
+        # Add timeout here too
+        rclpy.spin_until_future_complete(node, future, timeout_sec=5.0)
+        
+        if not future.done():
+            node.get_logger().error(f"Timeout setting parameter '{self.param_name}'")
+            return False
+        
+        response = future.result()  # Changed variable name
+        if response is not None and all(r.successful for r in response.results):  # Fixed
+            return True
+        else:
+            node.get_logger().error(f"Failed to set parameter '{self.param_name}'")
+            return False
+       
 
     def getParam(self, node):
         """Get parameter from centralized server (returns ParameterValue object)"""
@@ -127,10 +165,23 @@ class ParamFactory:
         request = GetParameters.Request()
         request.names = [self.param_name]
         future = self._get_client.call_async(request)
-        rclpy.spin_until_future_complete(node, future)
         
-        if future.result() is not None and future.result().values:
-            return future.result().values[0]
+        # Add timeout to prevent infinite waiting
+        rclpy.spin_until_future_complete(node, future, timeout_sec=5.0)
+        
+        if not future.done():
+            node.get_logger().error(f"Timeout getting parameter '{self.param_name}'")
+            return None
+        
+        result = future.result()
+        if result is not None and result.values:
+            param_value = result.values[0]
+            # Check if parameter is NOT_SET (doesn't exist)
+            if param_value.type == ParameterType.PARAMETER_NOT_SET:
+                node.get_logger().warn(f"Parameter '{self.param_name}' not set on server")
+                return None
+            return param_value
+        
         return None
 
     def getValue(self, node):
@@ -160,28 +211,6 @@ class ParamFactory:
             return list(param_value.string_array_value)
         
         return self.default_value
-
-    def setParam(self, node, value):
-        """Set parameter on centralized server"""
-        if not self._set_client:
-            raise RuntimeError(f"Parameter '{self.param_name}' not initialized. Call createParam() first.")
-        
-        param = Parameter()
-        param.name = self.param_name
-        param.value = self._create_parameter_value(value)
-        
-        request = SetParameters.Request()
-        request.parameters = [param]
-        future = self._set_client.call_async(request)
-        rclpy.spin_until_future_complete(node, future)
-        
-        if future.result() is not None and all(
-            result.successful for result in future.result().results
-        ):
-            return True
-        else:
-            node.get_logger().error(f"Failed to set parameter '{self.param_name}'")
-            return False
 
     def _create_parameter_value(self, value):
         pv = ParameterValue()

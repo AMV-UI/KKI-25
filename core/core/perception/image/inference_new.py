@@ -33,7 +33,7 @@ class ObjectDetector:
         self.cap.set(4, height)  # Set height
 
         self.camera_bottom = BottomCamera()
-        self.motor = Motor(self, offset_horizontal=200, motor_adjust=0)
+        self.motor = Motor(self.node, offset_horizontal=200, motor_adjust=0)
 
         # Track
         # self.track = rospy.get_param(Param.TRACK)
