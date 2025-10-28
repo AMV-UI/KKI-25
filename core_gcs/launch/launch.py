@@ -8,13 +8,16 @@ from core.utils.config import Param
 
 def generate_launch_description():
     return LaunchDescription([
-        track_arg,
-        threshold_arg,
-        
         Node(
             package="core_gcs",
-            executable="gcs",
-            name="camera_controller",
+            executable="gcs_socket",
+            name="gcs_socket",
+            output="screen",
+        ),
+        Node(
+            package="core_gcs",
+            executable="talker",
+            name="talker",
             output="screen",
         ),
     ])

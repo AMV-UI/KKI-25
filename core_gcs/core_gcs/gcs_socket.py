@@ -2,103 +2,122 @@ import rclpy
 from rclpy.node import Node
 import asyncio
 import websockets
+import json
+from std_msgs.msg import String
 from core.utils.config import Topic
-
+from core_msgs.msg import Pixhawk
 
 class GcsSocket(Node):
-    def __init__(self):
-        super().__init__('gcs_socket_node')
-        self.get_logger().info("WebSocket Node started")
+    def __init__(self, loop):
+        super().__init__('GCS_Socket')
+        self.loop = loop 
+        self.websocket_clients = set()
 
-        self.data = ""           # last received ROS message
-        self._clients = set()    # connected WebSocket clients
-
-        # Start WebSocket server
-        asyncio.ensure_future(self.start_ws_server())
-
-        # Setup ROS subscription
-        self._setup_communication()
-
-    def _setup_communication(self):
-        self.data_sub = Topic.camera_processed.createSubscriber(
-            self, self.data_callback
+        self.image_subscriber = Topic.camera_processed.createSubscriber(
+            self,
+            self.image_callback
         )
-        self.get_logger().info("Subscribed to Topic.camera_processed")
+        self.blue_box_subscriber = Topic.image_blue_box.createSubscriber(
+            self,
+            self.blue_box_callback
+        )
+        self.green_box_subscriber = Topic.image_green_box.createSubscriber(
+            self,
+            self.green_box_callback
+        )
+        self.pixhawk_subscriber = Topic.pixhawk.createSubscriber(
+            self,
+            self.pixhawk_callback
+        )
+        self.mission_subscriber = Topic.mission.createSubscriber(
+            self,
+            self.mission_callback
+        )
 
-    def data_callback(self, data):
-        """Called whenever new ROS message arrives."""
-        self.data = data.data  # extract string from std_msgs/String
-        self.get_logger().info(f"Received ROS data: {self.data}")
+    def image_callback(self, msg: String):
+        self._handle_incoming_data("camera_processed", msg.data)
 
-        # Broadcast to all connected WebSocket clients
-        asyncio.ensure_future(self.broadcast_latest_data())
+    def blue_box_callback(self, msg: String):
+        self._handle_incoming_data("image_blue_box", msg.data)
 
-    async def broadcast_latest_data(self):
-        """Send latest ROS data to all active clients."""
-        if not self._clients or not self.data:
+    def green_box_callback(self, msg: String):
+        self._handle_incoming_data("image_green_box", msg.data)
+
+    def mission_callback(self, msg: String):
+        self._handle_incoming_data("mission", msg.data)
+
+    def pixhawk_callback(self, msg: Pixhawk):
+        data = {
+            "lon": msg.lon,
+            "lat": msg.lat,
+            "alt": msg.alt,
+            "msg_spd": msg.msg_spd,
+            "msg_heading": msg.msg_heading
+        }
+        self._handle_incoming_data("pixhawk", data)
+
+    def _handle_incoming_data(self, topic_name, data):
+        message = {"topic": topic_name, "data": data}
+        self.get_logger().info(f"[{topic_name}] Received: {data}")
+
+        asyncio.run_coroutine_threadsafe(
+            self.broadcast_message(message),
+            self.loop
+        )
+    
+    async def broadcast_message(self, message):
+        if not self.websocket_clients:
             return
-
-        disconnected = set()
-        for client in self._clients:
+        dead_clients = set()
+        for ws in self.websocket_clients:
             try:
-                await client.send(self.data)
-            except websockets.ConnectionClosed:
-                disconnected.add(client)
+                await ws.send(json.dumps({"data": message}))
+            except Exception:
+                dead_clients.add(ws)
+        self.websocket_clients -= dead_clients
 
-        for client in disconnected:
-            self._clients.remove(client)
-
-    async def echo(self, websocket, path):
-        """Handle a new WebSocket client connection."""
-        self.get_logger().info(f"Client connected: {websocket.remote_address}")
-        self._clients.add(websocket)
-
-        try:
-            # Immediately send the latest message
-            if self.data:
-                await websocket.send(self.data)
-                self.get_logger().info(f"Sent latest data to {websocket.remote_address}")
-
-            # Keep connection alive
-            while True:
-                await asyncio.sleep(0.5)
-
-        except websockets.ConnectionClosed:
-            self.get_logger().info(f"Client disconnected: {websocket.remote_address}")
-        finally:
-            self._clients.remove(websocket)
-
-    async def start_ws_server(self):
-        """Start the WebSocket server."""
-        server = await websockets.serve(self.echo, "0.0.0.0", 8000)
-        self.get_logger().info("WebSocket server running on ws://0.0.0.0:8000")
-        await server.wait_closed()
-
-
-async def ros_spin(node):
-    """Run ROS executor inside asyncio loop."""
-    executor = rclpy.executors.SingleThreadedExecutor()
-    executor.add_node(node)
-    while rclpy.ok():
-        executor.spin_once(timeout_sec=0.1)
-        await asyncio.sleep(0.01)
-
-
-def main(args=None):
-    rclpy.init(args=args)
-    node = GcsSocket()
-
-    loop = asyncio.get_event_loop()
-    asyncio.ensure_future(ros_spin(node))
-
+async def websocket_handler(websocket, path, node):
+    node.websocket_clients.add(websocket)
+    node.get_logger().info("WebSocket client connected")
     try:
-        loop.run_forever()
-    except KeyboardInterrupt:
+        # Iterate all websocket connection and keep all client listening
+        async for _ in websocket:
+            pass
+    except websockets.ConnectionClosed:
         pass
     finally:
+        node.websocket_clients.remove(websocket)
+        node.get_logger().info("WebSocket client disconnected")
+
+async def main_async():
+    rclpy.init()
+    loop = asyncio.get_running_loop() 
+
+    node = GcsSocket(loop)
+
+    ws_server = await websockets.serve(
+        lambda ws, path: websocket_handler(ws, path, node),
+        host='0.0.0.0',
+        port=8000
+    )
+    node.get_logger().info("WebSocket server started at ws://0.0.0.0:8000")
+
+    # Vibe coding research later
+    executor = rclpy.executors.MultiThreadedExecutor()
+    executor.add_node(node)
+
+    loop.run_in_executor(None, executor.spin)
+    try:
+        await asyncio.Future() 
+    finally:
         node.destroy_node()
+        executor.shutdown()
         rclpy.shutdown()
+        ws_server.close()
+        await ws_server.wait_closed()
 
+def main():
+    asyncio.run(main_async())
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

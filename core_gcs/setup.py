@@ -1,4 +1,6 @@
 from setuptools import setup
+import os
+from glob import glob
 
 package_name = 'core_gcs'
 
@@ -10,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -21,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'talker = core_gcs.talker:main',
+            'talker2 = core_gcs.talker2:main',
             'gcs = core_gcs.gcs:main',
             'gcs_socket = core_gcs.gcs_socket:main',
             'listener = core_gcs.socket_listener:main'
