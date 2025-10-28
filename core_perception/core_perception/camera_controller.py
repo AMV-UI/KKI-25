@@ -10,7 +10,7 @@ from core.perception.image.inference_new import ObjectDetector
 from core_msgs.msg import StateObject, AutoControl
 from core.utils.config import AutoState, Box, Camera, NodeConfig, Topic, ModelPath, Tower
 from rclpy.node import Node
-from std_msgs.msg import Float64, Bool
+from std_msgs.msg import Float64, Bool, String
 
 class CameraController(Node):
     """
@@ -62,7 +62,7 @@ class CameraController(Node):
         # Publishers
         self.dsc_pub = Topic.dsc.createPublisher(self)
         self.detected_pub = Topic.detected.createPublisher(self)
-        
+        self.camera_processed_pub = Topic.camera_processed.createPublisher(self)
         # Subscribers (if needed)
         # self.current_mission_sub = Topic.mission.createSubscriber(self, self.mission_callback)
 
@@ -94,11 +94,11 @@ class CameraController(Node):
                 return
 
             # Visualize if enabled
-            if self.show_result:
-                exit_status = self.visualize()
-                if exit_status:
-                    rclpy.shutdown()
-                    return
+            # if self.show_result:
+            #     exit_status = self.visualize()
+            #     if exit_status:
+            #         rclpy.shutdown()
+            #         return
 
             dsc_msg = Float64()
             dsc_msg.data = float(self.dsc)
@@ -113,6 +113,18 @@ class CameraController(Node):
                 throttle_duration_sec=2.0
             )
 
+            # Passing image data
+            result, encoded_image = cv2.imencode(
+                ".jpg", self.img, [int(cv2.IMWRITE_JPEG_QUALITY), 20]
+            )
+            if result:
+                base64_image = base64.b64encode(encoded_image).decode("utf-8")
+                img_msg = String()
+                img_msg.data = base64_image
+                self.camera_processed_pub.publish(img_msg)
+            else:
+                rospy.logerr("Failed to encode frame to JPG")
+            
         except Exception as e:
             self.get_logger().error(f"Error in process_frame: {traceback.format_exc()}")
 

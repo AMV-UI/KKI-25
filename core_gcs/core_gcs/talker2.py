@@ -1,37 +1,45 @@
 import rclpy
 from rclpy.node import Node
-from core_msgs.msg import Pixhawk  # ✅ make sure the msg package name matches your actual one
+from core_msgs.msg import Pixhawk
 from core.utils.config import Topic
 import random
 import math
-import time
-
 
 class MockPixhawkPublisher(Node):
     def __init__(self):
         super().__init__('mock_pixhawk_publisher')
 
-        # Create publisher using your Topic config helper
         self.publisher = Topic.pixhawk.createPublisher(self)
 
         # Timer publishes every 1 second
         timer_period = 1.0
         self.timer = self.create_timer(timer_period, self.publish_mock_data)
 
-        # Simulate a small area near some coordinates
-        self.base_lat = -6.2088  # Jakarta example
-        self.base_lon = 106.8456
+        # Base southern-most latitude and eastern-most longitude
+        self.base_lat = -6.2088  # southern-most
+        self.base_lon = 106.8456  # eastern-most
+
+        # Convert 25 meters to degrees
+        self.delta_lat = 25 / 111320  # ~0.000224 degrees
+        self.delta_lon = 25 / (111320 * math.cos(math.radians(self.base_lat)))  # ~0.000284 degrees
+
         self.counter = 0
 
     def publish_mock_data(self):
         msg = Pixhawk()
 
-        # Create mock coordinates that drift slowly
-        msg.lat = self.base_lat + math.sin(self.counter / 20.0) * 0.0005
-        msg.lon = self.base_lon + math.cos(self.counter / 20.0) * 0.0005
-        msg.alt = 5.0 + random.uniform(-0.2, 0.2)  # altitude variation
-        msg.msg_spd = random.uniform(0.5, 3.0)     # simulated speed in m/s
-        msg.msg_heading = int((self.counter * 10) % 360)  # heading in degrees
+        if self.counter == 0:
+            # First message is exactly base point
+            msg.lat = self.base_lat
+            msg.lon = self.base_lon
+        else:
+            # Randomize within 25m x 25m square
+            msg.lat = self.base_lat + random.uniform(0, self.delta_lat)
+            msg.lon = self.base_lon - random.uniform(0, self.delta_lon)  # subtract to go west
+
+        msg.alt = 5.0 + random.uniform(-0.2, 0.2)
+        msg.msg_spd = random.uniform(0.5, 3.0)
+        msg.msg_heading = int(random.uniform(0, 360))
 
         self.publisher.publish(msg)
         self.get_logger().info(

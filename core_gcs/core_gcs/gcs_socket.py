@@ -3,7 +3,7 @@ from rclpy.node import Node
 import asyncio
 import websockets
 import json
-from std_msgs.msg import String
+from std_msgs.msg import String, UInt8
 from core.utils.config import Topic
 from core_msgs.msg import Pixhawk
 
@@ -12,6 +12,10 @@ class GcsSocket(Node):
         super().__init__('GCS_Socket')
         self.loop = loop 
         self.websocket_clients = set()
+        self.track = "A"
+
+        self.lon_history = []
+        self.lat_history = []
 
         self.image_subscriber = Topic.camera_processed.createSubscriber(
             self,
@@ -43,22 +47,26 @@ class GcsSocket(Node):
     def green_box_callback(self, msg: String):
         self._handle_incoming_data("image_green_box", msg.data)
 
-    def mission_callback(self, msg: String):
+    def mission_callback(self, msg: UInt8):
         self._handle_incoming_data("mission", msg.data)
 
     def pixhawk_callback(self, msg: Pixhawk):
+        self.lon_history.append(msg.lon)
+        self.lat_history.append(msg.lat)
+
         data = {
-            "lon": msg.lon,
-            "lat": msg.lat,
+            "lon": self.lon_history,
+            "lat": self.lat_history,
             "alt": msg.alt,
             "msg_spd": msg.msg_spd,
-            "msg_heading": msg.msg_heading
+            "msg_heading": msg.msg_heading,
+            "track": self.track,
         }
         self._handle_incoming_data("pixhawk", data)
 
     def _handle_incoming_data(self, topic_name, data):
         message = {"topic": topic_name, "data": data}
-        self.get_logger().info(f"[{topic_name}] Received: {data}")
+        # self.get_logger().info(f"[{topic_name}] Received: {data}")
 
         asyncio.run_coroutine_threadsafe(
             self.broadcast_message(message),

@@ -14,10 +14,18 @@ def generate_launch_description():
             name="gcs_socket",
             output="screen",
         ),
+
+        # Mock publisher data
+        # Node(
+        #     package="core_gcs",
+        #     executable="talker",
+        #     name="talker",
+        #     output="screen",
+        # ),
         Node(
             package="core_gcs",
-            executable="talker",
-            name="talker",
+            executable="talker2",
+            name="talker2",
             output="screen",
         ),
     ])
