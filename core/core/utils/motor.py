@@ -16,8 +16,15 @@ class Motor:
         self.motor_adjust = motor_adjust
         self.channel = Channel
 
-        self.node.declare_parameter(Param.MOTOR_SPEED, SPEED.Maximum)
-        self.node.declare_parameter(Param.X_SPEED, SPEED.Maximum)
+        # PARAM EXAMPLES
+        # self.create_example = Param.TRACK.createParam(self.node, default_value=self.track)
+        # self.change_example = Param.TRACK.setParam(self.node, "A")
+        # self.get_example = Param.TRACK.getValue(self.node)
+
+        Param.MOTOR_SPEED.createParam(self.node, default_value=SPEED.Maximum)
+        Param.X_SPEED.createParam(self.node, default_value=SPEED.Maximum)
+
+        self
 
     def __adjust(self, input_pwm, adjust):
         if input_pwm > self.STANDBY:
@@ -48,8 +55,8 @@ class Motor:
         })
 
     def autonomous(self, control_effort_x=50, control_effort_y=300):
-        motor_speed = self.node.get_parameter(Param.MOTOR_SPEED).value
-        x_speed = self.node.get_parameter(Param.X_SPEED).value
+        motor_speed = Param.MOTOR_SPEED.getParam(self.node)
+        x_speed = Param.X_SPEED.getParam(self.node)
 
         return self.__calcAdjustedSpeed({
             self.channel.MOTOR_X: self.calculateSpeed(int(control_effort_x * x_speed)),
@@ -57,8 +64,7 @@ class Motor:
         })
 
     def finding_turn(self, control_effort_x=50, control_effort_y=250):
-        motor_speed = self.node.get_parameter(Param.MOTOR_SPEED).value
-        x_speed = self.node.get_parameter(Param.X_SPEED).value
+        motor_speed = Param.MOTOR_SPEED.getParam(self.node)
 
         return self.__calcAdjustedSpeed({
             self.channel.MOTOR_X: self.calculateSpeed(int(control_effort_x)),
@@ -66,40 +72,32 @@ class Motor:
         })
 
     def reset_param(self):
-        self.node.set_parameters([
-            Parameter(Param.MOTOR_SPEED, Parameter.Type.INTEGER, SPEED.Maximum),
-            Parameter(Param.X_SPEED, Parameter.Type.INTEGER, SPEED.Maximum),
-        ])
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.Maximum)
+        Param.X_SPEED.setParam(self.node, SPEED.Maximum)
 
     def half_detected(self):
-        self.node.set_parameters([
-            Parameter(Param.MOTOR_SPEED, Parameter.Type.INTEGER, SPEED.Slow),
-            Parameter(Param.X_SPEED, Parameter.Type.INTEGER, SPEED.MediumFast),
-        ])
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)
+        Param.X_SPEED.setParam(self.node, SPEED.MediumFast)
 
     def one_is_closer_detected(self):
-        self.node.set_parameters([
-            Parameter(Param.MOTOR_SPEED, Parameter.Type.INTEGER, SPEED.Slow),
-            Parameter(Param.X_SPEED, Parameter.Type.INTEGER, SPEED.Medium),
-        ])
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)
+        Param.X_SPEED.setParam(self.node, SPEED.Medium)
 
-    def full_detected(self):
-        self.node.set_parameters([
-            Parameter(Param.MOTOR_SPEED, Parameter.Type.INTEGER, SPEED.MediumFast),
-            Parameter(Param.X_SPEED, Parameter.Type.INTEGER, SPEED.MediumFast),
-        ])
+    def full_detected(self): 
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.MediumFast)
+        Param.X_SPEED.setParam(self.node, SPEED.MediumFast)
+        
 
+    #TODO: Finish the Conversion of the Param Factory
     def not_detected(self):
         self.node.set_parameters([
-            Parameter(Param.MOTOR_SPEED, Parameter.Type.INTEGER, SPEED.Slow),
-            Parameter(Param.X_SPEED, Parameter.Type.INTEGER, SPEED.Slow),
+            Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow),
+            Param.X_SPEED.setParam(self.node, SPEED.Slow),
         ])
-
+    
     def searching(self):
-        self.node.set_parameters([
-            Parameter(Param.MOTOR_SPEED, Parameter.Type.INTEGER, SPEED.Medium),
-        ])
-
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.MediumFast)
+        
     def forward(self):
         if rclpy.ok():
             return {
@@ -152,7 +150,6 @@ def main(args=None):
     node.get_logger().info("Motor node started.")
 
     try:
-        # Example usage
         motor.autonomous()
         rclpy.spin(node)
     except KeyboardInterrupt:
