@@ -11,3 +11,5 @@ log/
 *.pyc
 **/__pycache__/
 .vscode
+*.pth 
+venv/

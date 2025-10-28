@@ -1,21 +1,30 @@
 #!/usr/bin/env python3
-
 import rclpy
-from utils.config import Channel, Param, SPEED
 from rclpy.node import Node
+from rclpy.parameter import Parameter
+from core.utils.config import Channel, Param, SPEED
 
-class Motor(Node):
+
+class Motor:
     STANDBY = 1500
-    # SERVO_LEFT, SERVO_RIGHT, SERVO_STANDBY = 2200, 800, 1500 # TODO : Awaiting for trial
     KILL_BUTTON, KILL_ON, KILL_OFF = 1200, 1500, 1800
 
-    def __init__(self, offset_horizontal=200, motor_adjust=0):
-        super().__init__('motor')
+    def __init__(self, node: Node, offset_horizontal=200, motor_adjust=0):
+        self.node = node
         self.FORWARD = self.STANDBY + offset_horizontal
         self.BACKWARD = self.STANDBY - offset_horizontal
         self.motor_adjust = motor_adjust
-
         self.channel = Channel
+
+        # PARAM EXAMPLES
+        # self.create_example = Param.TRACK.createParam(self.node, default_value=self.track)
+        # self.change_example = Param.TRACK.setParam(self.node, "A")
+        # self.get_example = Param.TRACK.getValue(self.node)
+
+        Param.MOTOR_SPEED.createParam(self.node, default_value=SPEED.Maximum)
+        Param.X_SPEED.createParam(self.node, default_value=SPEED.Maximum)
+
+        self
 
     def __adjust(self, input_pwm, adjust):
         if input_pwm > self.STANDBY:
@@ -31,7 +40,6 @@ class Motor(Node):
         res[self.channel.MOTOR_Y] = self.__adjust(
             res[self.channel.MOTOR_Y], self.motor_adjust
         )
-
         return res
 
     def getChannels(self):
@@ -41,92 +49,59 @@ class Motor(Node):
         return self.STANDBY + control_effort
 
     def straight_with_conf(self, control_effort_yaw_motor=100):
-        return self.__calcAdjustedSpeed(
-            {
-                self.channel.MOTOR_X: self.calculateSpeed(
-                    100 + control_effort_yaw_motor
-                ),
-                self.channel.MOTOR_Y: self.calculateSpeed(
-                    100 + control_effort_yaw_motor
-                ),
-            }
-        )
+        return self.__calcAdjustedSpeed({
+            self.channel.MOTOR_X: self.calculateSpeed(100 + control_effort_yaw_motor),
+            self.channel.MOTOR_Y: self.calculateSpeed(100 + control_effort_yaw_motor),
+        })
 
-    def autonomous(self, control_effort_x=50):
-        motor_speed = self.get_parameter(Param.MOTOR_SPEED).value
-        x_speed = self.get_parameter(Param.X_SPEED).value
+    def autonomous(self, control_effort_x=50, control_effort_y=300):
+        motor_speed = Param.MOTOR_SPEED.getParam(self.node)
+        x_speed = Param.X_SPEED.getParam(self.node)
+
+        return self.__calcAdjustedSpeed({
+            self.channel.MOTOR_X: self.calculateSpeed(int(control_effort_x * x_speed)),
+            self.channel.MOTOR_Y: self.calculateSpeed(int(control_effort_y * motor_speed)),
+        })
+
+    def finding_turn(self, control_effort_x=50, control_effort_y=250):
+        motor_speed = Param.MOTOR_SPEED.getParam(self.node)
+
+        return self.__calcAdjustedSpeed({
+            self.channel.MOTOR_X: self.calculateSpeed(int(control_effort_x)),
+            self.channel.MOTOR_Y: self.calculateSpeed(int(control_effort_y * motor_speed)),
+        })
+
+    def reset_param(self):
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.Maximum)
+        Param.X_SPEED.setParam(self.node, SPEED.Maximum)
+
+    def half_detected(self):
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)
+        Param.X_SPEED.setParam(self.node, SPEED.MediumFast)
+
+    def one_is_closer_detected(self):
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)
+        Param.X_SPEED.setParam(self.node, SPEED.Medium)
+
+    def full_detected(self): 
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.MediumFast)
+        Param.X_SPEED.setParam(self.node, SPEED.MediumFast)
         
-        return self.__calcAdjustedSpeed(
-            {
-                self.channel.MOTOR_X: self.calculateSpeed(
-                    int(control_effort_x * x_speed)
 
-                ),
-                self.channel.MOTOR_Y: self.calculateSpeed(
-                    int(200 * motor_speed)
-                ),  # dikasih minus
-            }
-        )
-
-    @staticmethod
-    def reset_param():
-        node = rclpy.create_node('motor_reset_param')
-        node.declare_parameter(Param.MOTOR_SPEED, SPEED.Maximum)
-        node.declare_parameter(Param.X_SPEED, SPEED.Maximum)
-        node.set_parameters([
-            rclpy.parameter.Parameter(Param.MOTOR_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Maximum),
-            rclpy.parameter.Parameter(Param.X_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Maximum)
+    #TODO: Finish the Conversion of the Param Factory
+    def not_detected(self):
+        self.node.set_parameters([
+            Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow),
+            Param.X_SPEED.setParam(self.node, SPEED.Slow),
         ])
-        node.destroy_node()
-
-    @staticmethod
-    def half_detected():
-        node = rclpy.create_node('motor_half_detected')
-        node.set_parameters([
-            rclpy.parameter.Parameter(Param.MOTOR_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.MediumFast),
-            rclpy.parameter.Parameter(Param.X_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Medium)
-        ])
-        node.destroy_node()
-
-    @staticmethod
-    def one_is_closer_detected():
-        node = rclpy.create_node('motor_one_is_closer_detected')
-        node.set_parameters([
-            rclpy.parameter.Parameter(Param.MOTOR_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Medium),
-            rclpy.parameter.Parameter(Param.X_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Medium)
-        ])
-        node.destroy_node()
-
-    @staticmethod
-    def full_detected():
-        node = rclpy.create_node('motor_full_detected')
-        node.set_parameters([
-            rclpy.parameter.Parameter(Param.MOTOR_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Medium),
-            rclpy.parameter.Parameter(Param.X_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Maximum)
-        ])
-        node.destroy_node()
-
-    @staticmethod
-    def not_detected():
-        node = rclpy.create_node('motor_not_detected')
-        node.set_parameters([
-            rclpy.parameter.Parameter(Param.MOTOR_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Idle),
-            rclpy.parameter.Parameter(Param.X_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Slow)
-        ])
-        node.destroy_node()
-
-    @staticmethod
-    def searching():
-        node = rclpy.create_node('motor_searching')
-        node.set_parameters([
-            rclpy.parameter.Parameter(Param.MOTOR_SPEED, rclpy.Parameter.Type.INTEGER, SPEED.Medium)
-        ])
-        node.destroy_node()
-
+    
+    def searching(self):
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.MediumFast)
+        
     def forward(self):
-        while rclpy.ok():
+        if rclpy.ok():
             return {
-                self.channel.MOTOR_X: self.STANDBY,  # DIBALIK
+                self.channel.MOTOR_X: self.STANDBY,
                 self.channel.MOTOR_Y: self.STANDBY,
             }
 
@@ -161,17 +136,28 @@ class Motor(Node):
         }
 
     def idle(self):
-        return self.__calcAdjustedSpeed(
-            {
-                self.channel.MOTOR_X: self.STANDBY,
-                self.channel.MOTOR_Y: self.STANDBY,
-            }
-        )
+        return self.__calcAdjustedSpeed({
+            self.channel.MOTOR_X: self.STANDBY,
+            self.channel.MOTOR_Y: self.STANDBY,
+        })
 
 
 def main(args=None):
     rclpy.init(args=args)
-    motor = Motor()
-    rclpy.spin(motor)
-    motor.destroy_node()
-    rclpy.shutdown()
+    node = rclpy.create_node('motor_node')
+    motor = Motor(node)
+
+    node.get_logger().info("Motor node started.")
+
+    try:
+        motor.autonomous()
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()

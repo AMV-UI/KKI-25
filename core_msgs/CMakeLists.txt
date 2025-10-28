@@ -9,7 +9,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
-rosidL_generate_interfaces(${PROJECT_NAME} 
+rosidl_generate_interfaces(${PROJECT_NAME} 
 "msg/AutoControl.msg"
 "msg/Camera.msg"
 "msg/Config.msg"

@@ -92,52 +92,96 @@ class ServiceFactory:
 
 
 class ParamFactory:
-    def __init__(self, param_name, param_type):
+    def __init__(self, param_name, param_type, param_server_node='/parameter_blackboard'):
         self.param_name = param_name
         self.param_type = param_type
-        self._param_client = None 
+        self.param_server_node = param_server_node
+        self._get_client = None
+        self._set_client = None
         self.default_value = None
 
     def createParam(self, node, default_value=None):
+        """Initialize parameter clients"""
         self.default_value = default_value
-        descriptor = ParameterDescriptor(
-            name=self.param_name,
-            type=self._get_parameter_type(),
-            description=f'{self.param_name} parameter',
-            read_only=False
+        
+        self._get_client = node.create_client(
+            GetParameters, 
+            f'{self.param_server_node}/get_parameters'
         )
-        node.declare_parameter(
-            self.param_name, 
-            default_value,
-            descriptor
+        self._set_client = node.create_client(
+            SetParameters, 
+            f'{self.param_server_node}/set_parameters'
         )
+        
+        # Wait for services
+        while not self._get_client.wait_for_service(timeout_sec=1.0):
+            node.get_logger().info(f"Waiting for {self.param_server_node}/get_parameters...")
+        while not self._set_client.wait_for_service(timeout_sec=1.0):
+            node.get_logger().info(f"Waiting for {self.param_server_node}/set_parameters...")
 
     def getParam(self, node):
-        '''
-        if not self._param_client:
-            self._param_client = node.create_client(GetParameters, '/parameter_blackboard/get_parameters')
-            
+        """Get parameter from centralized server (returns ParameterValue object)"""
+        if not self._get_client:
+            raise RuntimeError(f"Parameter '{self.param_name}' not initialized. Call createParam() first.")
+        
         request = GetParameters.Request()
         request.names = [self.param_name]
-        future = self._param_client.call_async(request)
+        future = self._get_client.call_async(request)
         rclpy.spin_until_future_complete(node, future)
-        return future.result().values[0]._value
-        '''
-        if not node.has_parameter(self.param_name):
-            self._param_client = node.declare_parameter(self.param_name)
         
-        return node.get_parameter(self.param_name)
+        if future.result() is not None and future.result().values:
+            return future.result().values[0]
+        return None
+
+    def getValue(self, node):
+        """Get the actual parameter value (not ParameterValue object)"""
+        param_value = self.getParam(node)
+        
+        if not param_value:
+            return self.default_value
+        
+        if param_value.type == ParameterType.PARAMETER_BOOL:
+            return param_value.bool_value
+        elif param_value.type == ParameterType.PARAMETER_INTEGER:
+            return param_value.integer_value
+        elif param_value.type == ParameterType.PARAMETER_DOUBLE:
+            return param_value.double_value
+        elif param_value.type == ParameterType.PARAMETER_STRING:
+            return param_value.string_value
+        elif param_value.type == ParameterType.PARAMETER_BYTE_ARRAY:
+            return list(param_value.byte_array_value)
+        elif param_value.type == ParameterType.PARAMETER_BOOL_ARRAY:
+            return list(param_value.bool_array_value)
+        elif param_value.type == ParameterType.PARAMETER_INTEGER_ARRAY:
+            return list(param_value.integer_array_value)
+        elif param_value.type == ParameterType.PARAMETER_DOUBLE_ARRAY:
+            return list(param_value.double_array_value)
+        elif param_value.type == ParameterType.PARAMETER_STRING_ARRAY:
+            return list(param_value.string_array_value)
+        
+        return self.default_value
 
     def setParam(self, node, value):
-        set_client = node.create_client(SetParameters, '/parameter_blackboard/set_parameters')
+        """Set parameter on centralized server"""
+        if not self._set_client:
+            raise RuntimeError(f"Parameter '{self.param_name}' not initialized. Call createParam() first.")
+        
         param = Parameter()
         param.name = self.param_name
         param.value = self._create_parameter_value(value)
         
         request = SetParameters.Request()
         request.parameters = [param]
-        future = set_client.call_async(request)
+        future = self._set_client.call_async(request)
         rclpy.spin_until_future_complete(node, future)
+        
+        if future.result() is not None and all(
+            result.successful for result in future.result().results
+        ):
+            return True
+        else:
+            node.get_logger().error(f"Failed to set parameter '{self.param_name}'")
+            return False
 
     def _create_parameter_value(self, value):
         pv = ParameterValue()
@@ -192,7 +236,6 @@ class ParamFactory:
             }
         }
         
-        # Handle Array Types
         if self.param_type == list:
             if self.default_value:
                 element_type = type(self.default_value[0])
@@ -200,55 +243,3 @@ class ParamFactory:
             return ParameterType.PARAMETER_STRING_ARRAY
         
         return type_map.get(self.param_type, ParameterType.PARAMETER_NOT_SET)
-
-
-class MissionFactory:
-    """Factory Pattern to create mission behaviors dynamically"""
-
-    @staticmethod
-    def create_mission(mission_type, node):
-        missions = {
-            "find_step_one": MissionFindStepOne,
-            "step_one": MissionStepOne
-        }
-        if mission_type in missions:
-            return missions[mission_type](node)
-        else:
-            raise ValueError(f"Unknown mission type: {mission_type}")
-
-
-
-    class BaseMission(py_trees.behaviour.Behaviour):
-        """Base class for mission steps"""
-    
-        def __init__(self, name, node):
-            super(BaseMission, self).__init__(name=name)
-            self.node = node
-            self.blackboard = py_trees.blackboard.Client(name=name)
-            
-            # Panggil register keys yang akan dipakai
-            self.register_keys()
-            
-            # Panggil PubSub yang akan dipakai
-            self.create_pubsub()
-            
-        def register_keys(self):
-            """
-            Subclass dari Base Mission harus Override register_keys ini
-            """
-            raise NotImplementedError("Subclasses must implement register_keys()")
-
-        def register_pubsub():
-            """
-            Subclass dari Base Mission harus Override register_pubsub ini
-            """
-            raise NotImplementedError("Subclasses must implement register_pubsub()")
-
-
-        def initialise(self):
-            self.get_logger().info(f"<=> [{NodeConfig.mission}] Entering mission: {self.name}")
-
-        def update(self):
-            """Common update logic, overridden in subclasses"""
-            raise NotImplementedError("Subclasses must implement this method")
-        

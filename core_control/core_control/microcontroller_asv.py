@@ -10,7 +10,8 @@ import numpy as np
 from pymavlink import mavutil
 from pykalman import KalmanFilter
 from std_msgs.msg import Float64, UInt8, UInt16
-from core_msgs_asv.msg import Pwm, AutoControl, KillSwitch, Pixhawk
+from core_msgs.msg import Pwm, AutoControl, KillSwitch, Pixhawk
+
 from core.utils.config import (
     AutoState,
     RemoteState,
@@ -19,12 +20,14 @@ from core.utils.config import (
     SETPOINT,
     Param,
     PxMode,
+    NodeConfig
 )
-# from core_msgs.msg import *
+
 from adafruit_simplemath import map_range
-from pymavlink import mavutil
 import time
 from rclpy.node import Node
+import sys
+
 
 ADS_MAX_VAL = 26096
 GAIN_RATIO = 1069 / 1000
@@ -49,13 +52,14 @@ class MiconType:
 
 class Microcontroller(Node):
     def __init__(self):
-        super().__init__('Microcontroller')  # Initialize the parent Node class
+        super().__init__(NodeConfig.microcontroller)
         self.pwm_chan = Pwm()
         self.mc1 = MiconType.NONE
         self.mc2 = MiconType.NONE
 
         # Node
         # self.node = Node()
+        self.imu = None
 
         # States from pico
         self.ks_kill_state = KillSwitch()
@@ -67,13 +71,13 @@ class Microcontroller(Node):
         self.motor_batt = 0
         self.depth = 0
         self.dht22_raw = 0
-        self.internal_temp_deg = 0.0
+        self.internal_temp_deg = 0
         self.tbs_pwm_in = 0
-        self.heading_deg = 0.0
+        self.heading_deg = 0
         self.mux_state = 0
 
         self.echosounder_dist = 0
-        self.echosounder_conf = 1
+        self.echosounder_conf = 0
 
         self.auto_control = AutoControl()
 
@@ -104,38 +108,97 @@ class Microcontroller(Node):
             observation_covariance=sensor_variance,
             transition_covariance=1e-5,
         )
+
         self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
         self.get_logger().info("<> PWM Subscriber created")
 
+    def warn_once(self, msg):
+        if not hasattr(self, '_warn_once_messages'):
+            self._warn_once_messages = set()
+        if msg not in self._warn_once_messages:
+            self.get_logger().warn(msg)
+            self._warn_once_messages.add(msg)
+    
+    def info_once(self, msg):
+        if not hasattr(self, '_info_once_messages'):
+            self._info_once_messages = set()
+        if msg not in self._info_once_messages:
+            self.get_logger().info(msg)
+            self._info_once_messages.add(msg)
+            
+    def warn_throttle(self, period_ms, msg):
+        self.get_logger().warn(msg, throttle_duration_sec=period_ms/1000.0)
+        
+    def error_throttle(self, period_ms, msg):
+        self.get_logger().error(msg, throttle_duration_sec=period_ms/1000.0)
+        
+    def info_throttle(self, period_ms, msg):
+        self.get_logger().info(msg, throttle_duration_sec=period_ms/1000.0)
+
     def _init_mc(self):
-        devs = os.listdir('/dev')
-        acm = [f for f in devs if fnmatch.fnmatch(f, 'ttyACM*')]
-        usb = [f for f in devs if fnmatch.fnmatch(f, 'ttyUSB*')]
+        dirs = self._get_micon_dir()
+        #self.get_logger().info(f"Detected serial ports: {dirs}")
+        #
+        try:
+            if dirs[0] != "/dev/ttyUSB0":
+                esp32_port, px_port = dirs[0], dirs[1]
+            else:
+                esp32_port, px_port = dirs[1], dirs[0]
 
-        if acm:
-            try:
-                self.ser_1 = serial.Serial(f"/dev/{acm[0]}", 115200, timeout=0.1)
-                self.mc1 = MiconType.ESP32
-            except Exception:
-                self.get_logger().error("Failed to open ESP32 serial port")
-        else:
+            # self.get_logger().info(esp32_port, px_port)
+
+            #ESP32
+            self.ser_1 = serial.Serial(esp32_port, 115200)
+            self.mc1 = MiconType.ESP32
+
+            #Pixhawk
+            self.ser_2 = mavutil.mavlink_connection(px_port, baud=57600)
+            self.get_logger().info("Waiting for Pixhawk heartbeat...")
+            self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
+            self.ser_2.wait_heartbeat()
+            self.get_logger().info("Pixhawk Successfully initiated")
+            self._px_arm()
+            self.mc2 = MiconType.PX
+
+        except Exception as e:
+            self.error_throttle(5000, f"MC Index is not found: {e}")
             self.mc1 = MiconType.NONE
-            self.get_logger().info("No ttyACM* connection")
-
-        if usb:
-            try:
-                # MAVLink connection
-                self.ser_2 = mavutil.mavlink_connection(f"/dev/{usb[0]}", baud=57600)
-                # handshake
-                self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
-                self.ser_2.wait_heartbeat()
-                self._px_arm()
-                self.mc2 = MiconType.PX
-            except Exception:
-                self.get_logger().error("Failed to open Pixhawk MAVLink port")
-        else:
             self.mc2 = MiconType.NONE
-            self.get_logger().info("No ttyUSB* connection")
+
+    def _init_mc_without_esp(self):
+        dirs = self._get_micon_dir()
+        
+        self.get_logger().info(f"Detected serial ports: {dirs}")
+  
+        px_port = dirs[0]
+
+        # #ESP32
+        # self.ser_1 = serial.Serial(esp32_port, 115200)
+        # self.mc1 = MiconType.ESP32
+
+        #Pixhawk
+        self.ser_2 = mavutil.mavlink_connection(px_port, baud=57600)
+        self.get_logger().info("Waiting for Pixhawk heartbeat...")
+        self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
+        self.ser_2.wait_heartbeat()
+        self.get_logger().info("Pixhawk Successfully initiated")
+        self._px_arm()
+        self.mc2 = MiconType.PX
+
+    def _get_micon_dir(self):
+        dirs = []
+        list_of_files = os.listdir("/dev")
+        pattern = "ttyACM*"
+        for entry in list_of_files:
+            if fnmatch.fnmatch(entry, pattern):
+                dirs.append(f"/dev/{entry}")
+
+        pattern = "ttyUSB*"
+        for entry in list_of_files:
+            if fnmatch.fnmatch(entry, pattern):
+                dirs.append(f"/dev/{entry}")
+
+        return dirs
 
     @staticmethod
     def _parse_raw(raw_str):
@@ -143,7 +206,7 @@ class Microcontroller(Node):
             return [float(e) for e in raw_str.replace("\r\n", "").split(",")]
         except Exception as e:
             print(e)
-            print("imgay")
+            print("imgay") #legacy angkatan 22
             return None
 
     @staticmethod
@@ -199,6 +262,11 @@ class Microcontroller(Node):
 
         return ret_list
 
+    def _battery_value_safe(self, bat_val):
+        val = self._battery_value(bat_val)
+        val = max(0, min(int(val), 65535))  # clamp to UInt16
+        return val
+
     @staticmethod
     def _battery_value(bat_val):
         return (
@@ -239,17 +307,24 @@ class Microcontroller(Node):
     def _px_rc_val(self):
         rc_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
         if not rc_channels:
-            # rclpy.logerr_throttle(
-            #     5, "[{Node.microcontroller}] No message in RC_CHANNELS"
-            # )
-
-            self.get_logger().info("No message in RC_CHANNELS")
+            self.error_throttle(5000, "No message in RC_CHANNELS")
             return
         return rc_channels
 
+    def _get_pwm(self):
+        rc_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
+        self.info_throttle(2000, f"Channel Values : {rc_channels}")
+
     def _send_pwm(self, rc_channels):
         pwm_count = 1
-        # pwm_test = ["1600", "1500", "1700", "1600", "1500", "1700", "1700"]+
+        # pwm_test = ["1600", "1500", "1700", "1600", "1500", "1700", "1700"]
+
+        #Magic Numbers => pxmode:
+        #LOW: Chan 8 : 983 => HOLD
+        #MID: Chan 8 : 1495 => MANUAL
+        #HIGH: Chan 8 : 2006 => AUTO
+
+        self.info_throttle(2000, f"Chan 8 : {rc_channels.chan8_raw}")
 
         if rc_channels.chan8_raw > 1700:
             try:
@@ -262,8 +337,8 @@ class Microcontroller(Node):
                     self.set_rc_channel_pwm(pwm_count, pwm=int(pwm_val))
                     # rclpy.logerr_throttle(5, "<=> [{Node.microcontroller}] PWM sent")
 
-                    # self.get_logger().error_throttle(5000,  "<=> [{Node.microcontroller}] PWM sent")
-                    self.get_logger().info("PWM sent")
+                    # self.get_logger().error_throttle(5000,  "PWM sent")
+                    self.error_throttle(5000, "PWM sent in Autonomous mode.")
                     pwm_count = pwm_count + 1
                     # time.sleep(0.2)
             except Exception as e:
@@ -276,17 +351,14 @@ class Microcontroller(Node):
                         pwm_count = 1
                         break
                     self.set_rc_channel_pwm(pwm_count, 65535)
-                    self.get_logger().info("Change mode to Manual control. Throttle PWM.")
+                    self.error_throttle(5000, "Change mode to Manual control. Throttle PWM.")
                     pwm_count = pwm_count + 1
 
             except Exception as e:
                 self.get_logger().error(f"Manual Mode: PWM Channel cannot pass. Error : {e}")
         else:
-            self.get_logger().info("Error Mode : PWM not sent")
+            self.error_throttle(5000, "Error Mode : PWM not sent")
 
-    def _get_pwm(self):
-        rc_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
-        self.get_logger().info(f"Channel Values : {rc_channels}")
 
     def auto_status_gcs_cb(self, msg):
         self.auto_status_gcs.data = msg.data
@@ -306,9 +378,9 @@ class Microcontroller(Node):
             0,
             0,
         )
-        self.get_logger().info("Arming motors ...")
+        self.error_throttle(5000, "Arming motors ...")
         self.ser_2.motors_armed_wait()
-        self.get_logger().info("Motor Armed!")
+        self.get_logger().warn("Motor Armed!")
 
     def _px_set_mode(self, pwm_val):
         if pwm_val <= 1300:
@@ -321,7 +393,7 @@ class Microcontroller(Node):
         self.get_logger().info(f"Current Mode : {self.pxmode}")
 
         if self.pxmode not in self.ser_2.mode_mapping():
-            self.get_logger().info(f"Unknown Mode : {self.pxmode}")
+            self.get_logger().warn(f"Unknown Mode : {self.pxmode}")
             # print("Try:", list(self.ser_2.mode_mapping().keys()))
             return
 
@@ -334,48 +406,65 @@ class Microcontroller(Node):
         self.get_logger().info(f"Mode set to : {self.pxmode}")
         return True
 
+    # def _validate_both_micon(self):
+    #     if (
+    #             self.mc1 == MiconType.NONE
+    #             or self.mc2 == MiconType.NONE
+    #             or self.ser_2 is None
+    #         ):
+    #             self.error_throttle(5000, "One of the micon is not found")
+    #             self._init_mc()
+    #             continue
+
+    def _validate_only_pixhawk(self):
+        if (
+                self.mc1 == MiconType.NONE
+                or self.mc2 == MiconType.NONE
+                or self.ser_2 is None
+            ):
+                self.error_throttle(5000, "One of the micon is not found")
+                self._init_mc_without_esp()
+                
     def request_pixhawk(self):
-        while True:
-            time.sleep(0.1)
-            try:
-                self.ser_2.mav.param_request_read_send(
-                    self.ser_2.target_system,
-                    self.ser_2.target_component,
-                    b"COMPASS_OFS_X",
-                    -1,
-                )
+        try:
+            self.ser_2.mav.param_request_read_send(
+                self.ser_2.target_system,
+                self.ser_2.target_component,
+                b"COMPASS_OFS_X",
+                -1,
+            )
 
-                msg = self.ser_2.recv_match(type="ATTITUDE", blocking=True)
-                yaw_deg = math.degrees(msg.yaw)
-                if yaw_deg < 0:
-                    yaw_deg += 360
+            msg = self.ser_2.recv_match(type="ATTITUDE", blocking=True)
+            yaw_deg = math.degrees(msg.yaw)
+            if yaw_deg < 0:
+                yaw_deg += 360
 
-                msg_coor = self.ser_2.recv_match(
-                    type="GLOBAL_POSITION_INT", blocking=True
-                )
-                lat = msg_coor.lat / 1e7
-                lon = msg_coor.lon / 1e7
-                alt = (
-                    msg_coor.alt / 1000
-                )  # Altitude in meters (millimeters in the message)
+            msg_coor = self.ser_2.recv_match(
+                type="GLOBAL_POSITION_INT", blocking=True
+            )
+            lat = msg_coor.lat / 1e7
+            lon = msg_coor.lon / 1e7
+            alt = (
+                msg_coor.alt / 1000
+            )  # Altitude in meters (millimeters in the message)
 
-                alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=True)
+            alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=True)
 
-                msg_spd = alignment.groundspeed  # Ground speed in m/s
-                msg_heading = alignment.heading
-                # airspeed = msg.airspeed  # Airspeed in m/s
+            msg_spd = alignment.groundspeed  # Ground speed in m/s
+            msg_heading = alignment.heading
+            # airspeed = msg.airspeed  # Airspeed in m/s
 
-                self.pixhawk.lat = lat
-                self.pixhawk.lon = lon
-                self.pixhawk.alt = alt
-                self.pixhawk.msg_heading = msg_heading
-                self.pixhawk.msg_spd = msg_spd
+            self.pixhawk.lat = lat
+            self.pixhawk.lon = lon
+            self.pixhawk.alt = alt
+            self.pixhawk.msg_heading = msg_heading
+            self.pixhawk.msg_spd = msg_spd
 
-                return self.pixhawk
+            return self.pixhawk
 
-            except Exception as error:
-                print(error)
-                sys.exit(0)
+        except Exception as error:
+            self.get_logger().error(f"Error in request_pixhawk: {error}")
+            return self.pixhawk
 
     def main(self):
 
@@ -384,93 +473,82 @@ class Microcontroller(Node):
         self.jetson_batt_msg = UInt16()
         self.motor_batt_msg = UInt16()
         self.mux_state_msg = UInt8()
+        self.imu_msg = Float64()
 
         # Publisher
-        kill_switch_pub = Topic.kill_switch.createPublisher(self)
-        heading_deg_pub = Topic.heading_deg.createPublisher(self)
-        auto_status_remote_pub = Topic.auto_status_remote.createPublisher(self)
-        jetson_batt_pub = Topic.jetson_batt.createPublisher(self)
-        motor_batt_pub = Topic.motor_batt.createPublisher(self)
-        mux_state_pub = Topic.mux_state.createPublisher(self)
-        pixhawk_pub = Topic.pixhawk.createPublisher(self)
-        pxmode_pub = Topic.pxmode.createPublisher(self)
+        self.kill_switch_pub = Topic.kill_switch.createPublisher(self)
+        self.heading_deg_pub = Topic.heading_deg.createPublisher(self)
+        self.auto_status_remote_pub = Topic.auto_status_remote.createPublisher(self)
+        self.jetson_batt_pub = Topic.jetson_batt.createPublisher(self)
+        self.motor_batt_pub = Topic.motor_batt.createPublisher(self)
+        self.mux_state_pub = Topic.mux_state.createPublisher(self)
+        self.pixhawk_pub = Topic.pixhawk.createPublisher(self)
+        self.pxmode_pub = Topic.pxmode.createPublisher(self)
+        self.get_logger().info("<> Pixhawk Publisher created")
 
-        # Subscriber
-        # self.pwm_sub = Topic.pwm.createSubscriber(self._pwm_callback)
         # auto_status_gcs_sub = Topic.auto_status_gcs.createSubscriber(self.auto_status_gcs_cb)
 
-        while rclpy.ok():
+        #self._validate_only_pixhawk()
+
+        while rclpy.ok():  # ROS2 equivalent of rospy.is_shutdown()
+            #self._validate_both_micon()  #ganti kalo udah ada esp
+            #self._validate_only_pixhawk()
+            rclpy.spin_once(self, timeout_sec=0.01)
             if (
                 self.mc1 == MiconType.NONE
                 or self.mc2 == MiconType.NONE
                 or self.ser_2 is None
             ):
-                self.get_logger().error("micon not found")
+                self.error_throttle(5000, "One of the micon is not found")
                 self._init_mc()
                 continue
+            self.warn_once("micon found")
+            self.warn_throttle(5000, f"{self.mc1}, {self.mc2}")
 
-            self.get_logger().info("micon found")
 
-            # data = self._read_sensor_esp32()
-            # if not data:
-            #    continue
 
-            # Inserting Data
-            self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
-            # aneh errornya, kl pke uint16 error tipe data harus int, kalau pake int error tipe data harus uint16
-            # self.jetson_batt_msg.data = np.uint16(self.jetson_batt) 
-            # self.motor_batt_msg.data = np.uint16(self.motor_batt)
-            # self.mux_state_msg.data = np.uint8(self.mux_state)
 
+            #ESP32
+            data = self._read_sensor_esp32()
+            
             # Publish data
-            kill_switch_pub.publish(self.ks_kill_state)
-            heading_deg_pub.publish(self.msg_heading_msg)
-            auto_status_remote_pub.publish(self.auto_status_remote)
-            # jetson_batt_pub.publish(self.jetson_batt_msg)
-            # motor_batt_pub.publish(self.motor_batt)
-            # internal_temp_pub.publish(self.internal_temp_deg)
-            # mux_state_pub.publish(self.mux_state)
-            # pixhawk_pub.publish(self.request_pixhawk())
-            # pxmode_pub.publish(self.pxmode)
-
-            # if (self.echosounder_dist >= 0 and self.echosounder_conf >= 0):
-            # echo_dist_pub.publish(self.echosounder_dist)
-            # echo_conf_pub.publish(self.echosounder_conf)
-
-            # print(self.jetson_batt, "gay")
-
-            filtered_avg = 0.0
-            N_ITR = 10
-
-            # self.set_rc_channel_pwm(2, 1800)
+            self.kill_switch_pub.publish(self.ks_kill_state)
+            self.heading_deg_pub.publish(self.msg_heading_msg)
+            self.auto_status_remote_pub.publish(self.auto_status_remote)
+            self.jetson_batt_msg.data = int(self._battery_value_safe(self.jetson_batt))
+            self.motor_batt_msg.data = int(self._battery_value_safe(self.motor_batt))
+            self.mux_state_msg.data = int(self.mux_state)
+            self.jetson_batt_pub.publish(self.jetson_batt_msg)
+            self.motor_batt_pub.publish(self.motor_batt_msg)
+            self.mux_state_pub.publish(self.mux_state_msg)
+            
+            # Request and publish pixhawk data
+            pixhawk_data = self.request_pixhawk()
+            self.pixhawk_pub.publish(pixhawk_data)
+            
+            # Update heading message
+            self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
+            
             rc_chans = self._px_rc_val()
             self._px_set_mode(rc_chans.chan8_raw)
             self._send_pwm(rc_chans)
 
-            self._get_pwm()
-            self.get_logger().info("Sending PWM...")
-
-            # self.rate.sleep()
-            self.get_logger().info("Successfully initialized node")
-
-            # if self.ser_0.in_waiting :
-            #    raw_ser_1 = self.ser_1.readline().decode()
-            #    print(raw_ser_1)
-            #    if raw_ser_1[0] == "s":
-            #        parsed_data = self._parse_raw(raw_ser_1[1:])
-            #        self.jetson_batt, self.motor_batt, depth, ks_state, self.dht22_raw, self.tbs_pwm_in, mux_state, heading_deg, self.echosounder_dist, self.echosounder_conf = parsed_data
-            #        print(self.jetson_batt)
+            # self._get_pwm()
+            
+            self.warn_throttle(5000, "Sending PWM...")
+            
+            # Sleep equivalent to rospy.Rate(60).sleep()
+            time.sleep(1.0/60.0)
+            self.info_once("Successfully initialized node")
 
 
 def main(args=None):
     rclpy.init(args=args)
-    micon = Microcontroller()
-    micon.main()
+    microcontroller_node = Microcontroller()
 
+    # microcontroller_node._test_dummy_data()
+    microcontroller_node.main()
 
-if __name__ == "__main__":
-    try:
-        main()
-
-    except Exception:
-        rclpy.logerr(traceback.format_exc())
+    rclpy.spin(microcontroller_node)
+    microcontroller_node.destroy_node()
+    rclpy.shutdown()

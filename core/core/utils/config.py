@@ -21,21 +21,23 @@ from core_msgs.msg import (
 
 
 class Param:
-    KP = "/yaw_controller/yaw_controller/Kp"
-    KI = "/yaw_controller/yaw_controller/Ki"
-    KD = "/yaw_controller/yaw_controller/Kd"
-    THRESHOLD = "/camera_front/threshold"
-    TRACK = "/"
-    BOW_SPEED = "/motor_controller/bow_speed"
-    X_SPEED = "/motor_controller/x_speed"
-    MOTOR_SPEED = "/motor_controller/motor_speed"
+    KP = ParamFactory("/yaw_controller/yaw_controller/Kp", float)
+    KI = ParamFactory("/yaw_controller/yaw_controller/Ki", float)
+    KD = ParamFactory("/yaw_controller/yaw_controller/Kd", float)
+    THRESHOLD = ParamFactory("/camera_front/threshold", float)
+    TRACK = ParamFactory("/mission/track", str)
+    BOW_SPEED = ParamFactory("/motor_controller/bow_speed", float)
+    X_SPEED = ParamFactory("/motor_controller/x_speed", float)
+    MOTOR_SPEED = ParamFactory("/motor_controller/motor_speed", float)
+    CONF_THRESHOLD = ParamFactory("/mission/confidence_threshold", float)
 
 
-class Node:
+class NodeConfig:
     camera_front = "camera_front"
     mission_controller = "mission_controller"
     motor_controller = "motor_controller"
-    pid_publisher = "pid_publisher"
+    pid_controller = "pid_controller"
+    depth_controller = "depth_controller"
     mission_control = "mission_controller"
     microcontroller = "microcontroller"
     cam_recorder = "cam_recorder"
@@ -47,6 +49,10 @@ class Node:
 
 
 class Topic:
+
+    # Motor_controller
+    controller = TopicFactory('/controller', Controller)
+
     # Autocontrol/Mode
     auto_control = TopicFactory("asv/auto_control/", AutoControl)
 
@@ -59,32 +65,35 @@ class Topic:
     image_green_box = TopicFactory("/asv/vision/image/show_green", String)
     image_blue_box = TopicFactory("/asv/vision/image/show_blue", String)
 
-    dsc = TopicFactory("/asv/vision/image/dsc", Float64)
-    dsc_flag = TopicFactory("/asv/vision/image/dsc_flag", Float64)
-    state_object = TopicFactory("/asv/vision/image/state", StateObject)
-    buoy_detect = TopicFactory("/asv/vision/image/detected", Bool)
+    dsc = TopicFactory("/core/vision/image/dsc", Float64)
+    dsc_flag = TopicFactory("/core/vision/image/dsc_flag", Float64)
+    state_object = TopicFactory("/core/vision/image/state", StateObject)
+    buoy_detect = TopicFactory("/core/vision/image/detected", Bool)
 
     # GCS Config
-    gcs_config = TopicFactory("/asv/gcs/config", Config)
+    gcs_config = TopicFactory("/core/gcs/config", Config)
 
     # Misc.
-    fail_safe = TopicFactory("/asv/fail_safe", Bool)
-    kill_switch = TopicFactory("/asv/kill_switch", KillSwitch)
-    heading_deg = TopicFactory("/asv/heading_deg", Float64)
-    jetson_batt = TopicFactory("/asv/battery/jetson", UInt16)
-    motor_batt = TopicFactory("/asv/battery/motor", UInt16)
-    internal_temp_deg = TopicFactory("/asv/temp/internal", Float64)
-    mux_state = TopicFactory("/asv/mux_state", UInt8)
+    fail_safe = TopicFactory("/core/fail_safe", Bool)
+    kill_switch = TopicFactory("/core/kill_switch", KillSwitch)
+    heading_deg = TopicFactory("/core/heading_deg", Float64)
+    jetson_batt = TopicFactory("/core/battery/jetson", UInt16)
+    motor_batt = TopicFactory("/core/battery/motor", UInt16)
+    internal_temp_deg = TopicFactory("/core/temp/internal", Float64)
+    mux_state = TopicFactory("/core/mux_state", UInt8)
+    diagnostics = TopicFactory("/core/diagnostics", String)
 
-    # Yaw Controller Thruster (angular z axis)
-    # control_effort_yaw = TopicFactory("/yaw_controller/control_effort", Float64)
-    control_effort_dsc = TopicFactory("/yaw_controller/control_effort", Float64)
-    state_yaw = TopicFactory("/yaw_controller/state", Float64)
-    setpoint_yaw = TopicFactory("/yaw_controller/setpoint", Float64, latch=True)
-    state_dst = TopicFactory("/asv/yaw_controller/state", Float64)
 
+    # PID Controller Topics
+    yaw_effort = TopicFactory("/core/pid_controller/control_effort", Float64)
+    yaw_state = TopicFactory("/core/pid_controller/state", Float64)
+    yaw_setpoint = TopicFactory("/core/pid_controller/setpoint", Float64, latch=True)
+    yaw_dst = TopicFactory("/core/pid_controller/distance", Float64)
+
+    # Speed Controller Thruster (linear x axis)
+    speed_effort = TopicFactory("/core/speed_controller/control_effort", Float64)
     # Object Detected
-    object_detected = TopicFactory("/asv/vision/object_detected", Bool)
+    object_detected = TopicFactory("/core/vision/object_detected", Bool)
     object_counted = TopicFactory("/core/vision/object_counted", ObjectCount)
 
     # Mission
@@ -115,7 +124,7 @@ class Topic:
     echosounder_conf = TopicFactory("/core/echosounder/confidence", Float64)
 
     #rov tambahan
-    state_depth = TopicFactory("/rov/depth", Float64)
+    state_depth = TopicFactory("/core/rov/depth", Float64)
     pxmode_uint8 = TopicFactory("/core/micon/pixhawk/mode", UInt8)
 
 class BT:
@@ -237,6 +246,7 @@ class PxMode:
 
 class SETPOINT:
     SETPOINT_YAW = 320
+    SETPOINT_DSC = 0
 
 
 class MotorReverse:
@@ -255,7 +265,7 @@ class ModelPath:
 
 class SPEED:
     Maximum = 1
-    MediumFast = 0.8
+    MediumFast = 0.7
     Medium = 0.5
     Slow = 0.3
     Idle = 0

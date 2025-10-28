@@ -1,9 +1,9 @@
 import py_trees
 from typing import List, Tuple, Type, Callable
 from ..behaviors.mission.actions.sim import (
-    Mission1, Mission1_Fallback,
-    Mission2, Mission2_Fallback, 
-    Mission3, Mission3_Fallback
+    Mission1_Execution, Mission1_Fallback,
+    Mission2_Execution, Mission2_Fallback, 
+    Mission3_Execution, Mission3_Fallback
 )
 from ..behaviors.blackboard.blackboard_behaviors import (
     InitializeBlackboard, 
@@ -17,9 +17,9 @@ class MissionTreeBuilder:
     """Builder class responsible for constructing the behavior tree"""
     
     MISSIONS_CONFIG = [
-        (Mission1, Mission1_Fallback),
-        (Mission2, Mission2_Fallback),
-        (Mission3, Mission3_Fallback)
+        (Mission1_Execution, Mission1_Fallback),
+        (Mission2_Execution, Mission2_Fallback),
+        (Mission3_Execution, Mission3_Fallback)
     ]
     
     def __init__(self, ros_node):
