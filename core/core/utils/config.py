@@ -68,7 +68,7 @@ class Topic:
     dsc = TopicFactory("/core/vision/image/dsc", Float64)
     dsc_flag = TopicFactory("/core/vision/image/dsc_flag", Float64)
     state_object = TopicFactory("/core/vision/image/state", StateObject)
-    buoy_detect = TopicFactory("/core/vision/image/detected", Bool)
+    detected = TopicFactory("/core/vision/image/detected", Bool)
 
     # GCS Config
     gcs_config = TopicFactory("/core/gcs/config", Config)

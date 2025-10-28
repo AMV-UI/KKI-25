@@ -6,6 +6,7 @@ from rclpy.node import Node
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType, Parameter, ParameterValue
 from rcl_interfaces.srv import SetParameters, GetParameters
 import rclpy.qos
+import time
 
 
 class TopicFactory:
@@ -45,7 +46,7 @@ class TopicFactory:
         # Match publisher QoS for latched messages
         qos = rclpy.qos.QoSProfile(
             depth=self.qos_profile,
-            durability=self.Durability_policy,
+            durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL if self.latch else rclpy.qos.DurabilityPolicy.VOLATILE,
             reliability=rclpy.qos.ReliabilityPolicy.RELIABLE
         )
 
@@ -92,183 +93,103 @@ class ServiceFactory:
 
 
 class ParamFactory:
+    """Simplified parameter factory using native ROS 2 parameters"""
+    
     def __init__(self, param_name, param_type, param_server_node='/parameter_blackboard'):
         self.param_name = param_name
         self.param_type = param_type
         self.param_server_node = param_server_node
-        self._get_client = None
-        self._set_client = None
         self.default_value = None
 
     def createParam(self, node, default_value=None):
-        """Initialize parameter clients and optionally set default value"""
+        """Declare parameter on the node with correct type (native ROS 2 approach)"""
         self.default_value = default_value
         
-        self._get_client = node.create_client(
-            GetParameters, 
-            f'{self.param_server_node}/get_parameters'
-        )
-        self._set_client = node.create_client(
-            SetParameters, 
-            f'{self.param_server_node}/set_parameters'
+        # Create descriptor with proper type info
+        descriptor = ParameterDescriptor(
+            description=f"Parameter {self.param_name}",
+            read_only=False
         )
         
-        # Wait for services with timeout
-        if not self._get_client.wait_for_service(timeout_sec=5.0):
-            raise RuntimeError(f"Service {self.param_server_node}/get_parameters not available")
-        if not self._set_client.wait_for_service(timeout_sec=5.0):
-            raise RuntimeError(f"Service {self.param_server_node}/set_parameters not available")
-        
-        # Only try to initialize if default_value is provided
-        # Don't call getParam here to avoid circular issues
+        # Declare with correct type
         if default_value is not None:
-            try:
-                # Directly set the default value without checking first
-                node.get_logger().info(f"Initializing parameter '{self.param_name}' with default value")
-                self.setParam(node, default_value)
-            except Exception as e:
-                node.get_logger().warn(f"Could not set default value for '{self.param_name}': {e}")
+            # Type is inferred from default_value, ensure it matches self.param_type
+            if self.param_type == float:
+                default_value = float(default_value)
+            elif self.param_type == int:
+                default_value = int(default_value)
+            elif self.param_type == bool:
+                default_value = bool(default_value)
+            elif self.param_type == str:
+                default_value = str(default_value)
+            
+            node.declare_parameter(self.param_name, default_value, descriptor)
+            node.get_logger().info(f"Parameter '{self.param_name}' declared as {type(default_value).__name__} with value: {default_value}")
+        else:
+            node.declare_parameter(self.param_name, descriptor=descriptor)
+            node.get_logger().info(f"Parameter '{self.param_name}' declared")
 
     def setParam(self, node, value):
-        """Set parameter on centralized server"""
-        if not self._set_client:
-            raise RuntimeError(f"Parameter '{self.param_name}' not initialized. Call createParam() first.")
-        
-        param = Parameter()
-        param.name = self.param_name
-        param.value = self._create_parameter_value(value)
-        
-        request = SetParameters.Request()
-        request.parameters = [param]
-        future = self._set_client.call_async(request)
-        
-        # Add timeout here too
-        rclpy.spin_until_future_complete(node, future, timeout_sec=5.0)
-        
-        if not future.done():
-            node.get_logger().error(f"Timeout setting parameter '{self.param_name}'")
+        """Set parameter on the node with type conversion"""
+        try:
+            # Ensure value matches the declared type
+            if self.param_type == float:
+                value = float(value)
+            elif self.param_type == int:
+                value = int(value)
+            elif self.param_type == str:
+                value = str(value)
+            elif self.param_type == bool:
+                value = bool(value)
+            
+            param = rclpy.parameter.Parameter(self.param_name, value=value)
+            result = node.set_parameters([param])
+            
+            if result[0].successful:
+                node.get_logger().debug(f"Parameter '{self.param_name}' set to {value} ({type(value).__name__})")
+                return True
+            else:
+                node.get_logger().error(f"Failed to set parameter '{self.param_name}': {result[0].reason}")
+                return False
+        except Exception as e:
+            node.get_logger().error(f"Error setting parameter '{self.param_name}': {e}")
             return False
-        
-        response = future.result()  # Changed variable name
-        if response is not None and all(r.successful for r in response.results):  # Fixed
-            return True
-        else:
-            node.get_logger().error(f"Failed to set parameter '{self.param_name}'")
-            return False
-       
 
     def getParam(self, node):
-        """Get parameter from centralized server (returns ParameterValue object)"""
-        if not self._get_client:
-            raise RuntimeError(f"Parameter '{self.param_name}' not initialized. Call createParam() first.")
-        
-        request = GetParameters.Request()
-        request.names = [self.param_name]
-        future = self._get_client.call_async(request)
-        
-        # Add timeout to prevent infinite waiting
-        rclpy.spin_until_future_complete(node, future, timeout_sec=5.0)
-        
-        if not future.done():
-            node.get_logger().error(f"Timeout getting parameter '{self.param_name}'")
+        """Get parameter value from the node (native ROS 2 approach)"""
+        try:
+            param = node.get_parameter(self.param_name)
+            return param.get_parameter_value()
+        except Exception as e:
+            node.get_logger().warning(f"Parameter '{self.param_name}' not found: {e}")
             return None
-        
-        result = future.result()
-        if result is not None and result.values:
-            param_value = result.values[0]
-            # Check if parameter is NOT_SET (doesn't exist)
-            if param_value.type == ParameterType.PARAMETER_NOT_SET:
-                node.get_logger().warn(f"Parameter '{self.param_name}' not set on server")
-                return None
-            return param_value
-        
-        return None
 
     def getValue(self, node):
-        """Get the actual parameter value (not ParameterValue object)"""
-        param_value = self.getParam(node)
-        
-        if not param_value:
+        """Get the actual parameter value (extracted from ParameterValue)"""
+        try:
+            param = node.get_parameter(self.param_name)
+            param_value = param.get_parameter_value()
+            
+            if param_value.type == ParameterType.PARAMETER_BOOL:
+                return param_value.bool_value
+            elif param_value.type == ParameterType.PARAMETER_INTEGER:
+                return param_value.integer_value
+            elif param_value.type == ParameterType.PARAMETER_DOUBLE:
+                return param_value.double_value
+            elif param_value.type == ParameterType.PARAMETER_STRING:
+                return param_value.string_value
+            elif param_value.type == ParameterType.PARAMETER_BYTE_ARRAY:
+                return list(param_value.byte_array_value)
+            elif param_value.type == ParameterType.PARAMETER_BOOL_ARRAY:
+                return list(param_value.bool_array_value)
+            elif param_value.type == ParameterType.PARAMETER_INTEGER_ARRAY:
+                return list(param_value.integer_array_value)
+            elif param_value.type == ParameterType.PARAMETER_DOUBLE_ARRAY:
+                return list(param_value.double_array_value)
+            elif param_value.type == ParameterType.PARAMETER_STRING_ARRAY:
+                return list(param_value.string_array_value)
+            
             return self.default_value
-        
-        if param_value.type == ParameterType.PARAMETER_BOOL:
-            return param_value.bool_value
-        elif param_value.type == ParameterType.PARAMETER_INTEGER:
-            return param_value.integer_value
-        elif param_value.type == ParameterType.PARAMETER_DOUBLE:
-            return param_value.double_value
-        elif param_value.type == ParameterType.PARAMETER_STRING:
-            return param_value.string_value
-        elif param_value.type == ParameterType.PARAMETER_BYTE_ARRAY:
-            return list(param_value.byte_array_value)
-        elif param_value.type == ParameterType.PARAMETER_BOOL_ARRAY:
-            return list(param_value.bool_array_value)
-        elif param_value.type == ParameterType.PARAMETER_INTEGER_ARRAY:
-            return list(param_value.integer_array_value)
-        elif param_value.type == ParameterType.PARAMETER_DOUBLE_ARRAY:
-            return list(param_value.double_array_value)
-        elif param_value.type == ParameterType.PARAMETER_STRING_ARRAY:
-            return list(param_value.string_array_value)
-        
-        return self.default_value
-
-    def _create_parameter_value(self, value):
-        pv = ParameterValue()
-        
-        if isinstance(value, bool):
-            pv.type = ParameterType.PARAMETER_BOOL
-            pv.bool_value = value
-        elif isinstance(value, int):
-            pv.type = ParameterType.PARAMETER_INTEGER
-            pv.integer_value = value
-        elif isinstance(value, float):
-            pv.type = ParameterType.PARAMETER_DOUBLE
-            pv.double_value = value
-        elif isinstance(value, str):
-            pv.type = ParameterType.PARAMETER_STRING
-            pv.string_value = value
-        elif isinstance(value, list):
-            if all(isinstance(i, int) and 0 <= i <= 255 for i in value):
-                pv.type = ParameterType.PARAMETER_BYTE_ARRAY
-                pv.byte_array_value = bytes(value)
-            elif all(isinstance(i, bool) for i in value):
-                pv.type = ParameterType.PARAMETER_BOOL_ARRAY
-                pv.bool_array_value = value
-            elif all(isinstance(i, int) for i in value):
-                pv.type = ParameterType.PARAMETER_INTEGER_ARRAY
-                pv.integer_array_value = list(value)
-            elif all(isinstance(i, float) for i in value):
-                pv.type = ParameterType.PARAMETER_DOUBLE_ARRAY
-                pv.double_array_value = list(value)
-            elif all(isinstance(i, str) for i in value):
-                pv.type = ParameterType.PARAMETER_STRING_ARRAY
-                pv.string_array_value = list(value)
-            else:
-                raise ValueError(f"Unsupported array type for parameter {self.param_name}")
-        else:
-            raise TypeError(f"Unsupported type {type(value)} for parameter {self.param_name}")
-    
-        return pv
-
-    def _get_parameter_type(self):
-        type_map = {
-            bool: ParameterType.PARAMETER_BOOL,
-            int: ParameterType.PARAMETER_INTEGER,
-            float: ParameterType.PARAMETER_DOUBLE,
-            str: ParameterType.PARAMETER_STRING,
-            list: {
-                bytes: ParameterType.PARAMETER_BYTE_ARRAY,
-                bool: ParameterType.PARAMETER_BOOL_ARRAY,
-                int: ParameterType.PARAMETER_INTEGER_ARRAY,
-                float: ParameterType.PARAMETER_DOUBLE_ARRAY,
-                str: ParameterType.PARAMETER_STRING_ARRAY
-            }
-        }
-        
-        if self.param_type == list:
-            if self.default_value:
-                element_type = type(self.default_value[0])
-                return type_map[list].get(element_type, ParameterType.PARAMETER_NOT_SET)
-            return ParameterType.PARAMETER_STRING_ARRAY
-        
-        return type_map.get(self.param_type, ParameterType.PARAMETER_NOT_SET)
+        except Exception as e:
+            node.get_logger().warning(f"Could not get value for '{self.param_name}': {e}")
+            return self.default_value

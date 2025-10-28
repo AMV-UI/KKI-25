@@ -82,7 +82,7 @@ class MotorController(Node):
         # self.mission_subscriber = self.topic.mission.createSubscriber(self, self.mission_callback)
         
         # # Publishers
-        # self.pwm_pub = self.topic.pwm.createPublisher(self)
+        self.pwm_pub = Topic.pwm.createPublisher(self)
 
         ##NEW
         # Subscribers
@@ -110,7 +110,7 @@ class MotorController(Node):
             self.pwm.channels[k] = v
 
     def autonomous(self):
-        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] MotorController Auto Mode")
+        # self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] MotorController Auto Mode")
         for k, v in self.motor.autonomous(
             control_effort_x=self.yaw_effort,
             control_effort_y=self.speed_effort
@@ -118,10 +118,11 @@ class MotorController(Node):
             self.pwm.channels[k] = v
 
     def go2Buoys(self):
-        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] MotorController go through 2 buoys mode")
+        # self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] MotorController go through 2 buoys mode")
+        # self.get_logger().info(f"DSC value: {self.dsc}")
         for k, v in self.motor.autonomous(
             control_effort_x=self.dsc,
-            control_effort_y=200
+            control_effort_y=100
         ).items():
             self.pwm.channels[k] = v
 
@@ -140,7 +141,7 @@ class MotorController(Node):
         self.joy_state = msg
 
     def _dsc_callback(self, msg: Float64):
-        self.dsc = msg.dataMotor
+        self.dsc = msg.data
 
 
     def run(self):
@@ -150,8 +151,8 @@ class MotorController(Node):
 
     def loop(self):
         try:
-            # self.go2Buoys()
-            self.autonomous() #ideally pake autonomous, kontrol cuma dari yaw sama speed effort
+            self.go2Buoys()
+            # self.autonomous() #ideally pake autonomous, kontrol cuma dari yaw sama speed effort
             self.pwm.channels = [int(val) for val in self.pwm.channels]
             self.pwm_pub.publish(self.pwm)
         except Exception as e:

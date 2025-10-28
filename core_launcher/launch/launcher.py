@@ -11,7 +11,7 @@ def generate_launch_description():
     target_packages = [
         "core",
         "core_perception",
-        # "core_control"
+        "core_control"
     ]
 
     packages_to_launch = []

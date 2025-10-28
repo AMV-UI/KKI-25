@@ -49,7 +49,7 @@ class CameraController(Node):
         self.current_state = StateObject()
         self.current_mission = 1
         self.mission_received = AutoControl()
-        self.show_result = False
+        self.show_result = True
         self.detected = False
 
         # Setup communication
@@ -61,7 +61,7 @@ class CameraController(Node):
         """Initialize publishers and subscribers"""
         # Publishers
         self.dsc_pub = Topic.dsc.createPublisher(self)
-        # self.detected_pub = Topic.detected.createPublisher(self)
+        self.detected_pub = Topic.detected.createPublisher(self)
         
         # Subscribers (if needed)
         # self.current_mission_sub = Topic.mission.createSubscriber(self, self.mission_callback)
