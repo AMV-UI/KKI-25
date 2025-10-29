@@ -10,22 +10,22 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package="core_gcs",
-            executable="gcs_socket",
-            name="gcs_socket",
+            executable="gcs",
+            name="gcs",
             output="screen",
         ),
 
         # Mock publisher data
         # Node(
         #     package="core_gcs",
-        #     executable="talker",
-        #     name="talker",
+        #     executable="mock_mission",
+        #     name="mock_mission",
         #     output="screen",
         # ),
-        Node(
-            package="core_gcs",
-            executable="talker2",
-            name="talker2",
-            output="screen",
-        ),
+        # Node(
+        #     package="core_gcs",
+        #     executable="mock_pixhawk",
+        #     name="mock_pixhawk",
+        #     output="screen",
+        # ),
     ])

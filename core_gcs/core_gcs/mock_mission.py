@@ -6,7 +6,7 @@ from core.utils.config import AutoState, Box, Camera, NodeConfig, Topic, ModelPa
 
 class MockPublish(Node):
     def __init__(self):
-        super().__init__('mock')
+        super().__init__('mock_mission')
         self.publisher = Topic.camera_processed.createPublisher(self)
         self.counter = 1
         timer_period = 0.5
