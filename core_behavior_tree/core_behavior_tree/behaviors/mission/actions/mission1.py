@@ -1,75 +1,148 @@
 from ..mission_behaviors import BaseExecution, BaseFallback
-from geometry_msgs.msg import Twist
-from turtlesim.msg import Pose
 from py_trees.common import Status
-from core.utils.factory import TopicFactory
-import time
+from std_msgs.msg import Bool, Float64
+from core.utils.config import Topic
+from core.mission.find_mode import FindMode
+from core.mission.frame_counter import FrameCounter
+from core.mission.docking import Docking
+from core_msgs.msg import Pixhawk
+from core.utils.config import Param
 
 class Mission1_Execution(BaseExecution):
     """
-    Mission1: Hardcoded movement to move the asv on asvsim by publishing the topic on /cmd_vel, refer to the Scripts/Controllers/Core/CoreController.cs
-    for the RosTCPConnector connection subscriber on /cmd_vel
+    Main execution: APPROACH to 2 Buoys (Different color, Green and Red) phase only
+    - Navigate toward detected target using DSC from vision
+    - When target is lost for N frames -> SUCCESS (mission complete)
+    - If target not detected -> FAILURE (triggers fallback to search)
+    - Store Pixhawk coordinate to docking station after to use in the last mission
     """
     def __init__(self, name: str = "Mission1_Execution"):
         super().__init__(name)
-        self.velocity_pub = None
-        self.pose_sub = None
-        self.twist = Twist()
-        self.current_pose = None
-
+        self.frame_counter = None
+        self.detected = False
+        self.dsc = 0.0
+        self.speed_effort = 300.0
+        self.pixhawk = None
+        Param.DOCKING_LAT.createParam(self.node, default_value=0.0)
+        Param.DOCKING_LON.createParam(self.node, default_value=0.0)
+        self.coordinate_saved_state = False
+        self.gps_ready = False
+        
 
     def setup(self, **kwargs) -> None:
-        super().setup()
-        self.velocity_pub = TopicFactory("/cmd_vel", Twist).createPublisher(self.node)
-        self.pose_sub = TopicFactory("/pose", Pose).createSubscriber(self.node, self._pose_callback) 
+        super().setup(**kwargs)
+        self.frame_counter = FrameCounter(2)
+        self.pixhawk = Pixhawk()
 
-    def _pose_callback(self, msg):
-        self.current_pose = msg
-   
+        self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
+        self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
+        
+        self.pixhawk_sub = Topic.pixhawk.createSubscriber(self.node, self._pixhawk_cb)
+        self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
+        self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
+
+    def save_docking_coordinates(self):
+        """Save Pixhawk coordinates for docking mission"""
+        Param.DOCKING_LAT.setParam(self.node, self.pixhawk.latitude)
+        Param.DOCKING_LON.setParam(self.node, self.pixhawk.longitude)
+
+        
+    def _pixhawk_cb(self, msg: Pixhawk):
+        self.pixhawk = msg
+        if msg.latitude != 0.0 and msg.longitude != 0.0:
+            self.gps_ready = True
+
+    def _detected_cb(self, msg: Bool):
+        self.detected = bool(msg.data)
+
+    def _dsc_cb(self, msg: Float64):
+        self.dsc = float(msg.data)
+
     def execute(self) -> Status:
-        self.twist.linear.x = 2.0
-        self.twist.angular.z = 0.0
-        self.velocity_pub.publish(self.twist)
+        lat_ok = abs(self.pixhawk.latitude) > 0.1
+        lon_ok = abs(self.pixhawk.longitude) > 0.1
+        
+        if self.gps_ready and lat_ok and lon_ok:
+            if not self.coordinate_saved_state:
+                self.save_docking_coordinates()
+                self.coordinate_saved_state = True
+                self.node.get_logger().info(f"[{self.name}] Docking coordinates saved: LAT {self.pixhawk.latitude}, LON {self.pixhawk.longitude}")
+
+            if not self.detected:
+                self.frame_counter.is_started()
+                if self.frame_counter.is_enough():
+                    self.frame_counter.reset()
+                    self.node.get_logger().info(
+                        f"[{self.name}] Lost target consistently -> Mission complete",
+                        throttle_duration_sec=1.0
+                    )
+                    return Status.SUCCESS
+                
+                return Status.FAILURE
+
+            self.frame_counter.reset()
+
+            self.yaw_effort_pub.publish(Float64(data=self.dsc))
+            self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+            
+            self.node.get_logger().info(
+                f"[{self.name}] Approaching target - DSC: {self.dsc}",
+                throttle_duration_sec=2.0
+            )
         
         return Status.RUNNING
 
+
 class Mission1_Fallback(BaseFallback):
     """
-    Fallback for Mission1
+    Fallback: FINDING phase
+    - Search for target using constant yaw + find_mode
+    - When target found consistently -> returns SUCCESS (lets execution take over)
     """
     def __init__(self, name: str = "Mission1_Fallback"):
         super().__init__(name)
-        self.start_time = None
-        self.fallback_duration = 3.0  
-        self.velocity_pub = None
+        self.find_mode = None
+        self.frame_counter = None
+        self.detected = False
+        self.px_heading = 0.0
+        self.arena = "B"  # or "A"
+        self.dsc = 160.0 if self.arena == "A" else -160.0
+        self.speed_effort = 300.0
+
+    def setup(self, **kwargs) -> None:
+        super().setup(**kwargs)
+        self.find_mode = FindMode(self.node)
+        self.frame_counter = FrameCounter(2)
+
+        self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
+        self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
+
+        self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
+        self.heading_sub = Topic.heading_deg.createSubscriber(self.node, self._heading_cb)
+
+    def _detected_cb(self, msg: Bool):
+        self.detected = bool(msg.data)
+
+    def _heading_cb(self, msg: Float64):
+        self.px_heading = float(msg.data)
+
+    def fallback(self) -> Status:
+        self.yaw_effort_pub.publish(Float64(data=self.dsc))
+        self.speed_effort_pub.publish(Float64(data=self.speed_effort))
         
-    def setup(self, **kwargs):
-        super().setup()
-        self.velocity_pub = TopicFactory("/cmd_vel", Twist).createPublisher(self.node)
-        self.node.get_logger().info(f"[{self.name}] Starting wall collision recovery")
-    
-    def fallback(self):
-        if self.start_time is None:
-            self.start_time = time.time()
-        
-        elapsed_time = time.time() - self.start_time
-        
-        if elapsed_time >= self.fallback_duration:
-            stop_twist = Twist()
-            self.velocity_pub.publish(stop_twist)
-            self.node.get_logger().info(f"[{self.name}] Recovery completed - proceeding to next mission")
-            return Status.SUCCESS
-        
-        # Recovery maneuver: back up and turn
-        twist = Twist()
-        if elapsed_time < 1.0:
-            # First second: back up
-            twist.linear.x = -3.0
-            twist.angular.z = 2.0
+        if self.detected:
+            self.frame_counter.is_started()
+            if self.frame_counter.is_enough():
+                self.frame_counter.reset()
+                self.node.get_logger().info(f"[{self.name}] Target found -> switching to execution")
+                return Status.SUCCESS
         else:
-            # Remaining time: turn
-            twist.linear.x = 0.0
-            twist.angular.z = 2.0
+            self.frame_counter.reset()
+            self.find_mode.set_initial_heading(self.px_heading)
         
-        self.velocity_pub.publish(twist)
+        self.node.get_logger().info(
+            f"[{self.name}] Searching for target (detected: {self.detected})",
+            throttle_duration_sec=5.0
+        )
+        
         return Status.RUNNING

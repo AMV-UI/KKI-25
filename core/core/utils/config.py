@@ -31,6 +31,9 @@ class Param:
     MOTOR_SPEED = ParamFactory("/motor_controller/motor_speed", float)
     CONF_THRESHOLD = ParamFactory("/mission/confidence_threshold", float)
 
+    DOCKING_LAT = ParamFactory("/docking/target_latitude", float)
+    DOCKING_LON = ParamFactory("/docking/target_longitude", float)
+
 
 class NodeConfig:
     camera_front = "camera_front"
@@ -85,19 +88,20 @@ class Topic:
 
 
     # PID Controller Topics
-    yaw_effort = TopicFactory("/core/pid_controller/control_effort", Float64)
-    yaw_state = TopicFactory("/core/pid_controller/state", Float64)
-    yaw_setpoint = TopicFactory("/core/pid_controller/setpoint", Float64, latch=True)
-    yaw_dst = TopicFactory("/core/pid_controller/distance", Float64)
+    # imagine a 2d space like turtlesim
+    # YAW = X AXIS
+    # SPEED = Y AXIS
+    yaw_effort = TopicFactory("/core/pid_controller/yaw_effort", Float64)
+    speed_effort = TopicFactory("/core/pid_controller/speed_effort", Float64)
 
-    # Speed Controller Thruster (linear x axis)
-    speed_effort = TopicFactory("/core/speed_controller/control_effort", Float64)
+
     # Object Detected
     object_detected = TopicFactory("/core/vision/object_detected", Bool)
     object_counted = TopicFactory("/core/vision/object_counted", ObjectCount)
 
     # Mission
     mission = TopicFactory("/core/mission/current", UInt8)
+    mission_counter = TopicFactory("/core/mission/counter", UInt8)
 
     # Reverse autonomous mode
     reverse_auto_mode = TopicFactory("/core/reverse_auto_mode", Bool)

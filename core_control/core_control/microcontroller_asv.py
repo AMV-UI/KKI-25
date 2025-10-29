@@ -416,14 +416,14 @@ class Microcontroller(Node):
     #             self._init_mc()
     #             continue
 
-    def _validate_only_pixhawk(self):
-        if (
-                self.mc1 == MiconType.NONE
-                or self.mc2 == MiconType.NONE
-                or self.ser_2 is None
-            ):
-                self.error_throttle(5000, "One of the micon is not found")
-                self._init_mc_without_esp()
+    # def _validate_only_pixhawk(self):
+    #     if (
+    #             self.mc1 == MiconType.NONE
+    #             or self.mc2 == MiconType.NONE
+    #             or self.ser_2 is None
+    #         ):
+    #             self.error_throttle(5000, "One of the micon is not found")
+    #             self._init_mc_without_esp()
                 
     def request_pixhawk(self):
         try:
@@ -447,6 +447,9 @@ class Microcontroller(Node):
             alt = (
                 msg_coor.alt / 1000
             )  # Altitude in meters (millimeters in the message)
+            # lat: integer, in degrees × 1e7
+            # lon: integer, in degrees × 1e7
+            # alt: integer, in millimeters
 
             alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=True)
 
@@ -511,22 +514,23 @@ class Microcontroller(Node):
             #ESP32
             data = self._read_sensor_esp32()
             
-            # Publish data
-            self.kill_switch_pub.publish(self.ks_kill_state)
-            self.heading_deg_pub.publish(self.msg_heading_msg)
-            self.auto_status_remote_pub.publish(self.auto_status_remote)
-            self.jetson_batt_msg.data = int(self._battery_value_safe(self.jetson_batt))
-            self.motor_batt_msg.data = int(self._battery_value_safe(self.motor_batt))
-            self.mux_state_msg.data = int(self.mux_state)
-            self.jetson_batt_pub.publish(self.jetson_batt_msg)
-            self.motor_batt_pub.publish(self.motor_batt_msg)
-            self.mux_state_pub.publish(self.mux_state_msg)
+            if data:
+                self.kill_switch_pub.publish(self.ks_kill_state)
+                self.heading_deg_pub.publish(self.msg_heading_msg)
+                self.auto_status_remote_pub.publish(self.auto_status_remote)
+                self.jetson_batt_msg.data = int(self._battery_value_safe(self.jetson_batt))
+                self.motor_batt_msg.data = int(self._battery_value_safe(self.motor_batt))
+                self.mux_state_msg.data = int(self.mux_state)
+                self.jetson_batt_pub.publish(self.jetson_batt_msg)
+                self.motor_batt_pub.publish(self.motor_batt_msg)
+                self.mux_state_pub.publish(self.mux_state_msg)
+            else:
+                self.error_throttle(5000, "No data from ESP32")
             
             # Request and publish pixhawk data
             pixhawk_data = self.request_pixhawk()
             self.pixhawk_pub.publish(pixhawk_data)
             
-            # Update heading message
             self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
             
             rc_chans = self._px_rc_val()

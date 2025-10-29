@@ -1,72 +1,52 @@
 from ..base_behavior import BaseBehavior
 from py_trees.common import Status
 from std_msgs.msg import UInt8
-from core.utils.config import BT, TopicFactory
+from core.utils.config import Topic
 
 class BaseExecution(BaseBehavior):
-    """
-    Base class for mission main execution behaviors that test conditions and report results.
+    """Base class for mission execution behaviors"""
     
-    Required Blackboard Keys:
-    - "mission_counter" (read): tracks current mission step.
-    
-    Child classes must:
-    - Add any extra blackboard keys via `extra_keys`
-    - Implement `execute()` to return Status
-    """
-    
-    def __init__(self, name: str, extra_keys: dict = None):
-        base_keys = {"mission_counter": BT.read}
-        if extra_keys:
-            base_keys.update(extra_keys)
-        super().__init__(name, base_keys)
+    def __init__(self, name: str):
+        super().__init__(name)
+        self.counter_pub = None
+        self.mission_counter = 0
     
     def setup(self, **kwargs) -> None:
-        self.counter_pub = TopicFactory("/mission_counter", UInt8).createPublisher(self.node)
+        super().setup(**kwargs)
+        self.mission_counter_pub = Topic.mission_counter.createPublisher(self.node)
     
     def update(self) -> Status:
         status = self.execute()
-        counter = self.blackboard.mission_counter
 
         match status:
             case Status.SUCCESS:
-                self.node.get_logger().info(f"[{self.name}] MISSION {counter} SUCCESS")
-                self.counter_pub.publish(UInt8(data=counter + 1))
+                self.node.get_logger().info(f"[{self.name}] MISSION {self.mission_counter} SUCCESS")
+                self.mission_counter += 1
+                self.mission_counter_pub.publish(UInt8(data=self.mission_counter))
             case Status.RUNNING:
-                self.node.get_logger().info(f"[{self.name}] Mission {counter} RUNNING")
+                self.node.get_logger().info(f"[{self.name}] Mission {self.mission_counter} RUNNING")
             case Status.FAILURE:
-                self.node.get_logger().info(f"[{self.name}] Mission {counter} FAILURE")
+                self.node.get_logger().info(f"[{self.name}] Mission {self.mission_counter} FAILURE")
 
         return status
     
     def execute(self) -> Status:
-        """
-        Must be overridden in child classes to implement mission-specific logic.
-        """
+        """Must be overridden in child classes"""
         raise NotImplementedError("You must implement execute() in your subclass.")
 
 
 class BaseFallback(BaseBehavior):
-    """
-    Base class for fallback actions triggered after a mission failure.
-
-    Required Blackboard Keys:
-    - "mission_counter" (read): tracks the mission ID that failed.
-
-    Child classes must:
-    - Add any extra blackboard keys via `extra_keys`
-    - Implement `fallback()` to define fallback action
-    """
+    """Base class for fallback actions"""
     
-    def __init__(self, name: str, extra_keys: dict = None):
-        base_keys = {"mission_counter": BT.read}
-        if extra_keys:
-            base_keys.update(extra_keys)
-        super().__init__(name, base_keys)
+    def __init__(self, name: str):
+        super().__init__(name)
+    
+    def setup(self, **kwargs) -> None:
+        super().setup(**kwargs)
     
     def update(self) -> Status:
-        self.fallback()
-        return Status.FAILURE
+        return self.fallback()
 
-    def fallback(self):
+    def fallback(self) -> Status:
+        """Must be overridden in child classes"""
         raise NotImplementedError("You must implement fallback() in your subclass.")
