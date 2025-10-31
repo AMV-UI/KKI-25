@@ -18,7 +18,7 @@ class Mission2_Execution(BaseExecution):
         self.find_mode = None
         self.frame_counter = None
         self.detected = False
-
+        self.arena = "B"  # or "A"
         self.dsc = -160.0 if self.arena == "A" else 160.0  #Reverse effort untuk mission 2
 
         self.px_heading = 0.0
@@ -140,7 +140,7 @@ class Mission2_Fallback(BaseFallback):
         except Exception:
             self.yaw_effort_pub.publish(Float64(data=self.dsc))
             self.speed_effort_pub.publish(Float64(data=self.speed_effort))
-            
+
             self.node.get_logger().info(f"[{self.name}] Fallback holding (dsc={self.dsc})")
 
         return Status.RUNNING
