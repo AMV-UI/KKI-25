@@ -70,7 +70,12 @@ class Mission1_Execution(BaseExecution):
                 self.node.get_logger().info(f"[{self.name}] Docking coordinates saved: LAT {self.pixhawk.latitude}, LON {self.pixhawk.longitude}")
 
             if not self.detected:
-                self.frame_counter.is_started()
+                self.frame_counter.is_started() #Singleton pattern, set flag start timer = 1
+                                                #  def is_started(self):
+                                                #     if self.flag == 1:
+                                                #         return
+                                                #     self.flag = 1
+                                                #     self.counter = time.time()
                 if self.frame_counter.is_enough():
                     self.frame_counter.reset()
                     self.node.get_logger().info(

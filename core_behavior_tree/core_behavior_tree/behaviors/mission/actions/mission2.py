@@ -24,7 +24,7 @@ class Mission2_Execution(BaseExecution):
         self.px_heading = 0.0
         self.phase = "finding"        
 
-        self.speed_effort = 200
+        self.speed_effort = 200.0
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
@@ -91,6 +91,7 @@ class Mission2_Execution(BaseExecution):
             self.frame_counter.reset()
 
         self.yaw_effort_pub.publish(yaw_effort)
+        self.speed_effort_pub.publish(Float64(data=self.speed_effort))
         return Status.RUNNING
 
 
@@ -103,6 +104,7 @@ class Mission2_Fallback(BaseFallback):
         self.find_mode = None
         self.px_heading = 0.0
         self.dsc = 160.0
+        self.speed_effort = 200.0
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
@@ -128,12 +130,17 @@ class Mission2_Fallback(BaseFallback):
             yaw_effort_searching = self.find_mode.get_state(self.px_heading)
 
             self.yaw_effort_pub.publish(Float64(data=yaw_effort_searching))
+            self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+
+
             self.node.get_logger().info(
                 f"[{self.name}] Search fallback range(1) (state={yaw_effort_searching})",
                 throttle_duration_sec=5.0
             )
         except Exception:
             self.yaw_effort_pub.publish(Float64(data=self.dsc))
+            self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+            
             self.node.get_logger().info(f"[{self.name}] Fallback holding (dsc={self.dsc})")
 
         return Status.RUNNING
