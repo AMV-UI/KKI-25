@@ -18,7 +18,7 @@ class Mission2_Execution(BaseExecution):
         self.find_mode = None
         self.frame_counter = None
         self.detected = False
-        
+
         self.dsc = -160.0 if self.arena == "A" else 160.0  #Reverse effort untuk mission 2
 
         self.px_heading = 0.0
@@ -67,7 +67,7 @@ class Mission2_Execution(BaseExecution):
                 yaw_effort = self.find_mode.get_state(self.px_heading)
                 
             self.yaw_effort_pub.publish(Float64(yaw_effort))
-            self.speed_effort_pub.publish(Float64(data=))
+            self.speed_effort_pub.publish(Float64(data=self.speed_effort))
             
             self.node.get_logger().info(
                 f"[{self.name}] Current Heading: {self.px_heading}, Range: [{self.find_mode.range_low}, {self.find_mode.range_high}]",
