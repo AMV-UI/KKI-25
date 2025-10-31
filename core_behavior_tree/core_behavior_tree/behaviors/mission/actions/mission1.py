@@ -27,11 +27,12 @@ class Mission1_Execution(BaseExecution):
         Param.DOCKING_LON.createParam(self.node, default_value=0.0)
         self.coordinate_saved_state = False
         self.gps_ready = False
+        self.time_threshold = 2 # in Seconds
         
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
-        self.frame_counter = FrameCounter(2)
+        self.frame_counter = FrameCounter(self.time_threshold)
         self.pixhawk = Pixhawk()
 
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
@@ -41,7 +42,7 @@ class Mission1_Execution(BaseExecution):
         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
         self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
 
-    def save_docking_coordinates(self):
+    def set_docking_coordinates(self):
         """Save Pixhawk coordinates for docking mission"""
         Param.DOCKING_LAT.setParam(self.node, self.pixhawk.latitude)
         Param.DOCKING_LON.setParam(self.node, self.pixhawk.longitude)
@@ -64,7 +65,7 @@ class Mission1_Execution(BaseExecution):
         
         if self.gps_ready and lat_ok and lon_ok:
             if not self.coordinate_saved_state:
-                self.save_docking_coordinates()
+                self.set_docking_coordinates()
                 self.coordinate_saved_state = True
                 self.node.get_logger().info(f"[{self.name}] Docking coordinates saved: LAT {self.pixhawk.latitude}, LON {self.pixhawk.longitude}")
 
@@ -108,11 +109,12 @@ class Mission1_Fallback(BaseFallback):
         self.arena = "B"  # or "A"
         self.dsc = 160.0 if self.arena == "A" else -160.0
         self.speed_effort = 300.0
+        self.time_threshold = 2 # in Seconds
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
         self.find_mode = FindMode(self.node)
-        self.frame_counter = FrameCounter(2)
+        self.frame_counter = FrameCounter(self.time_threshold)
 
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)

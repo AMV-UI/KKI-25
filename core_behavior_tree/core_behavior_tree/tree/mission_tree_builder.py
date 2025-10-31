@@ -1,10 +1,9 @@
 import py_trees
 from typing import List, Tuple, Type, Callable
-from ..behaviors.mission.actions.sim import (
-    Mission1_Execution, Mission1_Fallback,
-    Mission2_Execution, Mission2_Fallback, 
-    Mission3_Execution, Mission3_Fallback
-)
+from ..behaviors.mission.actions.mission1 import Mission1_Execution, Mission1_Fallback
+from ..behaviors.mission.actions.mission2 import Mission2_Execution, Mission2_Fallback
+from ..behaviors.mission.actions.mission3 import Mission3_Execution, Mission3_Fallback
+from ..behaviors.mission.actions.docking import DockingMission_Execution, DockingMission_Fallback
 from ..behaviors.blackboard.blackboard_behaviors import (
     InitializeBlackboard, 
     PrintBlackboard, 
@@ -19,7 +18,8 @@ class MissionTreeBuilder:
     MISSIONS_CONFIG = [
         (Mission1_Execution, Mission1_Fallback),
         (Mission2_Execution, Mission2_Fallback),
-        (Mission3_Execution, Mission3_Fallback)
+        # (Mission3_Execution, Mission3_Fallback),
+        (DockingMission_Execution, DockingMission_Fallback),
     ]
     
     def __init__(self, ros_node):
@@ -31,8 +31,8 @@ class MissionTreeBuilder:
         return py_trees.trees.BehaviourTree(root)
     
     def _create_root(self) -> py_trees.composites.Parallel:
-        root = py_trees.composites.Parallel(
         """Create the root of the behavior tree with all major branches"""
+        root = py_trees.composites.Parallel(
             name="Root",
             policy=py_trees.common.ParallelPolicy.SuccessOnAll()
         )
@@ -64,34 +64,11 @@ class MissionTreeBuilder:
             memory=False
         )
         
-        manual_guard = self._create_manual_movement_guard()
         mission_sequence = self._create_mission_sequence()
         idle_behavior = py_trees.behaviours.Running("Idle")
         
-        tasks.add_children([manual_guard, mission_sequence, idle_behavior])
+        tasks.add_children([mission_sequence, idle_behavior])
         return tasks
-    
-    def _create_manual_movement_guard(self) -> py_trees.decorators.EternalGuard:
-        """Create the manual movement guard with proper condition checking"""
-        # Note: MoveTurtle import seems to be missing from original code
-        # You'll need to import this or replace with the correct class
-        try:
-            from ..behaviors.movement import MoveTurtle  # Adjust import as needed
-            manual_movement = MoveTurtle("ManualMovement")
-        except ImportError:
-            # Fallback behavior if MoveTurtle is not available
-            manual_movement = py_trees.behaviours.Success("ManualMovement")
-        
-        def is_manual_mode(blackboard) -> bool:
-            """Check if the system is in manual mode"""
-            return getattr(blackboard, 'pxmode', None) == "manual"
-        
-        return py_trees.decorators.EternalGuard(
-            name="Manual Mode Guard",
-            child=manual_movement,
-            condition=is_manual_mode,
-            blackboard_keys={"pxmode"}
-        )
     
     def _create_mission_sequence(self) -> py_trees.composites.Sequence:
         """Create the mission sequence branch with improved structure"""
@@ -145,4 +122,6 @@ class MissionTreeBuilder:
         return py_trees.console.ascii_tree(root)
 
     def get_tree_ascii(self) -> str:
+        """Return a DOT representation of the tree for visualization"""
+        root = self._create_root()
         return py_trees.display.render_dot_tree(root)

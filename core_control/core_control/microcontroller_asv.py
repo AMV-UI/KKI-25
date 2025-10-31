@@ -427,17 +427,17 @@ class Microcontroller(Node):
                 
     def request_pixhawk(self):
         try:
-            self.ser_2.mav.param_request_read_send(
-                self.ser_2.target_system,
-                self.ser_2.target_component,
-                b"COMPASS_OFS_X",
-                -1,
-            )
+            # self.ser_2.mav.param_request_read_send(
+            #     self.ser_2.target_system,
+            #     self.ser_2.target_component,
+            #     b"COMPASS_OFS_X",
+            #     -1,
+            # )
 
-            msg = self.ser_2.recv_match(type="ATTITUDE", blocking=True)
-            yaw_deg = math.degrees(msg.yaw)
-            if yaw_deg < 0:
-                yaw_deg += 360
+            # msg = self.ser_2.recv_match(type="ATTITUDE", blocking=True)
+            # yaw_deg = math.degrees(msg.yaw)
+            # if yaw_deg < 0:
+            #     yaw_deg += 360
 
             msg_coor = self.ser_2.recv_match(
                 type="GLOBAL_POSITION_INT", blocking=True
