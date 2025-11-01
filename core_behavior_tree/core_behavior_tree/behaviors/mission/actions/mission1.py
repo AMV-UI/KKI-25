@@ -16,8 +16,9 @@ class Mission1_Execution(BaseExecution):
     - If target not detected -> FAILURE (triggers fallback to search)
     - Store Pixhawk coordinate to docking station after to use in the last mission
     """
-    def __init__(self, name: str = "Mission1_Execution"):
-        super().__init__(name)
+    def __init__(self, name: str = "Mission1_Execution", node=None):
+        super().__init__(name, node=node)
+        self.node = node
         self.frame_counter = None
         self.detected = False
         self.dsc = 0.0
@@ -105,8 +106,9 @@ class Mission1_Fallback(BaseFallback):
     - Search for target using constant yaw + find_mode
     - When target found consistently -> returns SUCCESS (lets execution take over)
     """
-    def __init__(self, name: str = "Mission1_Fallback"):
-        super().__init__(name)
+    def __init__(self, name: str = "Mission1_Fallback", node=None):
+        super().__init__(name, node=node)
+        self.node = node
         self.find_mode = None
         self.frame_counter = None
         self.detected = False

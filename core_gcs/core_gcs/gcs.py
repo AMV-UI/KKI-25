@@ -4,7 +4,7 @@ import asyncio
 import websockets
 import json
 from std_msgs.msg import String, UInt8
-from core.utils.config import Topic, PxMode
+from core.utils.config import Topic, PxMode, Param
 from core_msgs.msg import Pixhawk
 
 class Gcs(Node):
@@ -12,7 +12,7 @@ class Gcs(Node):
         super().__init__('Gcs')
         self.loop = loop 
         self.websocket_clients = set()
-        self.track = "B"
+        self.track = Param.TRACK.getValue(self.node)
 
         self.lon_history = []
         self.lat_history = []

@@ -4,14 +4,18 @@ from py_trees.behaviour import Behaviour
 
 
 class BaseBehavior(Behaviour):
-    """Base class for all behaviors that need ROS node access"""
+    """Base class for all behaviors that need ROS node access (no blackboard)"""
     
-    def __init__(self, name: str):
+    def __init__(self, name: str, node: Node = None):
         super(BaseBehavior, self).__init__(name)
-        self.blackboard = py_trees.blackboard.Client(name=self.name)
-        self.blackboard.register_key("ros_node", access=py_trees.common.Access.READ)
+        # store the ROS node directly instead of using the py_trees blackboard
+        self.node: Node = node
                 
+    # keep property for compatibility
     @property
     def node(self) -> Node:
-        """Access to the ROS node"""
-        return self.blackboard.ros_node
+        return self._node
+
+    @node.setter
+    def node(self, value: Node) -> None:
+        self._node = value

@@ -6,8 +6,8 @@ from core.utils.config import Topic
 class BaseExecution(BaseBehavior):
     """Base class for mission execution behaviors"""
     
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self, name: str, node=None):
+        super().__init__(name, node=node)
         self.counter_pub = None
         self.mission_counter = 0
     
@@ -37,10 +37,10 @@ class BaseExecution(BaseBehavior):
 
 class BaseFallback(BaseBehavior):
     """Base class for fallback actions"""
-    
-    def __init__(self, name: str):
-        super().__init__(name)
-    
+
+    def __init__(self, name: str, node=None):
+        super().__init__(name, node=node)
+
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
     
