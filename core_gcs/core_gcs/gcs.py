@@ -4,18 +4,19 @@ import asyncio
 import websockets
 import json
 from std_msgs.msg import String, UInt8
-from core.utils.config import Topic
+from core.utils.config import Topic, PxMode
 from core_msgs.msg import Pixhawk
 
-class GcsSocket(Node):
+class Gcs(Node):
     def __init__(self, loop):
-        super().__init__('GCS_Socket')
+        super().__init__('Gcs')
         self.loop = loop 
         self.websocket_clients = set()
-        self.track = "A"
+        self.track = "B"
 
         self.lon_history = []
         self.lat_history = []
+        self.pxmode = PxMode.HOLD
 
         self.image_subscriber = Topic.camera_processed.createSubscriber(
             self,
@@ -37,6 +38,17 @@ class GcsSocket(Node):
             self,
             self.mission_callback
         )
+        self.pxmode_subscriber = Topic.pxmode.createSubscriber(
+            self,
+            self.pxmode_callback
+        )
+
+    def pxmode_callback(self, msg: String):
+        self.pxmode = msg.data
+        if(msg.data == PxMode.HOLD):
+            self.lon_history = []
+            self.lat_history = []
+
 
     def image_callback(self, msg: String):
         self._handle_incoming_data("camera_processed", msg.data)
@@ -51,6 +63,9 @@ class GcsSocket(Node):
         self._handle_incoming_data("mission", msg.data)
 
     def pixhawk_callback(self, msg: Pixhawk):
+        if(self.pxmode != PxMode.HOLD):
+            pass
+
         self.lon_history.append(msg.lon)
         self.lat_history.append(msg.lat)
 
@@ -65,6 +80,9 @@ class GcsSocket(Node):
         self._handle_incoming_data("pixhawk", data)
 
     def _handle_incoming_data(self, topic_name, data):
+        if(self.pxmode == PxMode.HOLD):
+            pass
+
         message = {"topic": topic_name, "data": data}
         # self.get_logger().info(f"[{topic_name}] Received: {data}")
 
@@ -101,7 +119,7 @@ async def main_async():
     rclpy.init()
     loop = asyncio.get_running_loop() 
 
-    node = GcsSocket(loop)
+    node = Gcs(loop)
 
     ws_server = await websockets.serve(
         lambda ws, path: websocket_handler(ws, path, node),

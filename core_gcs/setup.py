@@ -23,11 +23,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'talker = core_gcs.talker:main',
-            'talker2 = core_gcs.talker2:main',
+            'mock_mission = core_gcs.mock_mission:main',
+            'mock_pixhawk = core_gcs.mock_pixhawk:main',
             'gcs = core_gcs.gcs:main',
-            'gcs_socket = core_gcs.gcs_socket:main',
-            'listener = core_gcs.socket_listener:main'
         ],
     },
 )
