@@ -12,7 +12,7 @@ class Gcs(Node):
         super().__init__('Gcs')
         self.loop = loop 
         self.websocket_clients = set()
-        self.track = "A"
+        self.track = "B"
 
         self.lon_history = []
         self.lat_history = []

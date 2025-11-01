@@ -22,10 +22,10 @@ def generate_launch_description():
         #     name="mock_mission",
         #     output="screen",
         # ),
-        # Node(
-        #     package="core_gcs",
-        #     executable="mock_pixhawk",
-        #     name="mock_pixhawk",
-        #     output="screen",
-        # ),
+        Node(
+            package="core_gcs",
+            executable="mock_pixhawk",
+            name="mock_pixhawk",
+            output="screen",
+        ),
     ])

@@ -11,6 +11,7 @@ class MockPixhawkPublisher(Node):
         super().__init__('mock_pixhawk_publisher')
 
         self.publisher = Topic.pixhawk.createPublisher(self)
+        self.track = "B"
 
         # Timer publishes every 1 second
         timer_period = 1.0
@@ -45,8 +46,13 @@ class MockPixhawkPublisher(Node):
             msg.lon = self.base_lon
         else:
             # Randomize within 25m x 25m square
-            msg.lat = self.base_lat + random.uniform(0, self.delta_lat)
-            msg.lon = self.base_lon - random.uniform(0, self.delta_lon)  # subtract to go west
+            if self.track == "A":
+                msg.lat = self.base_lat + random.uniform(0, self.delta_lat)
+                msg.lon = self.base_lon - random.uniform(0, self.delta_lon)  # subtract to go west
+            else:
+                msg.lat = self.base_lat + random.uniform(0, self.delta_lat)
+                msg.lon = self.base_lon + random.uniform(0, self.delta_lon)  # add to go east
+
 
         msg.alt = 5.0 + random.uniform(-0.2, 0.2)
         msg.msg_spd = random.uniform(0.5, 3.0)
