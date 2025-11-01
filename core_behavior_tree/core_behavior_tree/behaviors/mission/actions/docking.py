@@ -2,7 +2,7 @@ from ..mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from std_msgs.msg import Float64
 from core.utils.config import Topic, Param
-from core.utils.mission.docking import Docking
+from core.mission.docking import Docking
 from core_msgs.msg import Pixhawk
 import time
 
@@ -13,8 +13,9 @@ class DockingMission_Execution(BaseExecution):
     - Uses GPS-based navigation with PID control
     - Arrives when within threshold distance
     """
-    def __init__(self, name: str = "DockingMission_Execution"):
-        super().__init__(name)
+    def __init__(self, name: str = "DockingMission_Execution", node=None):
+        super().__init__(name, node=node)
+        self.node = node
         self.docking = None
         self.pixhawk = Pixhawk()
         self.target_lat = 0.0
@@ -116,8 +117,9 @@ class DockingMission_Fallback(BaseFallback):
     """
     Fallback for docking mission - hold position if GPS lost
     """
-    def __init__(self, name: str = "DockingMission_Fallback"):
-        super().__init__(name)
+    def __init__(self, name: str = "DockingMission_Fallback", node=None):
+        super().__init__(name, node=node)
+        self.node = node
         
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)

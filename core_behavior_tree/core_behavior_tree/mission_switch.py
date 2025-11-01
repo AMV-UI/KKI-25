@@ -20,12 +20,13 @@ class BehaviorTreeNode(Node):
         tree_builder = MissionTreeBuilder(self)
         self.tree = tree_builder.build()
         
-        self.tick_period = 0.1  # 10 Hz for prod / sim
-        # self.tick_period = 2 #2hz for dev
+        # self.tick_period = 0.1  # 10 Hz for prod / sim
+        self.tick_period = 200 #2hz for dev
         self.timer = self.create_timer(self.tick_period, self.tick_tree)
         
-        self.setup_visualization()
         self.tree.setup()
+        self.setup_visualization()
+        
         self.get_logger().info("Behavior tree initialized and ready")
 
     def tick_tree(self):
@@ -54,7 +55,7 @@ def main(args=None):
         while rclpy.ok():
             print(py_trees.display.ascii_tree(bt_node.tree.root, show_status=True))
             time.sleep(0.1)
-            os.system('cls||clear')
+            os.system('clear')
     except KeyboardInterrupt:
         pass
 
