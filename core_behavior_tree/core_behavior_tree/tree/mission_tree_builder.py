@@ -2,15 +2,12 @@ import py_trees
 from typing import List, Tuple, Type, Callable
 from ..behaviors.mission.actions.mission1 import Mission1_Execution, Mission1_Fallback
 from ..behaviors.mission.actions.mission2 import Mission2_Execution, Mission2_Fallback
-from ..behaviors.mission.actions.mission3 import Mission3_Execution, Mission3_Fallback
+# from ..behaviors.mission.actions.mission3 import Mission3_Execution, Mission3_Fallback
 from ..behaviors.mission.actions.docking import DockingMission_Execution, DockingMission_Fallback
-from ..behaviors.blackboard.blackboard_behaviors import (
-    InitializeBlackboard, 
-    PrintBlackboard, 
-    TopicToBlackboard
-)
+
 from core.utils.config import Topic, BT
 
+from ..behaviors.base_behavior import BaseBehavior
 
 class MissionTreeBuilder:
     """Builder class responsible for constructing the behavior tree"""
@@ -19,11 +16,12 @@ class MissionTreeBuilder:
         (Mission1_Execution, Mission1_Fallback),
         (Mission2_Execution, Mission2_Fallback),
         # (Mission3_Execution, Mission3_Fallback),
-        (DockingMission_Execution, DockingMission_Fallback),
+        # (DockingMission_Execution, DockingMission_Fallback),
     ]
     
     def __init__(self, ros_node):
         self.ros_node = ros_node
+        BaseBehavior.set_ros_node(ros_node)
         
     def build(self) -> py_trees.trees.BehaviourTree:
         """Build and return the complete behavior tree"""
@@ -37,25 +35,11 @@ class MissionTreeBuilder:
             policy=py_trees.common.ParallelPolicy.SuccessOnAll()
         )
         
-        init_branch = self._create_init_branch()
         tasks_branch = self._create_tasks_branch()
-        watcher = PrintBlackboard()
         
-        root.add_children([init_branch, tasks_branch, watcher])
+        root.add_children([tasks_branch])
         return root
     
-    def _create_init_branch(self) -> py_trees.composites.Sequence:
-        """Create the initialization branch of the tree"""
-        init_sequence = py_trees.composites.Sequence(
-            name="Init",
-            memory=True
-        )
-        
-        init_blackboard = InitializeBlackboard(self.ros_node)
-        heading_subscriber = TopicToBlackboard("px_heading", Topic.heading_deg)
-        
-        init_sequence.add_children([init_blackboard, heading_subscriber])
-        return init_sequence
         
     def _create_tasks_branch(self) -> py_trees.composites.Selector:
         """Create the tasks branch of the tree"""
@@ -65,9 +49,8 @@ class MissionTreeBuilder:
         )
         
         mission_sequence = self._create_mission_sequence()
-        idle_behavior = py_trees.behaviours.Running("Idle")
         
-        tasks.add_children([mission_sequence, idle_behavior])
+        tasks.add_children([mission_sequence])
         return tasks
     
     def _create_mission_sequence(self) -> py_trees.composites.Sequence:
@@ -97,11 +80,11 @@ class MissionTreeBuilder:
 
 
         selector = py_trees.composites.Selector(
-            name=f"Mission{mission_number} Success Check",
-            memory=True
+            name=f"Mission{mission_number}",
+            memory=False
         )
         
-        mission = mission_class(f"Mission{mission_number}")
+        mission = mission_class(f"Mission{mission_number} Execution")
         fallback = fallback_class(f"Mission{mission_number} Fallback")
         
         selector.add_children([mission, fallback])

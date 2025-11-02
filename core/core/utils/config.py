@@ -33,6 +33,7 @@ class Param:
 
     DOCKING_LAT = ParamFactory("/docking/target_latitude", float)
     DOCKING_LON = ParamFactory("/docking/target_longitude", float)
+    FLAG = ParamFactory("/mission/flag", bool)
 
 
 class NodeConfig:

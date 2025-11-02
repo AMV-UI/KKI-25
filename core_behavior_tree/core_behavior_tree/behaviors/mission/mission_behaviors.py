@@ -9,25 +9,12 @@ class BaseExecution(BaseBehavior):
     def __init__(self, name: str):
         super().__init__(name)
         self.counter_pub = None
-        self.mission_counter = 0
     
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
-        self.mission_counter_pub = Topic.mission_counter.createPublisher(self.node)
     
     def update(self) -> Status:
         status = self.execute()
-
-        match status:
-            case Status.SUCCESS:
-                self.node.get_logger().info(f"[{self.name}] MISSION {self.mission_counter} SUCCESS")
-                self.mission_counter += 1
-                self.mission_counter_pub.publish(UInt8(data=self.mission_counter))
-            case Status.RUNNING:
-                self.node.get_logger().info(f"[{self.name}] Mission {self.mission_counter} RUNNING")
-            case Status.FAILURE:
-                self.node.get_logger().info(f"[{self.name}] Mission {self.mission_counter} FAILURE")
-
         return status
     
     def execute(self) -> Status:

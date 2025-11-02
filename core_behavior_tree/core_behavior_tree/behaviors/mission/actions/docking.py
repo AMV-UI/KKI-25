@@ -2,7 +2,7 @@ from ..mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from std_msgs.msg import Float64
 from core.utils.config import Topic, Param
-from core.utils.mission.docking import Docking
+from core.mission.docking import Docking
 from core_msgs.msg import Pixhawk
 import time
 
