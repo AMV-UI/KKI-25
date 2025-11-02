@@ -25,6 +25,7 @@ setup(
         'console_scripts': [
             'mock_mission = core_gcs.mock_mission:main',
             'mock_pixhawk = core_gcs.mock_pixhawk:main',
+            'mock_pxmode = core_gcs.mock_pxmode:main', 
             'gcs = core_gcs.gcs:main',
         ],
     },

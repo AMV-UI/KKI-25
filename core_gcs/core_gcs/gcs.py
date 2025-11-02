@@ -10,9 +10,10 @@ from core_msgs.msg import Pixhawk
 class Gcs(Node):
     def __init__(self, loop):
         super().__init__('Gcs')
+        self.node = Node
         self.loop = loop 
         self.websocket_clients = set()
-        self.track = Param.TRACK.getValue(self.node)
+        self.track = "B"
 
         self.lon_history = []
         self.lat_history = []
@@ -45,10 +46,6 @@ class Gcs(Node):
 
     def pxmode_callback(self, msg: String):
         self.pxmode = msg.data
-        if(msg.data == PxMode.HOLD):
-            self.lon_history = []
-            self.lat_history = []
-
 
     def image_callback(self, msg: String):
         self._handle_incoming_data("camera_processed", msg.data)
@@ -63,11 +60,15 @@ class Gcs(Node):
         self._handle_incoming_data("mission", msg.data)
 
     def pixhawk_callback(self, msg: Pixhawk):
-        if(self.pxmode != PxMode.HOLD):
-            pass
+        if(msg.lat > 1):
+            return
 
-        self.lon_history.append(msg.lon)
-        self.lat_history.append(msg.lat)
+        if self.pxmode == PxMode.HOLD:
+            self.lon_history = [msg.lon]
+            self.lat_history = [msg.lat]
+        else:
+            self.lon_history.append(msg.lon)
+            self.lat_history.append(msg.lat)
 
         data = {
             "lon": self.lon_history,
@@ -80,9 +81,6 @@ class Gcs(Node):
         self._handle_incoming_data("pixhawk", data)
 
     def _handle_incoming_data(self, topic_name, data):
-        if(self.pxmode == PxMode.HOLD):
-            pass
-
         message = {"topic": topic_name, "data": data}
         # self.get_logger().info(f"[{topic_name}] Received: {data}")
 

@@ -25,23 +25,23 @@ class MockPixhawkPublisher(Node):
         self.delta_lat = 25 / 111320  # ~0.000224 degrees
         self.delta_lon = 25 / (111320 * math.cos(math.radians(self.base_lat)))  # ~0.000284 degrees
 
-        self.pxmode_publisher = Topic.pxmode.createPublisher(self)
+        self.pxmode_subscriber = Topic.pxmode.createSubscriber(
+            self,
+            self.pxmode_callback
+        )
+
         self.node_msg = String()
+
+        self.mode = PxMode.HOLD
 
         self.counter = 0
 
+    def pxmode_callback(self, msg: String):
+        self.mode = msg.data
+
     def publish_mock_data(self):
         msg = Pixhawk()
-
-        if self.counter == 0:
-            self.node_msg.data = PxMode.HOLD
-            self.pxmode_publisher.publish(self.node_msg)
-            self.counter = self.counter + 1
-            return  
-        elif self.counter <= 2:
-            # First message is exactly base point
-            self.node_msg.data = PxMode.AUTO
-            self.pxmode_publisher.publish(self.node_msg)
+        if self.mode == PxMode.HOLD:
             msg.lat = self.base_lat
             msg.lon = self.base_lon
         else:
