@@ -8,16 +8,18 @@ from core.utils.config import Topic, PxMode, Param
 from core_msgs.msg import Pixhawk
 
 class Gcs(Node):
-    def __init__(self, loop):
+    def __init__(self, loop, node = Node):
         super().__init__('Gcs')
-        self.node = Node
+        self.node = node
         self.loop = loop 
         self.websocket_clients = set()
-        self.track = "B"
 
         self.lon_history = []
         self.lat_history = []
         self.pxmode = PxMode.HOLD
+
+        Param.TRACK.createParam(self.node)
+        self.track = Param.TRACK.getValue(self.node) 
 
         self.image_subscriber = Topic.camera_processed.createSubscriber(
             self,
@@ -116,25 +118,26 @@ async def websocket_handler(websocket, path, node):
 async def main_async():
     rclpy.init()
     loop = asyncio.get_running_loop() 
+    node = rclpy.create_node('gcs_node')
 
-    node = Gcs(loop)
+    gcs = Gcs(loop, node)
 
     ws_server = await websockets.serve(
-        lambda ws, path: websocket_handler(ws, path, node),
+        lambda ws, path: websocket_handler(ws, path, gcs),
         host='0.0.0.0',
         port=8000
     )
-    node.get_logger().info("WebSocket server started at ws://0.0.0.0:8000")
+    gcs.get_logger().info("WebSocket server started at ws://0.0.0.0:8000")
 
     # Vibe coding research later
     executor = rclpy.executors.MultiThreadedExecutor()
-    executor.add_node(node)
+    executor.add_node(gcs)
 
     loop.run_in_executor(None, executor.spin)
     try:
         await asyncio.Future() 
     finally:
-        node.destroy_node()
+        gcs.destroy_node()
         executor.shutdown()
         rclpy.shutdown()
         ws_server.close()
