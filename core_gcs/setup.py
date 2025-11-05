@@ -23,9 +23,10 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'mock_mission = core_gcs.mock_mission:main',
-            'mock_pixhawk = core_gcs.mock_pixhawk:main',
-            'mock_pxmode = core_gcs.mock_pxmode:main', 
+            'mock_mission = core_gcs.mock.mock_mission:main',
+            'mock_pixhawk = core_gcs.mock.mock_pixhawk:main',
+            'mock_pxmode = core_gcs.mock.mock_pxmode:main',
+            'mock_trial = core_gcs.mock.mock_trial:main',  
             'gcs = core_gcs.gcs:main',
         ],
     },

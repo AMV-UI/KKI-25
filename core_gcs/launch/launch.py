@@ -28,4 +28,10 @@ def generate_launch_description():
             name="mock_pixhawk",
             output="screen",
         ),
+        # Node(
+        #     package="core_gcs",
+        #     executable="mock_trial",
+        #     name="mock_trial",
+        #     output="screen",
+        # ),
     ])
