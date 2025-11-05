@@ -94,11 +94,11 @@ class CameraController(Node):
                 return
 
             # Visualize if enabled
-            # if self.show_result:
-            #     exit_status = self.visualize()
-            #     if exit_status:
-            #         rclpy.shutdown()
-            #         return
+            if self.show_result:
+                exit_status = self.visualize()
+                if exit_status:
+                    rclpy.shutdown()
+                    return
 
             dsc_msg = Float64()
             dsc_msg.data = float(self.dsc)

@@ -20,32 +20,32 @@ class Mission1_Execution(BaseExecution):
     """
     def __init__(self, name: str = "Mission1_Execution"):
         super().__init__(name)
-        # self.frame_counter = None
-        # self.detected = False
-        # self.dsc = 0.0
-        # self.speed_effort = 300.0
-        # self.pixhawk = None
-        # Param.DOCKING_LAT.createParam(self.node, default_value=0.0)
-        # Param.DOCKING_LON.createParam(self.node, default_value=0.0)
-        # self.coordinate_saved_state = False
-        # self.gps_ready = False
-        # self.time_threshold = 2 # in Seconds
+        self.frame_counter = None
+        self.detected = False
+        self.dsc = 0.0
+        self.speed_effort = 300.0
+        self.pixhawk = None
+        Param.DOCKING_LAT.createParam(self.node, default_value=0.0)
+        Param.DOCKING_LON.createParam(self.node, default_value=0.0)
+        self.coordinate_saved_state = False
+        self.gps_ready = False
+        self.time_threshold = 2 # in Seconds
     
         
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
-        # self.frame_counter = FrameCounter(self.time_threshold)
-        # self.pixhawk = Pixhawk()
+        self.frame_counter = FrameCounter(self.time_threshold)
+        self.pixhawk = Pixhawk()
 
-        # self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
-        # self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
+        self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
+        self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
         
-        # self.pixhawk_sub = Topic.pixhawk.createSubscriber(self.node, self._pixhawk_cb)
-        # self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
-        # self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
+        self.pixhawk_sub = Topic.pixhawk.createSubscriber(self.node, self._pixhawk_cb)
+        self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
+        self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
 
-        Param.FLAG.createParam(self.node, default_value=False)
+        # Param.FLAG.createParam(self.node, default_value=False)
     
         
 
@@ -70,7 +70,9 @@ class Mission1_Execution(BaseExecution):
         # lat_ok = abs(self.pixhawk.lat) > 0.1
         # lon_ok = abs(self.pixhawk.lon) > 0.1
 
-        # if self.gps_ready and lat_ok and lon_ok:
+        self.node.get_logger().info(f"[{self.name}] Mission 1 EXECUTION mode active... GPS Ready: {self.gps_ready}")
+
+        # if self.gps_ready:
         #     if not self.coordinate_saved_state:
         #         self.set_docking_coordinates()
         #         self.coordinate_saved_state = True
@@ -85,12 +87,10 @@ class Mission1_Execution(BaseExecution):
         #                                         #     self.counter = time.time()
         #         if self.frame_counter.is_enough():
         #             self.frame_counter.reset()
-        #             self.node.get_logger().info(
-        #                 f"[{self.name}] Lost target consistently -> Mission complete",
-        #                 throttle_duration_sec=1.0
-        #             )
+        #             self.node.get_logger().info(f"[{self.name}] Condition Succeeded from EXECUTION -> Mission COMPLETE")
         #             return Status.SUCCESS
-                
+
+        #         self.node.get_logger().info(f"[{self.name}] Condition Failed -> Switching to FALLBACK")
         #         return Status.FAILURE
 
         #     self.frame_counter.reset()
@@ -102,20 +102,50 @@ class Mission1_Execution(BaseExecution):
         #         f"[{self.name}] Approaching target - DSC: {self.dsc}",
         #         throttle_duration_sec=2.0
         #     )
-        
-        # return Status.RUNNING
+        if not self.coordinate_saved_state:
+            self.set_docking_coordinates()
+            self.coordinate_saved_state = True
+            self.node.get_logger().info(f"[{self.name}] Docking coordinates saved: LAT {self.pixhawk.lat}, LON {self.pixhawk.lon}")
 
+        if not self.detected:
+            self.frame_counter.is_started() #Singleton pattern, set flag start timer = 1
+                                                #  def is_started(self):
+                                                #     if self.flag == 1:
+                                                #         return
+                                                #     self.flag = 1
+                                                #     self.counter = time.time()
+            if self.frame_counter.is_enough():
+                self.frame_counter.reset()
+                self.node.get_logger().info(f"[{self.name}] Condition Succeeded from EXECUTION -> Mission COMPLETE")
+                return Status.SUCCESS
 
-        self.node.get_logger().info(f"[{self.name}] We are executing Mission 1...")
-        self.flag = Param.FLAG.getValue(self.node)
-
-        if not self.flag:
             self.node.get_logger().info(f"[{self.name}] Condition Failed -> Switching to FALLBACK")
             return Status.FAILURE
-        else:
-            self.node.get_logger().info(f"[{self.name}] Condition Succeeded from EXECUTION -> Mission COMPLETE")
-            time.sleep(2)  # Simulate some finalization time
-            return Status.SUCCESS
+
+        self.frame_counter.reset()
+
+        self.yaw_effort_pub.publish(Float64(data=self.dsc))
+        self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+            
+        self.node.get_logger().info(
+            f"[{self.name}] Approaching target - DSC: {self.dsc}",
+            throttle_duration_sec=2.0
+            )
+
+        
+        return Status.RUNNING
+
+
+        # self.node.get_logger().info(f"[{self.name}] We are executing Mission 1...")
+        # self.flag = Param.FLAG.getValue(self.node)
+
+        # if not self.flag:
+        #     self.node.get_logger().info(f"[{self.name}] Condition Failed -> Switching to FALLBACK")
+        #     return Status.FAILURE
+        # else:
+        #     self.node.get_logger().info(f"[{self.name}] Condition Succeeded from EXECUTION -> Mission COMPLETE")
+        #     time.sleep(2)  # Simulate some finalization time
+        #     return Status.SUCCESS
 
 
 
@@ -128,25 +158,25 @@ class Mission1_Fallback(BaseFallback):
     """
     def __init__(self, name: str = "Mission1_Fallback"):
         super().__init__(name)
-        # self.find_mode = None
-        # self.frame_counter = None
-        # self.detected = False
-        # self.px_heading = 0.0
-        # self.arena = "B"  # or "A"
-        # self.dsc = 160.0 if self.arena == "A" else -160.0
-        # self.speed_effort = 300.0
-        # self.time_threshold = 2 # in Seconds
+        self.find_mode = None
+        self.frame_counter = None
+        self.detected = False
+        self.px_heading = 0.0
+        self.arena = "B"  # or "A"
+        self.dsc = 160.0 if self.arena == "A" else -160.0
+        self.speed_effort = 100.0
+        self.time_threshold = 2 # in Seconds
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
-        # self.find_mode = FindMode(self.node)
-        # self.frame_counter = FrameCounter(self.time_threshold)
+        self.find_mode = FindMode(self.node)
+        self.frame_counter = FrameCounter(self.time_threshold)
 
-        # self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
-        # self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
+        self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
+        self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
 
-        # self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
-        # self.heading_sub = Topic.heading_deg.createSubscriber(self.node, self._heading_cb)
+        self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
+        self.heading_sub = Topic.heading_deg.createSubscriber(self.node, self._heading_cb)
         
         
 
@@ -158,27 +188,30 @@ class Mission1_Fallback(BaseFallback):
         self.px_heading = float(msg.data)
 
     def fallback(self) -> Status:
-        # self.yaw_effort_pub.publish(Float64(data=self.dsc))
-        # self.speed_effort_pub.publish(Float64(data=self.speed_effort))
-        
-        # if self.detected:
-        #     self.frame_counter.is_started()
-        #     if self.frame_counter.is_enough():
-        #         self.frame_counter.reset()
-        #         self.node.get_logger().info(f"[{self.name}] Target found -> switching to execution")
-        #         return Status.SUCCESS
-        # else:
-        #     self.frame_counter.reset()
-        #     self.find_mode.set_initial_heading(self.px_heading)
-        
-        # self.node.get_logger().info(
-        #     f"[{self.name}] Searching for target (detected: {self.detected})",
-        #     throttle_duration_sec=5.0
-        # )
-        
-        # return Status.RUNNING
+
         self.node.get_logger().info(f"[{self.name}] We are in FALLBACK mode for Mission 1...")
-        self.node.get_logger().info(f"[{self.name}] Entering FALLBACK mode, doing search...")
-        time.sleep(2)  # Simulate search time
-        self.node.get_logger().info(f"[{self.name}] Condition Satisfied -> Switching to Mission 1 EXECUTION")
-        Param.FLAG.setParam(self.node, True)
+
+        self.yaw_effort_pub.publish(Float64(data=self.dsc))
+        self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+        
+        if self.detected:
+            self.frame_counter.is_started()
+            if self.frame_counter.is_enough():
+                self.frame_counter.reset()
+                self.node.get_logger().info(f"[{self.name}] Target found -> switching to execution")
+                return Status.SUCCESS
+        else:
+            self.frame_counter.reset()
+            self.find_mode.set_initial_heading(self.px_heading)
+        
+        self.node.get_logger().info(
+            f"[{self.name}] Searching for target (detected: {self.detected})",
+            throttle_duration_sec=5.0
+        )
+        
+        return Status.RUNNING
+        # self.node.get_logger().info(f"[{self.name}] We are in FALLBACK mode for Mission 1...")
+        # self.node.get_logger().info(f"[{self.name}] Entering FALLBACK mode, doing search...")
+        # time.sleep(2)  # Simulate search time
+        # self.node.get_logger().info(f"[{self.name}] Condition Satisfied -> Switching to Mission 1 EXECUTION")
+        # Param.FLAG.setParam(self.node, True)
