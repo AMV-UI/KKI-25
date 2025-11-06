@@ -9,7 +9,7 @@ def generate_launch_description():
     # Declare launch arguments for this package
     track_arg = DeclareLaunchArgument(
         'track',
-        default_value='A',
+        default_value='B',
         description='Mission track (A or B)'
     )
     

@@ -9,7 +9,7 @@ from core.utils.config import Param
 def generate_launch_description():
     track_arg = DeclareLaunchArgument(
         "track",
-        default_value='A',
+        default_value='B',
         description='Mission track (A or B)'
     )
     

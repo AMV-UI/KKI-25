@@ -1,6 +1,6 @@
 from ..mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
-from std_msgs.msg import Bool, Float64, UInt8
+from std_msgs.msg import Bool, Float64
 from core.utils.config import Topic
 from core.mission.find_mode import FindMode
 from core.mission.frame_counter import FrameCounter
@@ -38,15 +38,14 @@ class Mission1_Execution(BaseExecution):
         self.frame_counter = FrameCounter(self.time_threshold)
         self.pixhawk = Pixhawk()
 
-        self.mission_pub = Topic.mission.createPublisher(self.node)
-        self.mission_pub.publish(UInt8(data=1))
-
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
         
         self.pixhawk_sub = Topic.pixhawk.createSubscriber(self.node, self._pixhawk_cb)
         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
         self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
+
+        # Param.FLAG.createParam(self.node, default_value=False)
     
     def set_docking_coordinates(self):
         """Save Pixhawk coordinates for docking mission"""
@@ -66,16 +65,53 @@ class Mission1_Execution(BaseExecution):
         self.dsc = float(msg.data)
 
     def execute(self) -> Status:
+        # lat_ok = abs(self.pixhawk.lat) > 0.1
+        # lon_ok = abs(self.pixhawk.lon) > 0.1
+
         self.node.get_logger().info(f"[{self.name}] Mission 1 EXECUTION mode active... GPS Ready: {self.gps_ready}")
 
+        # if self.gps_ready:
+        #     if not self.coordinate_saved_state:
+        #         self.set_docking_coordinates()
+        #         self.coordinate_saved_state = True
+        #         self.node.get_logger().info(f"[{self.name}] Docking coordinates saved: LAT {self.pixhawk.lat}, LON {self.pixhawk.lon}")
+
+        #     if not self.detected:
+        #         self.frame_counter.is_started() #Singleton pattern, set flag start timer = 1
+        #                                         #  def is_started(self):
+        #                                         #     if self.flag == 1:
+        #                                         #         return
+        #                                         #     self.flag = 1
+        #                                         #     self.counter = time.time()
+        #         if self.frame_counter.is_enough():
+        #             self.frame_counter.reset()
+        #             self.node.get_logger().info(f"[{self.name}] Condition Succeeded from EXECUTION -> Mission COMPLETE")
+        #             return Status.SUCCESS
+
+        #         self.node.get_logger().info(f"[{self.name}] Condition Failed -> Switching to FALLBACK")
+        #         return Status.FAILURE
+
+        #     self.frame_counter.reset()
+
+        #     self.yaw_effort_pub.publish(Float64(data=self.dsc))
+        #     self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+            
+        #     self.node.get_logger().info(
+        #         f"[{self.name}] Approaching target - DSC: {self.dsc}",
+        #         throttle_duration_sec=2.0
+        #     )
         if not self.coordinate_saved_state:
             self.set_docking_coordinates()
             self.coordinate_saved_state = True
             self.node.get_logger().info(f"[{self.name}] Docking coordinates saved: LAT {self.pixhawk.lat}, LON {self.pixhawk.lon}")
 
         if not self.detected:
-            self.frame_counter.is_started() 
-            self.counter = time.time()
+            self.frame_counter.is_started() #Singleton pattern, set flag start timer = 1
+                                                #  def is_started(self):
+                                                #     if self.flag == 1:
+                                                #         return
+                                                #     self.flag = 1
+                                                #     self.counter = time.time()
             if self.frame_counter.is_enough():
                 self.frame_counter.reset()
                 self.node.get_logger().info(f"[{self.name}] Condition Succeeded from EXECUTION -> Mission COMPLETE")
@@ -96,6 +132,20 @@ class Mission1_Execution(BaseExecution):
 
         
         return Status.RUNNING
+
+
+        # self.node.get_logger().info(f"[{self.name}] We are executing Mission 1...")
+        # self.flag = Param.FLAG.getValue(self.node)
+
+        # if not self.flag:
+        #     self.node.get_logger().info(f"[{self.name}] Condition Failed -> Switching to FALLBACK")
+        #     return Status.FAILURE
+        # else:
+        #     self.node.get_logger().info(f"[{self.name}] Condition Succeeded from EXECUTION -> Mission COMPLETE")
+        #     time.sleep(2)  # Simulate some finalization time
+        #     return Status.SUCCESS
+
+
 
 
 class Mission1_Fallback(BaseFallback):
@@ -156,3 +206,8 @@ class Mission1_Fallback(BaseFallback):
         )
         
         return Status.RUNNING
+        # self.node.get_logger().info(f"[{self.name}] We are in FALLBACK mode for Mission 1...")
+        # self.node.get_logger().info(f"[{self.name}] Entering FALLBACK mode, doing search...")
+        # time.sleep(2)  # Simulate search time
+        # self.node.get_logger().info(f"[{self.name}] Condition Satisfied -> Switching to Mission 1 EXECUTION")
+        # Param.FLAG.setParam(self.node, True)

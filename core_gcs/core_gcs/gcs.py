@@ -18,7 +18,8 @@ class Gcs(Node):
         self.lat_history = []
         self.pxmode = PxMode.HOLD
 
-        Param.TRACK.createParam(self.node)
+
+        Param.TRACK.createParam(self.node, default_value="B")
         self.track = Param.TRACK.getValue(self.node) 
 
         self.image_subscriber = Topic.camera_processed.createSubscriber(

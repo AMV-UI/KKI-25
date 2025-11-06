@@ -1,7 +1,7 @@
 
 from ..mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
-from std_msgs.msg import Bool, Float64
+from std_msgs.msg import Bool, Float64, UInt8
 from core.utils.config import Topic, Param
 from core.mission.find_mode import FindMode
 from core.mission.frame_counter import FrameCounter
@@ -43,6 +43,9 @@ class Mission2_Execution(BaseExecution):
         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
         self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
         self.heading_sub = Topic.heading_deg.createSubscriber(self.node, self._heading_cb)
+        
+        self.mission_pub = Topic.mission.createPublisher(self.node)
+        self.mission_pub.publish(UInt8(data=2))
 
         # Param.FLAG.setParam(self.node, False)
         # self.flag = Param.FLAG.getValue(self.node)
@@ -74,9 +77,9 @@ class Mission2_Execution(BaseExecution):
             else:
                 self.frame_counter.reset()
                 yaw_effort = self.find_mode.get_state(self.px_heading)
-                
-            self.yaw_effort_pub.publish(Float64(data=yaw_effort))
-            self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+
+            self.yaw_effort_pub.publish(Float64(data=float(yaw_effort)))
+            self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
             
             self.node.get_logger().info(
                 f"[{self.name}] Current Heading: {self.px_heading}, Range: [{self.find_mode.range_low}, {self.find_mode.range_high}]",

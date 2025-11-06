@@ -63,6 +63,7 @@ class MockPixhawkPublisher(Node):
             f"Publishing Pixhawk -> "
             f"lat: {msg.lat:.6f}, lon: {msg.lon:.6f}, alt: {msg.alt:.2f}, "
             f"spd: {msg.msg_spd:.2f}, heading: {msg.msg_heading}"
+            f" [{self.mode}]"
         )
 
         self.counter += 1

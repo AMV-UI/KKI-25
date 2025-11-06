@@ -11,7 +11,7 @@ from ..behaviors.base_behavior import BaseBehavior
 
 class MissionTreeBuilder:
     """Builder class responsible for constructing the behavior tree"""
-    
+
     MISSIONS_CONFIG = [
         (Mission1_Execution, Mission1_Fallback),
         (Mission2_Execution, Mission2_Fallback),
@@ -57,7 +57,7 @@ class MissionTreeBuilder:
         """Create the mission sequence branch with improved structure"""
         mission_sequence = py_trees.composites.Sequence(
             name="Mission Sequence", 
-            memory=False
+            memory=True
         )
         
         for i, (mission_class, fallback_class) in enumerate(self.MISSIONS_CONFIG, start=1):
@@ -84,9 +84,9 @@ class MissionTreeBuilder:
             memory=False
         )
         
-        mission = mission_class(f"Mission{mission_number} Execution")
-        fallback = fallback_class(f"Mission{mission_number} Fallback")
-        
+        mission = mission_class(f"Mission{mission_number} Execution", node=self.ros_node)
+        fallback = fallback_class(f"Mission{mission_number} Fallback", node=self.ros_node)
+
         selector.add_children([mission, fallback])
         return selector
     

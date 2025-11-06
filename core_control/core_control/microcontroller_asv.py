@@ -9,7 +9,7 @@ import math
 import numpy as np
 from pymavlink import mavutil
 from pykalman import KalmanFilter
-from std_msgs.msg import Float64, UInt8, UInt16
+from std_msgs.msg import Float64, UInt8, UInt16, String
 from core_msgs.msg import Pwm, AutoControl, KillSwitch, Pixhawk
 
 from core.utils.config import (
@@ -391,7 +391,10 @@ class Microcontroller(Node):
             self.pxmode = PxMode.MANUAL
 
         self.get_logger().info(f"Current Mode : {self.pxmode}")
-
+        
+        pxmode_msg = String()
+        pxmode_msg.data = self.pxmode
+        self.pxmode_pub.publish(pxmode_msg)       
         if self.pxmode not in self.ser_2.mode_mapping():
             self.get_logger().warn(f"Unknown Mode : {self.pxmode}")
             # print("Try:", list(self.ser_2.mode_mapping().keys()))

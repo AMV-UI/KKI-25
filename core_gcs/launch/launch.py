@@ -22,12 +22,13 @@ def generate_launch_description():
                 '/mission/track': LaunchConfiguration('track'),  # absolute param name
             }]
         ),
-        Node(
-            package="core_gcs",
-            executable="mock_pixhawk",
-            name="mock_pixhawk",
-            output="screen",
-        ),
+        # --- Use on mocking data to gcs
+        # Node(
+        #     package="core_gcs",
+        #     executable="mock_pixhawk",
+        #     name="mock_pixhawk",
+        #     output="screen",
+        # ),
         # Node(
         #     package="core_gcs",
         #     executable="mock_trial",
