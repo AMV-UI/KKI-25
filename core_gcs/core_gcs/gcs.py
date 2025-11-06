@@ -4,18 +4,22 @@ import asyncio
 import websockets
 import json
 from std_msgs.msg import String, UInt8
-from core.utils.config import Topic
+from core.utils.config import Topic, PxMode, Param
 from core_msgs.msg import Pixhawk
 
-class GcsSocket(Node):
-    def __init__(self, loop):
-        super().__init__('GCS_Socket')
+class Gcs(Node):
+    def __init__(self, loop, node = Node):
+        super().__init__('Gcs')
+        self.node = node
         self.loop = loop 
         self.websocket_clients = set()
-        self.track = "A"
 
         self.lon_history = []
         self.lat_history = []
+        self.pxmode = PxMode.HOLD
+
+        Param.TRACK.createParam(self.node)
+        self.track = Param.TRACK.getValue(self.node) 
 
         self.image_subscriber = Topic.camera_processed.createSubscriber(
             self,
@@ -37,6 +41,13 @@ class GcsSocket(Node):
             self,
             self.mission_callback
         )
+        self.pxmode_subscriber = Topic.pxmode.createSubscriber(
+            self,
+            self.pxmode_callback
+        )
+
+    def pxmode_callback(self, msg: String):
+        self.pxmode = msg.data
 
     def image_callback(self, msg: String):
         self._handle_incoming_data("camera_processed", msg.data)
@@ -51,8 +62,15 @@ class GcsSocket(Node):
         self._handle_incoming_data("mission", msg.data)
 
     def pixhawk_callback(self, msg: Pixhawk):
-        self.lon_history.append(msg.lon)
-        self.lat_history.append(msg.lat)
+        if(msg.lat > 1):
+            return
+
+        if self.pxmode == PxMode.HOLD:
+            self.lon_history = [msg.lon]
+            self.lat_history = [msg.lat]
+        else:
+            self.lon_history.append(msg.lon)
+            self.lat_history.append(msg.lat)
 
         data = {
             "lon": self.lon_history,
@@ -100,25 +118,26 @@ async def websocket_handler(websocket, path, node):
 async def main_async():
     rclpy.init()
     loop = asyncio.get_running_loop() 
+    node = rclpy.create_node('gcs_node')
 
-    node = GcsSocket(loop)
+    gcs = Gcs(loop, node)
 
     ws_server = await websockets.serve(
-        lambda ws, path: websocket_handler(ws, path, node),
+        lambda ws, path: websocket_handler(ws, path, gcs),
         host='0.0.0.0',
         port=8000
     )
-    node.get_logger().info("WebSocket server started at ws://0.0.0.0:8000")
+    gcs.get_logger().info("WebSocket server started at ws://0.0.0.0:8000")
 
     # Vibe coding research later
     executor = rclpy.executors.MultiThreadedExecutor()
-    executor.add_node(node)
+    executor.add_node(gcs)
 
     loop.run_in_executor(None, executor.spin)
     try:
         await asyncio.Future() 
     finally:
-        node.destroy_node()
+        gcs.destroy_node()
         executor.shutdown()
         rclpy.shutdown()
         ws_server.close()

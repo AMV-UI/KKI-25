@@ -16,8 +16,9 @@ class Mission2_Execution(BaseExecution):
     - Phase "finding": search with find_mode range(1), wait until detected for N frames
     - Phase "approach": navigate to target, when lost for N frames -> SUCCESS (ready for docking)
     """
-    def __init__(self, name: str = "Mission2_Execution"):
-        super().__init__(name)
+    def __init__(self, name: str = "Mission2_Execution", node=None):
+        super().__init__(name, node=node)
+        self.node = node
         self.find_mode = None
         self.frame_counter = None
         self.detected = False
@@ -118,8 +119,9 @@ class Mission2_Fallback(BaseFallback):
     """
     Fallback for Mission 2: search pattern with range(1)
     """
-    def __init__(self, name: str = "Mission2_Fallback"):
-        super().__init__(name)
+    def __init__(self, name: str = "Mission2_Fallback", node=None):
+        super().__init__(name, node=node)
+        self.node = node
         self.find_mode = None
         self.px_heading = 0.0
         self.dsc = 160.0

@@ -56,7 +56,11 @@ def main(args=None):
             # bt_node.tick_tree()
             # print(py_trees.display.ascii_tree(bt_node.tree.root, show_status=True))
             time.sleep(0.1)
+<<<<<<< HEAD
             # os.system('clear')
+=======
+            os.system('clear')
+>>>>>>> 470f80019e442b7d193612cdbd7c19cd927a82a3
     except KeyboardInterrupt:
         pass
 
