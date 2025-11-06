@@ -11,7 +11,8 @@ class FindMode:
         self.range_low = -1
         self.range_high = -1
 
-        self.find_status = "Left" if Param.TRACK.getValue(self.node) == "A" else "Right"
+        self.track = Param.TRACK.getValue(self.node)
+        self.find_status = "Left" if self.track == "A" else "Right"
 
         self.GO_LEFT = -200  # STATE
         self.GO_RIGHT = 200
@@ -26,7 +27,7 @@ class FindMode:
 
     def set_range(self, direction):
         """Set the search range based on direction and track"""
-        if Param.TRACK.getValue(self.node) == "A":
+        if self.track == "A":
             self.range_low = Direction.A[direction] - self.threshold
             self.range_high = Direction.A[direction] + self.threshold
         else:

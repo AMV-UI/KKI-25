@@ -81,7 +81,7 @@ class MissionTreeBuilder:
 
         selector = py_trees.composites.Selector(
             name=f"Mission{mission_number}",
-            memory=False
+            memory=True
         )
         
         mission = mission_class(f"Mission{mission_number} Execution", node=self.ros_node)

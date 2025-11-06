@@ -8,13 +8,13 @@ Tasks [fillcolor=cyan, fontcolor=black, fontsize=9, label=Tasks, shape=octagon, 
 Root -> Tasks;
 "Mission Sequence" [fillcolor=orange, fontcolor=black, fontsize=9, label="Ⓜ Mission Sequence", shape=box, style=filled];
 Tasks -> "Mission Sequence";
-Mission1 [fillcolor=cyan, fontcolor=black, fontsize=9, label=Mission1, shape=octagon, style=filled];
+Mission1 [fillcolor=cyan, fontcolor=black, fontsize=9, label="Ⓜ Mission1", shape=octagon, style=filled];
 "Mission Sequence" -> Mission1;
 "Mission1 Execution" [fillcolor=gray, fontcolor=black, fontsize=9, label="Mission1 Execution", shape=ellipse, style=filled];
 Mission1 -> "Mission1 Execution";
 "Mission1 Fallback" [fillcolor=gray, fontcolor=black, fontsize=9, label="Mission1 Fallback", shape=ellipse, style=filled];
 Mission1 -> "Mission1 Fallback";
-Mission2 [fillcolor=cyan, fontcolor=black, fontsize=9, label=Mission2, shape=octagon, style=filled];
+Mission2 [fillcolor=cyan, fontcolor=black, fontsize=9, label="Ⓜ Mission2", shape=octagon, style=filled];
 "Mission Sequence" -> Mission2;
 "Mission2 Execution" [fillcolor=gray, fontcolor=black, fontsize=9, label="Mission2 Execution", shape=ellipse, style=filled];
 Mission2 -> "Mission2 Execution";

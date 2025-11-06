@@ -1,12 +1,12 @@
 from ..mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
-from std_msgs.msg import Bool, Float64, UInt8
+from std_msgs.msg import Bool, Float64, UInt8, String
 from core.utils.config import Topic
 from core.mission.find_mode import FindMode
 from core.mission.frame_counter import FrameCounter
 from core.mission.docking import Docking
 from core_msgs.msg import Pixhawk
-from core.utils.config import Param
+from core.utils.config import Param, PxMode
 
 
 import time
@@ -22,21 +22,23 @@ class Mission1_Execution(BaseExecution):
         super().__init__(name, node=node)
         self.node = node
         self.frame_counter = None
-        self.detected = False
+        self.detected = True
         self.dsc = 0.0
         self.speed_effort = 300.0
         self.pixhawk = None
-        Param.DOCKING_LAT.createParam(self.node, default_value=0.0)
-        Param.DOCKING_LON.createParam(self.node, default_value=0.0)
         self.coordinate_saved_state = False
         self.gps_ready = False
         self.time_threshold = 2 # in Seconds
+
+        Param.DOCKING_LAT.createParam(self.node, default_value=0.0)
+        Param.DOCKING_LON.createParam(self.node, default_value=0.0)
     
         
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
         self.frame_counter = FrameCounter(self.time_threshold)
         self.pixhawk = Pixhawk()
+        self.hold = True
 
         self.mission_pub = Topic.mission.createPublisher(self.node)
         self.mission_pub.publish(UInt8(data=1))
@@ -44,6 +46,7 @@ class Mission1_Execution(BaseExecution):
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
         
+        self.pxmode_sub = Topic.pxmode.createSubscriber(self.node, self._pxmode_cb)
         self.pixhawk_sub = Topic.pixhawk.createSubscriber(self.node, self._pixhawk_cb)
         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
         self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
@@ -53,7 +56,12 @@ class Mission1_Execution(BaseExecution):
         Param.DOCKING_LAT.setParam(self.node, self.pixhawk.lat)
         Param.DOCKING_LON.setParam(self.node, self.pixhawk.lon)
 
-        
+    def _pxmode_cb(self, msg: String):
+        if msg.data != PxMode.HOLD:
+            self.hold = False
+        else:
+            self.hold = True
+
     def _pixhawk_cb(self, msg: Pixhawk):
         self.pixhawk = msg
         if msg.lat != 0.0 and msg.lon != 0.0:
@@ -68,12 +76,17 @@ class Mission1_Execution(BaseExecution):
     def execute(self) -> Status:
         self.node.get_logger().info(f"[{self.name}] Mission 1 EXECUTION mode active... GPS Ready: {self.gps_ready}")
 
-        if not self.coordinate_saved_state:
+        if not self.detected and self.hold:
+            self.node.get_logger().info(f"[{self.name}] Starting initiation hold mode...")
+            return Status.FAILURE
+
+
+        if not self.coordinate_saved_state and self.gps_ready:
             self.set_docking_coordinates()
             self.coordinate_saved_state = True
             self.node.get_logger().info(f"[{self.name}] Docking coordinates saved: LAT {self.pixhawk.lat}, LON {self.pixhawk.lon}")
 
-        if not self.detected:
+        if not self.detected and not self.hold:
             self.frame_counter.is_started() 
             self.counter = time.time()
             if self.frame_counter.is_enough():
@@ -82,7 +95,7 @@ class Mission1_Execution(BaseExecution):
                 return Status.SUCCESS
 
             self.node.get_logger().info(f"[{self.name}] Condition Failed -> Switching to FALLBACK")
-            return Status.FAILURE
+            return Status.RUNNING
 
         self.frame_counter.reset()
 
@@ -145,7 +158,7 @@ class Mission1_Fallback(BaseFallback):
             if self.frame_counter.is_enough():
                 self.frame_counter.reset()
                 self.node.get_logger().info(f"[{self.name}] Target found -> switching to execution")
-                return Status.SUCCESS
+                return Status.FAILURE
         else:
             self.frame_counter.reset()
             self.find_mode.set_initial_heading(self.px_heading)
