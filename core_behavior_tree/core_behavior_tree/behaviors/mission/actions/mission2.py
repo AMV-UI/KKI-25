@@ -22,7 +22,7 @@ class Mission2_Execution(BaseExecution):
         self.find_mode = None
         self.frame_counter = None
         self.detected = False
-        self.arena = "B"  # or "A"
+        self.arena = Param.TRACK.getValue(self.node)
         self.dsc = -160.0 if self.arena == "A" else 160.0  #Reverse effort untuk mission 2
 
         self.px_heading = 0.0
@@ -47,10 +47,6 @@ class Mission2_Execution(BaseExecution):
         self.mission_pub = Topic.mission.createPublisher(self.node)
         self.mission_pub.publish(UInt8(data=2))
 
-        # Param.FLAG.setParam(self.node, False)
-        # self.flag = Param.FLAG.getValue(self.node)
-
-
     def _detected_cb(self, msg: Bool):
         self.detected = bool(msg.data)
 
@@ -63,7 +59,6 @@ class Mission2_Execution(BaseExecution):
     def execute(self) -> Status:
         if self.phase == "finding":
             self.node.get_logger().info(f"[{self.name}] We are executing Mission 2...")
-            # mission_find_step_two logic
             self.find_mode.current_heading = self.find_mode.get_heading(self.px_heading)
             self.find_mode.set_range(1)
             

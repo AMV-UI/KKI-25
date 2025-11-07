@@ -26,7 +26,7 @@ class Mission1_Execution(BaseExecution):
         self.dsc = 0.0
         self.speed_effort = 300.0
         self.pixhawk = None
-        self.coordinate_saved_state = False
+        self.initial_heading = -361  # (Max -360 until 360) So means is not setup yet
         self.gps_ready = False
         self.time_threshold = 2 # in Seconds
 
@@ -38,7 +38,6 @@ class Mission1_Execution(BaseExecution):
         super().setup(**kwargs)
         self.frame_counter = FrameCounter(self.time_threshold)
         self.pixhawk = Pixhawk()
-        self.hold = True
 
         self.mission_pub = Topic.mission.createPublisher(self.node)
         self.mission_pub.publish(UInt8(data=1))
@@ -46,22 +45,10 @@ class Mission1_Execution(BaseExecution):
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
         
-        self.pxmode_sub = Topic.pxmode.createSubscriber(self.node, self._pxmode_cb)
         self.pixhawk_sub = Topic.pixhawk.createSubscriber(self.node, self._pixhawk_cb)
         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
         self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
     
-    def set_docking_coordinates(self):
-        """Save Pixhawk coordinates for docking mission"""
-        Param.DOCKING_LAT.setParam(self.node, self.pixhawk.lat)
-        Param.DOCKING_LON.setParam(self.node, self.pixhawk.lon)
-
-    def _pxmode_cb(self, msg: String):
-        if msg.data != PxMode.HOLD:
-            self.hold = False
-        else:
-            self.hold = True
-
     def _pixhawk_cb(self, msg: Pixhawk):
         self.pixhawk = msg
         if msg.lat != 0.0 and msg.lon != 0.0:
@@ -76,17 +63,7 @@ class Mission1_Execution(BaseExecution):
     def execute(self) -> Status:
         self.node.get_logger().info(f"[{self.name}] Mission 1 EXECUTION mode active... GPS Ready: {self.gps_ready}")
 
-        if not self.detected and self.hold:
-            self.node.get_logger().info(f"[{self.name}] Starting initiation hold mode...")
-            return Status.FAILURE
-
-
-        if not self.coordinate_saved_state and self.gps_ready:
-            self.set_docking_coordinates()
-            self.coordinate_saved_state = True
-            self.node.get_logger().info(f"[{self.name}] Docking coordinates saved: LAT {self.pixhawk.lat}, LON {self.pixhawk.lon}")
-
-        if not self.detected and not self.hold:
+        if not self.detected:
             self.frame_counter.is_started() 
             self.counter = time.time()
             if self.frame_counter.is_enough():
@@ -120,20 +97,20 @@ class Mission1_Fallback(BaseFallback):
     def __init__(self, name: str = "Mission1_Fallback", node=None):
         super().__init__(name, node=node)
         self.node = node
-        self.find_mode = None
         self.frame_counter = None
         self.detected = False
+
         self.px_heading = 0.0
-        self.arena = "B"  # or "A"
+        self.arena = Param.TRACK.getValue(self.node)
         self.dsc = 160.0 if self.arena == "A" else -160.0
         self.speed_effort = 100.0
         self.time_threshold = 2 # in Seconds
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
-        self.find_mode = FindMode(self.node)
         self.frame_counter = FrameCounter(self.time_threshold)
 
+        self.initial_heading_pub = Topic.initial_heading.createPublisher(self.node)
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
 
@@ -145,6 +122,7 @@ class Mission1_Fallback(BaseFallback):
 
     def _heading_cb(self, msg: Float64):
         self.px_heading = float(msg.data)
+        self.initial_heading_pub.publish(self.px_heading)
 
     def fallback(self) -> Status:
 
@@ -161,7 +139,6 @@ class Mission1_Fallback(BaseFallback):
                 return Status.FAILURE
         else:
             self.frame_counter.reset()
-            self.find_mode.set_initial_heading(self.px_heading)
         
         self.node.get_logger().info(
             f"[{self.name}] Searching for target (detected: {self.detected})",

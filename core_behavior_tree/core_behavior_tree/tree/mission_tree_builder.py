@@ -1,5 +1,6 @@
 import py_trees
 from typing import List, Tuple, Type, Callable
+from ..behaviors.mission.actions.mission0 import Mission0_Execution, Mission0_Fallback
 from ..behaviors.mission.actions.mission1 import Mission1_Execution, Mission1_Fallback
 from ..behaviors.mission.actions.mission2 import Mission2_Execution, Mission2_Fallback
 # from ..behaviors.mission.actions.mission3 import Mission3_Execution, Mission3_Fallback
@@ -13,6 +14,7 @@ class MissionTreeBuilder:
     """Builder class responsible for constructing the behavior tree"""
 
     MISSIONS_CONFIG = [
+        (Mission0_Execution, Mission0_Fallback),
         (Mission1_Execution, Mission1_Fallback),
         (Mission2_Execution, Mission2_Fallback),
         # (Mission3_Execution, Mission3_Fallback),

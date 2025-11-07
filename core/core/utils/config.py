@@ -132,6 +132,9 @@ class Topic:
     state_depth = TopicFactory("/core/rov/depth", Float64)
     pxmode_uint8 = TopicFactory("/core/micon/pixhawk/mode", UInt8)
 
+    #Finding Mode
+    initial_heading = TopicFactory("/core/initial/heading", UInt8) 
+
 class BT:
 
     ### PY_TREES STATUS 
