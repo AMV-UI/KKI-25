@@ -10,7 +10,7 @@ from core.utils.config import Param, PxMode
 
 
 import time
-class Turn_Execution(BaseExecution):
+class Go_Execution(BaseExecution):
     """
     Main execution: Set inital heading and finding the buoy
     - Fallback: if pxmode is still on hold
@@ -19,10 +19,12 @@ class Turn_Execution(BaseExecution):
         super().__init__(name, node=node)
         self.node = node
         self.success = False
-        self.effort = 100.0
+        self.effort_tn = 0.0
+        self.effort_st = 0.0
 
     def initialise(self):
-        self.effort = 100.0
+        self.effort_st = 0.0
+        self.effort_tn = 0.0
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
@@ -31,33 +33,41 @@ class Turn_Execution(BaseExecution):
             self.node,
             self._mission_cb
         )        
-        self.effort_sub = Topic.tuning_effort_tn.createSubscriber(
+        self.effort_tn_sub = Topic.tuning_effort_tn.createSubscriber(
             self.node,
-            self._effort_cb
+            self._effort_tn_cb
+        )        
+        self.effort_st_sub = Topic.tuning_effort_st.createSubscriber(
+            self.node,
+            self._effort_st_cb
         )        
 
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
 
     def _mission_cb(self, msg: UInt8):
-        if(msg.data == 2):
+        if(msg.data == 3):
             self.success = True
 
-    def _effort_cb(self, msg: Float64):
-        self.effort = float(msg.data)
+    def _effort_st_cb(self, msg: Float64):
+        self.effort_st = float(msg.data)
+
+    def _effort_tn_cb(self, msg: Float64):
+        self.effort_tn = float(msg.data)
+
 
     def execute(self) -> Status:
         self.node.get_logger().info(f"[{self.name}] Tuning")
         if(self.success):
             return Status.SUCCESS
 
-        self.yaw_effort_pub.publish(Float64(data=self.effort))
-        self.speed_effort_pub.publish(Float64(data=0.0))
+        self.yaw_effort_pub.publish(Float64(data=self.effort_tn))
+        self.speed_effort_pub.publish(Float64(data=self.effort_st))
 
         return Status.RUNNING
 
 
-class Turn_Fallback(BaseFallback):
+class Go_Fallback(BaseFallback):
     """
     Fallback: Remote still on hold and updating docking position
     - Execution: if remote change other than hold

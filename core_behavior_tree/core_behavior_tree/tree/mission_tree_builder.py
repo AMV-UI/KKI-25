@@ -8,6 +8,7 @@ from ..behaviors.mission.actions.docking import DockingMission_Execution, Dockin
 
 from ..behaviors.mission.actions.tuning.straight import Straight_Execution, Straight_Fallback
 from ..behaviors.mission.actions.tuning.turn import Turn_Execution, Turn_Fallback
+from ..behaviors.mission.actions.tuning.go import Go_Execution, Go_Fallback
 from ..behaviors.mission.actions.tuning.done import Done_Execution, Done_Fallback
 
 from core.utils.config import Topic, BT
@@ -17,18 +18,24 @@ from ..behaviors.base_behavior import BaseBehavior
 class MissionTreeBuilder:
     """Builder class responsible for constructing the behavior tree"""
 
-    MISSIONS_CONFIG = [
-        (Straight_Execution, Done_Execution),
-        (Turn_Execution, Done_Execution),
-        (Done_Execution, Done_Fallback),
-
+    # MISSIONS_CONFIG = [
         # (Mission0_Execution, Mission0_Fallback),
         # (Mission1_Execution, Mission1_Fallback),
         # (Mission2_Execution, Mission2_Fallback),
         # (Mission3_Execution, Mission3_Fallback),
         # (DockingMission_Execution, DockingMission_Fallback),
+    # ]
+
+    # Tuning Config
+    MISSIONS_CONFIG = [
+        (Straight_Execution, Done_Execution, "Straight"),
+        (Done_Execution, Done_Fallback, "Stall"),
+        (Turn_Execution, Done_Execution, "Turn"),
+        (Done_Execution, Done_Fallback, "Stall"),
+        (Go_Execution, Go_Fallback, "Go"),
+        (Done_Execution, Done_Fallback, "Done"),
     ]
-    
+
     def __init__(self, ros_node):
         self.ros_node = ros_node
         BaseBehavior.set_ros_node(ros_node)
@@ -70,10 +77,11 @@ class MissionTreeBuilder:
             memory=True
         )
         
-        for i, (mission_class, fallback_class) in enumerate(self.MISSIONS_CONFIG, start=1):
+        for i, (mission_class, fallback_class, name) in enumerate(self.MISSIONS_CONFIG, start=1):
             mission_selector = self._create_mission_selector(
                 mission_class, 
-                fallback_class, 
+                fallback_class,
+                name, 
                 i
             )
             mission_sequence.add_child(mission_selector)
@@ -84,6 +92,7 @@ class MissionTreeBuilder:
         self, 
         mission_class: Type, 
         fallback_class: Type, 
+        name: str,
         mission_number: int) -> py_trees.composites.Selector:
 
         """Create a selector for a specific mission with its fallback"""
@@ -94,8 +103,8 @@ class MissionTreeBuilder:
             memory=True
         )
         
-        mission = mission_class(f"Mission{mission_number} Execution", node=self.ros_node)
-        fallback = fallback_class(f"Mission{mission_number} Fallback", node=self.ros_node)
+        mission = mission_class(f"{name} Execution", node=self.ros_node)
+        fallback = fallback_class(f"{name} Fallback", node=self.ros_node)
 
         selector.add_children([mission, fallback])
         return selector

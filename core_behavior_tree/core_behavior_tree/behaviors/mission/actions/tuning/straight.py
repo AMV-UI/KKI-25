@@ -21,6 +21,9 @@ class Straight_Execution(BaseExecution):
         self.success = False
         self.effort = 100.0
 
+    def initialise(self):
+        self.effort = 100.0
+
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
         
@@ -28,7 +31,7 @@ class Straight_Execution(BaseExecution):
             self.node,
             self._mission_cb
         )        
-        self.effort_sub = Topic.tuning_effort.createSubscriber(
+        self.effort_sub = Topic.tuning_effort_st.createSubscriber(
             self.node,
             self._effort_cb
         )        

@@ -137,7 +137,8 @@ class Topic:
 
     # Tuning
     tuning_mission = TopicFactory("/core/tuning/mission", UInt8) 
-    tuning_effort = TopicFactory("/core/tuning/effort", Float64)
+    tuning_effort_st = TopicFactory("/core/tuning/effort/st", Float64)
+    tuning_effort_tn = TopicFactory("/core/tuning/effort/tn", Float64)
 
 class BT:
 

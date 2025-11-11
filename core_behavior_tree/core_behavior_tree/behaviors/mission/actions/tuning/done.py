@@ -21,16 +21,15 @@ class Done_Execution(BaseExecution):
         self.success = False
         self.effort = 100.0
 
+    def initialise(self):
+        self.success = False
+
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
         
         self.mission_sub = Topic.tuning_mission.createSubscriber(
             self.node,
             self._mission_cb
-        )        
-        self.effort_sub = Topic.tuning_effort.createSubscriber(
-            self.node,
-            self._effort_cb
         )        
 
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
