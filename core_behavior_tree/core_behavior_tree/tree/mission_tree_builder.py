@@ -6,6 +6,10 @@ from ..behaviors.mission.actions.mission2 import Mission2_Execution, Mission2_Fa
 # from ..behaviors.mission.actions.mission3 import Mission3_Execution, Mission3_Fallback
 from ..behaviors.mission.actions.docking import DockingMission_Execution, DockingMission_Fallback
 
+from ..behaviors.mission.actions.tuning.straight import Straight_Execution, Straight_Fallback
+from ..behaviors.mission.actions.tuning.turn import Turn_Execution, Turn_Fallback
+from ..behaviors.mission.actions.tuning.done import Done_Execution, Done_Fallback
+
 from core.utils.config import Topic, BT
 
 from ..behaviors.base_behavior import BaseBehavior
@@ -14,9 +18,13 @@ class MissionTreeBuilder:
     """Builder class responsible for constructing the behavior tree"""
 
     MISSIONS_CONFIG = [
-        (Mission0_Execution, Mission0_Fallback),
-        (Mission1_Execution, Mission1_Fallback),
-        (Mission2_Execution, Mission2_Fallback),
+        (Straight_Execution, Done_Execution),
+        (Turn_Execution, Done_Execution),
+        (Done_Execution, Done_Fallback),
+
+        # (Mission0_Execution, Mission0_Fallback),
+        # (Mission1_Execution, Mission1_Fallback),
+        # (Mission2_Execution, Mission2_Fallback),
         # (Mission3_Execution, Mission3_Fallback),
         # (DockingMission_Execution, DockingMission_Fallback),
     ]

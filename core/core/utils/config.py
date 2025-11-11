@@ -4,7 +4,7 @@ import rclpy
 import py_trees
 from enum import Enum
 from core.utils.factory import TopicFactory, ParamFactory
-from std_msgs.msg import Float64, Bool, UInt8, String, UInt16, UInt8MultiArray
+from std_msgs.msg import Float64, Bool, UInt8, String, UInt16, UInt8MultiArray, UInt32
 from sensor_msgs.msg import Image, CompressedImage
 from core_msgs.msg import (
     Controller,
@@ -134,6 +134,10 @@ class Topic:
 
     #Finding Mode
     initial_heading = TopicFactory("/core/initial/heading", UInt8) 
+
+    # Tuning
+    tuning_mission = TopicFactory("/core/tuning/mission", UInt8) 
+    tuning_effort = TopicFactory("/core/tuning/effort", Float64)
 
 class BT:
 
