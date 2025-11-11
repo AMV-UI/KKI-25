@@ -56,29 +56,29 @@ class Mission0_Execution(BaseExecution):
         self.detected = bool(msg.data)
 
     def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}] Initial EXECUTION mode active... GPS Ready: {self.gps_ready}")
+        # self.node.get_logger().info(f"[{self.name}] Initial EXECUTION mode active... GPS Ready: {self.gps_ready}")
 
-        if self.hold:
-            return Status.FAILURE
+        # if self.hold:
+        #     return Status.FAILURE
 
-        self.yaw_effort_pub.publish(Float64(data=self.dsc))
-        self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+        # self.yaw_effort_pub.publish(Float64(data=self.dsc))
+        # self.speed_effort_pub.publish(Float64(data=self.speed_effort))
         
-        if self.detected:
-            self.initial_heading_pub.publish(self.heading_deg)
-            self.frame_counter.is_started()
-            if self.frame_counter.is_enough():
-                self.frame_counter.reset()
-                self.node.get_logger().info(f"[{self.name}] Target found -> switching to execution")
-                return Status.SUCCESS
-        else:
-            self.frame_counter.reset()
+        # if self.detected:
+        #     self.initial_heading_pub.publish(self.heading_deg)
+        #     self.frame_counter.is_started()
+        #     if self.frame_counter.is_enough():
+        #         self.frame_counter.reset()
+        #         self.node.get_logger().info(f"[{self.name}] Target found -> switching to execution")
+        #         return Status.SUCCESS
+        # else:
+        #     self.frame_counter.reset()
         
-        self.node.get_logger().info(
-            f"[{self.name}] Searching for target (detected: {self.detected})",
-            throttle_duration_sec=5.0
-        )
-
+        # self.node.get_logger().info(
+        #     f"[{self.name}] Searching for target (detected: {self.detected})",
+        #     throttle_duration_sec=5.0
+        # )
+        
         return Status.RUNNING
 
 
