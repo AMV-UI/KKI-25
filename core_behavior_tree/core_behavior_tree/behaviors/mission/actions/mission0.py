@@ -21,7 +21,7 @@ class Mission0_Execution(BaseExecution):
         self.pixhawk = None
         self.initial_heading = -361  # (Max -360 until 360) So means is not setup yet
         self.gps_ready = False
-        self.arena = Param.TRACK.getValue(self.node)
+        self.arena = "B"
         self.hold = True
 
         self.time_threshold = 1
@@ -39,6 +39,7 @@ class Mission0_Execution(BaseExecution):
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
 
+        self.arena_sub = Topic.arena.createSubscriber(self.node, self._arena_cb)
         self.pxmode_sub = Topic.pxmode.createSubscriber(self.node, self._pxmode_cb)
         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
         self.heading_sub = Topic.heading_deg.createSubscriber(self.node, self._heading_cb)
@@ -48,6 +49,9 @@ class Mission0_Execution(BaseExecution):
             self.hold = False
         else:
             self.hold = True
+
+    def _arena_cb(self, msg: String):
+        self.arena = str(msg.data)
 
     def _heading_cb(self, msg: Float64):
         self.px_heading = float(msg.data)

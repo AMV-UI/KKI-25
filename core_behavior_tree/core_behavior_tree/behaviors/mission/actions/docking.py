@@ -46,8 +46,8 @@ class DockingMission_Execution(BaseExecution):
         
     def _pixhawk_cb(self, msg: Pixhawk):
         self.pixhawk = msg
-        self.current_lat = msg.latitude
-        self.current_lon = msg.longitude
+        self.current_lat = msg.lat
+        self.current_lon = msg.lon
         
     def _heading_cb(self, msg: Float64):
         self.current_heading = float(msg.data)

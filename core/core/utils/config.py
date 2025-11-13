@@ -140,6 +140,9 @@ class Topic:
     tuning_effort_st = TopicFactory("/core/tuning/effort/st", Float64)
     tuning_effort_tn = TopicFactory("/core/tuning/effort/tn", Float64)
 
+    # Arena
+    arena = TopicFactory("core/arena", String)
+
 class BT:
 
     ### PY_TREES STATUS 

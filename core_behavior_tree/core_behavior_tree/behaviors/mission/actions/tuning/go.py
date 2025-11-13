@@ -25,6 +25,7 @@ class Go_Execution(BaseExecution):
     def initialise(self):
         self.effort_st = 0.0
         self.effort_tn = 0.0
+        self.success = False
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
@@ -46,7 +47,7 @@ class Go_Execution(BaseExecution):
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
 
     def _mission_cb(self, msg: UInt8):
-        if(msg.data == 3):
+        if(msg.data == 1):
             self.success = True
 
     def _effort_st_cb(self, msg: Float64):

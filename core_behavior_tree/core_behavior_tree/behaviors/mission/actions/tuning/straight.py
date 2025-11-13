@@ -23,6 +23,7 @@ class Straight_Execution(BaseExecution):
 
     def initialise(self):
         self.effort = 100.0
+        self.success = False
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)

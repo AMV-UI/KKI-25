@@ -49,7 +49,7 @@ class CameraController(Node):
         self.current_state = StateObject()
         self.current_mission = 1
         self.mission_received = AutoControl()
-        self.show_result = True
+        self.show_result = False
         self.detected = False
 
         # Setup communication

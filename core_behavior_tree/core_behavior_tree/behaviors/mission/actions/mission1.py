@@ -26,13 +26,10 @@ class Mission1_Execution(BaseExecution):
         self.dsc = 0.0
         self.speed_effort = 300.0
         self.pixhawk = None
+        self.arena = "B"
         self.initial_heading = -361  # (Max -360 until 360) So means is not setup yet
         self.gps_ready = False
-        self.time_threshold = 2 # in Seconds
-
-        Param.DOCKING_LAT.createParam(self.node, default_value=0.0)
-        Param.DOCKING_LON.createParam(self.node, default_value=0.0)
-    
+        self.time_threshold = 2 # in Seconds    
         
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
@@ -45,6 +42,7 @@ class Mission1_Execution(BaseExecution):
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
         
+        self.arena_sub = Topic.arena.createSubscriber(self.node, self._arena_cb)
         self.pixhawk_sub = Topic.pixhawk.createSubscriber(self.node, self._pixhawk_cb)
         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
         self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
@@ -54,6 +52,9 @@ class Mission1_Execution(BaseExecution):
         if msg.lat != 0.0 and msg.lon != 0.0:
             self.gps_ready = True
 
+    def _arena_cb(self, msg: String):
+        self.arena = str(msg.data)
+
     def _detected_cb(self, msg: Bool):
         self.detected = bool(msg.data)
 
@@ -61,7 +62,7 @@ class Mission1_Execution(BaseExecution):
         self.dsc = float(msg.data)
 
     def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}] Mission 1 EXECUTION mode active... GPS Ready: {self.gps_ready}")
+        self.node.get_logger().info(f"[{self.name}] Mission 1 EXECUTION mode active... GPS Ready: {self.arena}")
 
         if not self.detected:
             self.frame_counter.is_started() 
@@ -101,10 +102,13 @@ class Mission1_Fallback(BaseFallback):
         self.detected = False
 
         self.px_heading = 0.0
-        self.arena = Param.TRACK.getValue(self.node)
+        self.arena = "B"
         self.dsc = 160.0 if self.arena == "A" else -160.0
         self.speed_effort = 100.0
         self.time_threshold = 2 # in Seconds
+
+    def _arena_cb(self, msg: String):
+        self.arena = str(msg.data)
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
@@ -116,6 +120,8 @@ class Mission1_Fallback(BaseFallback):
 
         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
         self.heading_sub = Topic.heading_deg.createSubscriber(self.node, self._heading_cb)
+        self.arena_sub = Topic.arena.createSubscriber(self.node, self._arena_cb)
+
         
     def _detected_cb(self, msg: Bool):
         self.detected = bool(msg.data)

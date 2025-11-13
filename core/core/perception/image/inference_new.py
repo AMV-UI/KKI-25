@@ -39,8 +39,7 @@ class ObjectDetector:
         # self.track = rospy.get_param(Param.TRACK)
 
         #new param factory implementation [untested]
-        Param.TRACK.createParam(self.node, default_value=self.track)
-        self.track = Param.TRACK.getValue(self.node)
+        self.track = "B"
 
 
         # PARAM EXAMPLES
@@ -64,7 +63,12 @@ class ObjectDetector:
 
         # Publisher
         self.dscPub = Topic.dsc.createPublisher(self.node)
+        self.arena_sub = Topic.arena.createSubscriber(self.node, self._arena_cb)
+
         # self.cameraBottomPub = Topic.image_blue_box.createPublisher()
+    
+    def _arena_cb(self, msg: String):
+        self.track = str(msg.data)
 
     def draw_detections(self, img, results):
         """Draw detection boxes and labels on frame"""

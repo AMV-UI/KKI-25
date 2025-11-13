@@ -388,7 +388,7 @@ class Microcontroller(Node):
         elif 1301 <= pwm_val <= 1700:
             self.pxmode = PxMode.MANUAL
         else:
-            self.pxmode = PxMode.MANUAL
+            self.pxmode = PxMode.AUTO
 
         self.get_logger().info(f"Current Mode : {self.pxmode}")
         

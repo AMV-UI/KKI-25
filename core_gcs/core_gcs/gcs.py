@@ -21,6 +21,8 @@ class Gcs(Node):
 
         Param.TRACK.createParam(self.node, default_value="B")
         self.track = Param.TRACK.getValue(self.node) 
+        self.track_pub = Topic.arena.createPublisher(self.node)
+        self.track_pub.publish(String(data=self.track))
 
         self.image_subscriber = Topic.camera_processed.createSubscriber(
             self,

@@ -3,7 +3,7 @@ from typing import List, Tuple, Type, Callable
 from ..behaviors.mission.actions.mission0 import Mission0_Execution, Mission0_Fallback
 from ..behaviors.mission.actions.mission1 import Mission1_Execution, Mission1_Fallback
 from ..behaviors.mission.actions.mission2 import Mission2_Execution, Mission2_Fallback
-# from ..behaviors.mission.actions.mission3 import Mission3_Execution, Mission3_Fallback
+from ..behaviors.mission.actions.mission3 import Mission3_Execution, Mission3_Fallback
 from ..behaviors.mission.actions.docking import DockingMission_Execution, DockingMission_Fallback
 
 from ..behaviors.mission.actions.tuning.straight import Straight_Execution, Straight_Fallback
@@ -18,23 +18,23 @@ from ..behaviors.base_behavior import BaseBehavior
 class MissionTreeBuilder:
     """Builder class responsible for constructing the behavior tree"""
 
-    # MISSIONS_CONFIG = [
-        # (Mission0_Execution, Mission0_Fallback),
-        # (Mission1_Execution, Mission1_Fallback),
-        # (Mission2_Execution, Mission2_Fallback),
-        # (Mission3_Execution, Mission3_Fallback),
-        # (DockingMission_Execution, DockingMission_Fallback),
-    # ]
+    MISSIONS_CONFIG = [
+        # (Mission0_Execution, Mission0_Fallback, "Mission 0"),
+        (Mission1_Execution, Mission1_Fallback, "Mission 1"),
+        (Mission2_Execution, Mission2_Fallback, "Mission 2"),
+        (Mission3_Execution, Mission3_Fallback, "Mission 3"),
+        (DockingMission_Execution, DockingMission_Fallback, "Docking Mission"),
+    ]
 
     # Tuning Config
-    MISSIONS_CONFIG = [
-        (Straight_Execution, Done_Execution, "Straight"),
-        (Done_Execution, Done_Fallback, "Stall"),
-        (Turn_Execution, Done_Execution, "Turn"),
-        (Done_Execution, Done_Fallback, "Stall"),
-        (Go_Execution, Go_Fallback, "Go"),
-        (Done_Execution, Done_Fallback, "Done"),
-    ]
+    # MISSIONS_CONFIG = [
+    #     (Straight_Execution, Done_Execution, "Straight"),
+    #     (Done_Execution, Done_Fallback, "Stall"),
+    #     (Turn_Execution, Done_Execution, "Turn"),
+    #     (Done_Execution, Done_Fallback, "Stall"),
+    #     (Go_Execution, Go_Fallback, "Go"),
+    #     (Done_Execution, Done_Fallback, "Done"),
+    # ]
 
     def __init__(self, ros_node):
         self.ros_node = ros_node

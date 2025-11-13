@@ -1,7 +1,7 @@
 
 from ..mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
-from std_msgs.msg import Bool, Float64, UInt8
+from std_msgs.msg import Bool, Float64, UInt8, String
 from core.utils.config import Topic, Param
 from core.mission.find_mode import FindMode
 from core.mission.frame_counter import FrameCounter
@@ -22,7 +22,7 @@ class Mission2_Execution(BaseExecution):
         self.find_mode = None
         self.frame_counter = None
         self.detected = False
-        self.arena = Param.TRACK.getValue(self.node)
+        self.arena = "B"
         self.dsc = -160.0 if self.arena == "A" else 160.0  #Reverse effort untuk mission 2
 
         self.px_heading = 0.0
@@ -34,18 +34,20 @@ class Mission2_Execution(BaseExecution):
         super().setup(**kwargs)
         self.find_mode = FindMode(self.node)
         self.frame_counter = FrameCounter(2)
-        self.target_lat = Param.DOCKING_LAT.getValue(self.node)
-        self.target_lon = Param.DOCKING_LON.getValue(self.node)
 
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
         
+        self.arena_sub = Topic.arena.createSubscriber(self.node, self._arena_cb)
         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
         self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
         self.heading_sub = Topic.heading_deg.createSubscriber(self.node, self._heading_cb)
         
         self.mission_pub = Topic.mission.createPublisher(self.node)
         self.mission_pub.publish(UInt8(data=2))
+
+    def _arena_cb(self, msg: String):
+        self.arena = str(msg.data)
 
     def _detected_cb(self, msg: Bool):
         self.detected = bool(msg.data)
@@ -57,36 +59,36 @@ class Mission2_Execution(BaseExecution):
         self.px_heading = float(msg.data)
 
     def execute(self) -> Status:
-        if self.phase == "finding":
-            self.node.get_logger().info(f"[{self.name}] We are executing Mission 2...")
-            self.find_mode.current_heading = self.find_mode.get_heading(self.px_heading)
-            self.find_mode.set_range(1)
+        # if self.phase == "finding":
+        #     self.node.get_logger().info(f"[{self.name}] We are executing Mission 2...")
+        #     self.find_mode.current_heading = self.find_mode.get_heading(self.px_heading)
+        #     self.find_mode.set_range(1)
             
-            if self.detected:
-                self.frame_counter.is_started()
-                if self.frame_counter.is_enough():
-                    self.frame_counter.reset()
-                    self.phase = "approach"
-                    self.node.get_logger().info(f"[{self.name}] Tower found -> switching to APPROACH")
-                    yaw_effort = self.dsc
-            else:
-                self.frame_counter.reset()
-                yaw_effort = self.find_mode.get_state(self.px_heading)
+        #     if self.detected:
+        #         self.frame_counter.is_started()
+        #         if self.frame_counter.is_enough():
+        #             self.frame_counter.reset()
+        #             self.phase = "approach"
+        #             self.node.get_logger().info(f"[{self.name}] Tower found -> switching to APPROACH")
+        #             yaw_effort = self.dsc
+        #     else:
+        #         self.frame_counter.reset()
+        #         yaw_effort = self.find_mode.get_state(self.px_heading)
 
-            self.yaw_effort_pub.publish(Float64(data=float(yaw_effort)))
-            self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
+        #     self.yaw_effort_pub.publish(Float64(data=float(yaw_effort)))
+        #     self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
             
-            self.node.get_logger().info(
-                f"[{self.name}] Current Heading: {self.px_heading}, Range: [{self.find_mode.range_low}, {self.find_mode.range_high}]",
-                throttle_duration_sec=1.0
-            )
+        #     self.node.get_logger().info(
+        #         f"[{self.name}] Current Heading: {self.px_heading}, Range: [{self.find_mode.range_low}, {self.find_mode.range_high}]",
+        #         throttle_duration_sec=1.0
+        #     )
             
-            return Status.RUNNING
+        #     return Status.RUNNING
 
-        # phase == "approach"
-        yaw_effort = self.dsc
+        # # phase == "approach"
+        # yaw_effort = self.dsc
         
-        if not self.detected:
+        if self.detected:
             self.frame_counter.is_started()
             if self.frame_counter.is_enough():
                 self.frame_counter.reset()
@@ -97,7 +99,7 @@ class Mission2_Execution(BaseExecution):
         else:
             self.frame_counter.reset()
 
-        self.yaw_effort_pub.publish(yaw_effort)
+        self.yaw_effort_pub.publish(Float64(data=self.dsc))
         self.speed_effort_pub.publish(Float64(data=self.speed_effort))
         return Status.RUNNING
 
