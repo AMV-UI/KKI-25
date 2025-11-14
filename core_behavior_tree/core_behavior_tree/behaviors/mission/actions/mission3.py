@@ -57,7 +57,7 @@ class Mission3_Execution(BaseExecution):
         self.dsc = float(msg.data)
 
     def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}] Mission 1 EXECUTION mode active... GPS Ready: {self.gps_ready}")
+        self.node.get_logger().info(f"[{self.name}] Mission 3 EXECUTION mode active... GPS Ready: {self.gps_ready}")
 
         if not self.detected:
             self.frame_counter.is_started() 

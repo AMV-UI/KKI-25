@@ -19,7 +19,7 @@ class Straight_Execution(BaseExecution):
         super().__init__(name, node=node)
         self.node = node
         self.success = False
-        self.effort = 100.0
+        self.effort = 10.0
 
     def initialise(self):
         self.effort = 100.0

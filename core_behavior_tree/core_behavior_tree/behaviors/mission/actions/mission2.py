@@ -59,8 +59,8 @@ class Mission2_Execution(BaseExecution):
         self.px_heading = float(msg.data)
 
     def execute(self) -> Status:
+        self.node.get_logger().info(f"[{self.name}] We are executing Mission 2...")
         # if self.phase == "finding":
-        #     self.node.get_logger().info(f"[{self.name}] We are executing Mission 2...")
         #     self.find_mode.current_heading = self.find_mode.get_heading(self.px_heading)
         #     self.find_mode.set_range(1)
             

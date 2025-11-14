@@ -22,7 +22,7 @@ class Turn_Execution(BaseExecution):
         self.effort = 100.0
 
     def initialise(self):
-        self.effort = 100.0
+        self.effort = 1500.0
         self.success = False
 
     def setup(self, **kwargs) -> None:
