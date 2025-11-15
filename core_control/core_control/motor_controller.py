@@ -6,22 +6,17 @@ from rclpy.node import Node
 import traceback
 import time
 
-from std_msgs.msg import Bool, Float64, UInt16, UInt32, UInt8
+from std_msgs.msg import Float64
 from sensor_msgs.msg import Joy
 from core_msgs.msg import (
     KillSwitch,
-    AutoControl,
-    Config,
     ObjectCount,
     Controller,
     Pwm,
-    Option,
 )
 
 from core.utils.config import NodeConfig, Topic, Param
 from core.utils.motor import Motor
-from core.utils.factory import TopicFactory
-
 
 class MotorController(Node):
     """
@@ -48,10 +43,6 @@ class MotorController(Node):
    
         self.motor = Motor(self, offset_horizontal=200, motor_adjust=0)
 
-        # Fast Mode, delta nambah 100
-        # self.motor = Motor(self, offset_horizontal=200, motor_adjust=100)
-
-
         self.object_counted = ObjectCount()
         self.joy_state = Joy()
         self.is_killed = False
@@ -71,27 +62,14 @@ class MotorController(Node):
 
     def _setup_communication(self):
         """Initialize all ROS2 subscribers and publishers"""
-
-        ##OLD
-        # # Subscribers
-        # self.dsc_control_effort_sub = self.topic.dsc_control_effort.createSubscriber(self, self._dsc_control_effort_callback)
-        # self.mission_sub = self.topic.auto_control.createSubscriber(self, self._autocontrol_callback)
-        # self.object_counted_subscriber = self.topic.object_counted.createSubscriber(self, self._obj_counted_callback)
-        # self.dsc_subscriber = self.topic.dsc.createSubscriber(self, self._dsc_callback)
-        # self.state_dst_sub = self.topic.state_dst.createSubscriber(self, self._state_dst_callback)
-        # self.mission_subscriber = self.topic.mission.createSubscriber(self, self.mission_callback)
         
-        # # Publishers
+        # Publishers
         self.pwm_pub = Topic.pwm.createPublisher(self)
 
-        ##NEW
         # Subscribers
         self.yaw_effort_sub = Topic.yaw_effort.createSubscriber(self, self._yaw_effort_callback)
         self.speed_effort_sub = Topic.speed_effort.createSubscriber(self, self._speed_effort_callback)
         self.dsc_sub = Topic.dsc.createSubscriber(self, self._dsc_callback)
-
-        # Publishers
-        self.pwm_pub = Topic.pwm.createPublisher(self)
 
     def display_pwm_status(self):
         """Display current PWM configuration"""
@@ -104,29 +82,12 @@ class MotorController(Node):
         self.get_logger().info(f"  - Motor Adjust: {status['motor_adjust']}")
         self.get_logger().info("=" * 60)
 
-    def manual(self):
-        self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] MotorController Manual Mode")
-        for k, v in self.motor.idle().items():
-            self.pwm.channels[k] = v
-
     def autonomous(self):
-        # self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] MotorController Auto Mode")
         for k, v in self.motor.autonomous(
             control_effort_x=self.yaw_effort,
             control_effort_y=self.speed_effort
         ).items():
             self.pwm.channels[k] = v
-
-    def go2Buoys(self):
-        # self.get_logger().info(f"<=> [{NodeConfig.motor_controller}] MotorController go through 2 buoys mode")
-        # self.get_logger().info(f"DSC value: {self.dsc}")
-        for k, v in self.motor.autonomous(
-            control_effort_x=self.dsc,
-            control_effort_y=100
-        ).items():
-            self.pwm.channels[k] = v
-
-
 
     def _yaw_effort_callback(self, msg: Float64):
         self.yaw_effort = msg.data
@@ -143,7 +104,6 @@ class MotorController(Node):
     def _dsc_callback(self, msg: Float64):
         self.dsc = msg.data
 
-
     def run(self):
         """Main execution loop"""
         self.timer = self.create_timer(0.02, self.loop)  # 50Hz
@@ -151,8 +111,7 @@ class MotorController(Node):
 
     def loop(self):
         try:
-            # self.go2Buoys()
-            self.autonomous() #ideally pake autonomous, kontrol cuma dari yaw sama speed effort
+            self.autonomous()
             self.pwm.channels = [int(val) for val in self.pwm.channels]
             self.pwm_pub.publish(self.pwm)
         except Exception as e:
@@ -216,7 +175,8 @@ class MotorController(Node):
             # 1600 => index 0
             # 0
             # 1600 => index 2
-            # 0
+            # 0        motor_control.run()
+
             # 0
             # 0
             # 0
@@ -292,7 +252,6 @@ def main(args=None):
         rclpy.init(args=args)
 
         motor_control = MotorController()
-        # motor_control.test_sequence(10)
         motor_control.run()
         rclpy.spin(motor_control)
         

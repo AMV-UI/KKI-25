@@ -145,17 +145,19 @@ class Microcontroller(Node):
             else:
                 esp32_port, px_port = dirs[1], dirs[0]
 
-            # self.get_logger().info(esp32_port, px_port)
+            self.get_logger().info(f"[MICON] ESP: {esp32_port}, PX: {px_port}")
 
             #ESP32
             self.ser_1 = serial.Serial(esp32_port, 115200)
             self.mc1 = MiconType.ESP32
+            self.get_logger().info(f"[MICON] ESP Successfully initiated")
+
 
             #Pixhawk
             self.ser_2 = mavutil.mavlink_connection(px_port, baud=57600)
+            self.ser_2.wait_heartbeat()
             self.get_logger().info("Waiting for Pixhawk heartbeat...")
             self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
-            self.ser_2.wait_heartbeat()
             self.get_logger().info("Pixhawk Successfully initiated")
             self._px_arm()
             self.mc2 = MiconType.PX
@@ -218,12 +220,9 @@ class Microcontroller(Node):
     def _read_sensor_esp32(self):
         parsed_data = None
 
-        # print(self.ser_1.in_waiting, self.ser_2.in_waiting)
-
         # TODO : do this
         if self.ser_1.in_waiting:
             raw_ser_1 = self.ser_1.readline().decode()
-            # print(f'ser1: {raw_ser_1}')
 
             if raw_ser_1[0] == "s":
                 self.mc1 = MiconType.ESP32
@@ -279,30 +278,57 @@ class Microcontroller(Node):
         filtered_state_means, _ = self.kf_imu.filter(heading_deg)
         return heading_deg, filtered_state_means
 
-    def set_rc_channel_pwm(self, channel_id, pwm=1500):
+    # def set_rc_channel_pwm(self, channel_id, pwm=1500):
+    #     """Set RC channel pwm value
+    #     Args:
+    #         channel_id (TYPE): Channel ID
+    #         pwm (int, optional): Channel pwm value 1100-1900nnel.MOTOR_LEFT
+    #     """
+    #     if channel_id < 1:
+    #         self.get_logger().error_throttle(5000, "PWM Channel does not exist")
+    #         return
+
+    #     # Mavlink 2 supports up to 18 channels:
+    #     # https://mavlink.io/en/messages/common.html#RC_CHANNELS_OVERRIDE
+    #     if channel_id < 9:
+    #         rc_channel_values = [65535 for _ in range(8)]
+    #         rc_channel_values[channel_id - 1] = pwm
+    #         self.ser_2.mav.rc_channels_override_send(
+    #             self.ser_2.target_system,  # target_system
+    #             self.ser_2.target_component,  # target_component
+    #             *rc_channel_values,
+    #         ) 
+    # 
+
+    def set_rc_channel_pwm(self, pwm_list):
         """Set RC channel pwm value
         Args:
             channel_id (TYPE): Channel ID
             pwm (int, optional): Channel pwm value 1100-1900nnel.MOTOR_LEFT
         """
-        if channel_id < 1:
-            # print("Channel does not exist.")
-            # rclpy.logerr_throttle(
-            #     5, "<=> [{Node.microcontroller}] PWM Channel does not exist."
-            # )
-            self.get_logger().error_throttle(5000, "PWM Channel does not exist")
-            return
+        rc_channel_values = [65535 for _ in range(8)]
+        for idx, pwm in enumerate(pwm_list):
+            if idx < 8:
+                rc_channel_values[idx] = pwm
+            
+
+        self.ser_2.mav.rc_channels_override_send(
+            self.ser_2.target_system,  # target_system
+            self.ser_2.target_component,  # target_component
+            *rc_channel_values,
+        )  
+
 
         # Mavlink 2 supports up to 18 channels:
         # https://mavlink.io/en/messages/common.html#RC_CHANNELS_OVERRIDE
-        if channel_id < 9:
-            rc_channel_values = [65535 for _ in range(8)]
-            rc_channel_values[channel_id - 1] = pwm
-            self.ser_2.mav.rc_channels_override_send(
-                self.ser_2.target_system,  # target_system
-                self.ser_2.target_component,  # target_component
-                *rc_channel_values,
-            )  # RC channel list, in microseconds.
+        # if channel_id < 9:
+        #     rc_channel_values = [65535 for _ in range(8)]
+        #     rc_channel_values[channel_id - 1] = pwm
+        #     self.ser_2.mav.rc_channels_override_send(
+        #         self.ser_2.target_system,  # target_system
+        #         self.ser_2.target_component,  # target_component
+        #         *rc_channel_values,
+        #     )  
 
     def _px_rc_val(self):
         rc_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
@@ -328,37 +354,36 @@ class Microcontroller(Node):
 
         if rc_channels.chan8_raw > 1700:
             try:
-                for pwm_val in self.pwm_chan.channels:
-                    if pwm_count >= 8:
-                        pwm_count = 1
-                        break
-                    #   self.set_rc_channel_pwm(pwm_count, pwm=int(pwm_val))
-                    #   print(pwm_count, int(pwm_val))
-                    self.set_rc_channel_pwm(pwm_count, pwm=int(pwm_val))
-                    # rclpy.logerr_throttle(5, "<=> [{Node.microcontroller}] PWM sent")
+                # for pwm_val in self.pwm_chan.channels:
+                #     if pwm_count >= 8:
+                #         pwm_count = 1
+                #         break
+                
+                # self.set_rc_channel_pwm(pwm_count, pwm=int(pwm_val))
+                self.set_rc_channel_pwm(self.pwm_chan.channels)
 
-                    # self.get_logger().error_throttle(5000,  "PWM sent")
-                    self.error_throttle(5000, "PWM sent in Autonomous mode.")
-                    pwm_count = pwm_count + 1
-                    # time.sleep(0.2)
+                self.error_throttle(5000, "PWM sent in Autonomous mode.")
+                # pwm_count = pwm_count + 1
             except Exception as e:
                 self.get_logger().error(f"PWM Channel cannot pass. Error : {e}")
 
         elif 1301 <= rc_channels.chan8_raw <= 1700:
             try:
-                for pwm_val in self.pwm_chan.channels:
-                    if pwm_count >= 8:
-                        pwm_count = 1
-                        break
-                    self.set_rc_channel_pwm(pwm_count, 65535)
-                    self.error_throttle(5000, "Change mode to Manual control. Throttle PWM.")
-                    pwm_count = pwm_count + 1
+                self.get_logger().error(f"Manual Mode: PWM Channel Ignored.")                
+                pass
+                # for pwm_val in self.pwm_chan.channels:
+                #     if pwm_count >= 8:
+                #         pwm_count = 1
+                #         break
+                #     self.set_rc_channel_pwm(pwm_count, 65535)
+                #     self.error_throttle(5000, "Change mode to Manual control. Throttle PWM.")
+                #     pwm_count = pwm_count + 1
 
             except Exception as e:
                 self.get_logger().error(f"Manual Mode: PWM Channel cannot pass. Error : {e}")
         else:
+            self.get_logger().error(f"Idle Mode: PWM Channel Ignored.")                        
             self.error_throttle(5000, "Error Mode : PWM not sent")
-
 
     def auto_status_gcs_cb(self, msg):
         self.auto_status_gcs.data = msg.data
@@ -397,7 +422,6 @@ class Microcontroller(Node):
         self.pxmode_pub.publish(pxmode_msg)       
         if self.pxmode not in self.ser_2.mode_mapping():
             self.get_logger().warn(f"Unknown Mode : {self.pxmode}")
-            # print("Try:", list(self.ser_2.mode_mapping().keys()))
             return
 
         mode_id = self.ser_2.mode_mapping()[self.pxmode]
@@ -409,39 +433,8 @@ class Microcontroller(Node):
         self.get_logger().info(f"Mode set to : {self.pxmode}")
         return True
 
-    # def _validate_both_micon(self):
-    #     if (
-    #             self.mc1 == MiconType.NONE
-    #             or self.mc2 == MiconType.NONE
-    #             or self.ser_2 is None
-    #         ):
-    #             self.error_throttle(5000, "One of the micon is not found")
-    #             self._init_mc()
-    #             continue
-
-    # def _validate_only_pixhawk(self):
-    #     if (
-    #             self.mc1 == MiconType.NONE
-    #             or self.mc2 == MiconType.NONE
-    #             or self.ser_2 is None
-    #         ):
-    #             self.error_throttle(5000, "One of the micon is not found")
-    #             self._init_mc_without_esp()
-                
     def request_pixhawk(self):
         try:
-            # self.ser_2.mav.param_request_read_send(
-            #     self.ser_2.target_system,
-            #     self.ser_2.target_component,
-            #     b"COMPASS_OFS_X",
-            #     -1,
-            # )
-
-            # msg = self.ser_2.recv_match(type="ATTITUDE", blocking=True)
-            # yaw_deg = math.degrees(msg.yaw)
-            # if yaw_deg < 0:
-            #     yaw_deg += 360
-
             msg_coor = self.ser_2.recv_match(
                 type="GLOBAL_POSITION_INT", blocking=True
             )
@@ -449,16 +442,12 @@ class Microcontroller(Node):
             lon = msg_coor.lon / 1e7
             alt = (
                 msg_coor.alt / 1000
-            )  # Altitude in meters (millimeters in the message)
-            # lat: integer, in degrees × 1e7
-            # lon: integer, in degrees × 1e7
-            # alt: integer, in millimeters
+            ) 
 
             alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=True)
 
             msg_spd = alignment.groundspeed  # Ground speed in m/s
             msg_heading = alignment.heading
-            # airspeed = msg.airspeed  # Airspeed in m/s
 
             self.pixhawk.lat = lat
             self.pixhawk.lon = lon
@@ -492,13 +481,7 @@ class Microcontroller(Node):
         self.pxmode_pub = Topic.pxmode.createPublisher(self)
         self.get_logger().info("<> Pixhawk Publisher created")
 
-        # auto_status_gcs_sub = Topic.auto_status_gcs.createSubscriber(self.auto_status_gcs_cb)
-
-        #self._validate_only_pixhawk()
-
-        while rclpy.ok():  # ROS2 equivalent of rospy.is_shutdown()
-            #self._validate_both_micon()  #ganti kalo udah ada esp
-            #self._validate_only_pixhawk()
+        while rclpy.ok():  
             rclpy.spin_once(self, timeout_sec=0.01)
             if (
                 self.mc1 == MiconType.NONE
@@ -510,9 +493,6 @@ class Microcontroller(Node):
                 continue
             self.warn_once("micon found")
             self.warn_throttle(5000, f"{self.mc1}, {self.mc2}")
-
-
-
 
             #ESP32
             data = self._read_sensor_esp32()
@@ -539,8 +519,6 @@ class Microcontroller(Node):
             rc_chans = self._px_rc_val()
             self._px_set_mode(rc_chans.chan8_raw)
             self._send_pwm(rc_chans)
-
-            # self._get_pwm()
             
             self.warn_throttle(5000, "Sending PWM...")
             
@@ -553,7 +531,6 @@ def main(args=None):
     rclpy.init(args=args)
     microcontroller_node = Microcontroller()
 
-    # microcontroller_node._test_dummy_data()
     microcontroller_node.main()
 
     rclpy.spin(microcontroller_node)
