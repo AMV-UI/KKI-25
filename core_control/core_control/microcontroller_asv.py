@@ -6,6 +6,7 @@ import fnmatch
 import serial
 import traceback
 import math
+
 import numpy as np
 from pymavlink import mavutil
 from pykalman import KalmanFilter
@@ -81,9 +82,6 @@ class Microcontroller(Node):
 
         self.auto_control = AutoControl()
 
-        # Action servers
-        # self.change_mission_AS = actionlib.SimpleActionClient('mission_change', SendMissionAction)
-
         # GCS <> Micon
         self.auto_status_gcs = UInt8()  # HARDWARE, AUTO, MANUAL
         self.auto_status_gcs.data = AutoState.HARDWARE
@@ -152,7 +150,6 @@ class Microcontroller(Node):
             self.mc1 = MiconType.ESP32
             self.get_logger().info(f"[MICON] ESP Successfully initiated")
 
-
             #Pixhawk
             self.ser_2 = mavutil.mavlink_connection(px_port, baud=57600)
             self.ser_2.wait_heartbeat()
@@ -160,6 +157,8 @@ class Microcontroller(Node):
             self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
             self.get_logger().info("Pixhawk Successfully initiated")
             self._px_arm()
+            self.rc_chans = self._px_rc_val()
+
             self.mc2 = MiconType.PX
 
         except Exception as e:
@@ -248,7 +247,8 @@ class Microcontroller(Node):
         return True
 
     def _pwm_callback(self, pwm_msg):
-        self.pwm_chan = pwm_msg
+        pass
+        # self.pwm_chan = pwm_msg
 
     @staticmethod
     def _reverse_pwm(pwm_list):
@@ -278,28 +278,6 @@ class Microcontroller(Node):
         filtered_state_means, _ = self.kf_imu.filter(heading_deg)
         return heading_deg, filtered_state_means
 
-    # def set_rc_channel_pwm(self, channel_id, pwm=1500):
-    #     """Set RC channel pwm value
-    #     Args:
-    #         channel_id (TYPE): Channel ID
-    #         pwm (int, optional): Channel pwm value 1100-1900nnel.MOTOR_LEFT
-    #     """
-    #     if channel_id < 1:
-    #         self.get_logger().error_throttle(5000, "PWM Channel does not exist")
-    #         return
-
-    #     # Mavlink 2 supports up to 18 channels:
-    #     # https://mavlink.io/en/messages/common.html#RC_CHANNELS_OVERRIDE
-    #     if channel_id < 9:
-    #         rc_channel_values = [65535 for _ in range(8)]
-    #         rc_channel_values[channel_id - 1] = pwm
-    #         self.ser_2.mav.rc_channels_override_send(
-    #             self.ser_2.target_system,  # target_system
-    #             self.ser_2.target_component,  # target_component
-    #             *rc_channel_values,
-    #         ) 
-    # 
-
     def set_rc_channel_pwm(self, pwm_list):
         """Set RC channel pwm value
         Args:
@@ -317,18 +295,6 @@ class Microcontroller(Node):
             self.ser_2.target_component,  # target_component
             *rc_channel_values,
         )  
-
-
-        # Mavlink 2 supports up to 18 channels:
-        # https://mavlink.io/en/messages/common.html#RC_CHANNELS_OVERRIDE
-        # if channel_id < 9:
-        #     rc_channel_values = [65535 for _ in range(8)]
-        #     rc_channel_values[channel_id - 1] = pwm
-        #     self.ser_2.mav.rc_channels_override_send(
-        #         self.ser_2.target_system,  # target_system
-        #         self.ser_2.target_component,  # target_component
-        #         *rc_channel_values,
-        #     )  
 
     def _px_rc_val(self):
         rc_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
@@ -354,16 +320,9 @@ class Microcontroller(Node):
 
         if rc_channels.chan8_raw > 1700:
             try:
-                # for pwm_val in self.pwm_chan.channels:
-                #     if pwm_count >= 8:
-                #         pwm_count = 1
-                #         break
-                
-                # self.set_rc_channel_pwm(pwm_count, pwm=int(pwm_val))
                 self.set_rc_channel_pwm(self.pwm_chan.channels)
 
                 self.error_throttle(5000, "PWM sent in Autonomous mode.")
-                # pwm_count = pwm_count + 1
             except Exception as e:
                 self.get_logger().error(f"PWM Channel cannot pass. Error : {e}")
 
@@ -371,23 +330,12 @@ class Microcontroller(Node):
             try:
                 self.get_logger().error(f"Manual Mode: PWM Channel Ignored.")                
                 pass
-                # for pwm_val in self.pwm_chan.channels:
-                #     if pwm_count >= 8:
-                #         pwm_count = 1
-                #         break
-                #     self.set_rc_channel_pwm(pwm_count, 65535)
-                #     self.error_throttle(5000, "Change mode to Manual control. Throttle PWM.")
-                #     pwm_count = pwm_count + 1
 
             except Exception as e:
                 self.get_logger().error(f"Manual Mode: PWM Channel cannot pass. Error : {e}")
         else:
             self.get_logger().error(f"Idle Mode: PWM Channel Ignored.")                        
             self.error_throttle(5000, "Error Mode : PWM not sent")
-
-    def auto_status_gcs_cb(self, msg):
-        self.auto_status_gcs.data = msg.data
-        # self.auto_status_gcs.data = 0
 
     def _px_arm(self):
         self.ser_2.mav.command_long_send(
@@ -516,9 +464,9 @@ class Microcontroller(Node):
             
             self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
             
-            rc_chans = self._px_rc_val()
-            self._px_set_mode(rc_chans.chan8_raw)
-            self._send_pwm(rc_chans)
+            self.rc_chans = self._px_rc_val()
+            self._px_set_mode(self.rc_chans.chan8_raw)
+            self._send_pwm(self.rc_chans)
             
             self.warn_throttle(5000, "Sending PWM...")
             

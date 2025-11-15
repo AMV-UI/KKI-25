@@ -29,6 +29,7 @@ setup(
             'pid_controller = core_control.pid_controller:main',
             'micon = core_control.microcontroller:main',
             'pid_test = scripts.pid_test:main',
+            'pwm_controller = core_control.pwm_controller:main'
         ],
     },
 )

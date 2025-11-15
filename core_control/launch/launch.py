@@ -41,6 +41,15 @@ def generate_launch_description():
         ),
         Node(
             package="core_control",
+            executable="pwm_controller",
+        name="pwm_controller",
+            output="screen",
+            # parameters=[{ ##if you want to pass any param just uncomment these lines
+            #     'track': LaunchConfiguration('track'),
+            # }]
+        ),
+        Node(
+            package="core_control",
             executable="motor_controller",
             name="motor_controller",
             output="screen",
