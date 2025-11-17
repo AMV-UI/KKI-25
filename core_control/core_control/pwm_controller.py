@@ -31,7 +31,6 @@ class PWMController(Node):
 
     def pxmode_callback(self, msg: String):
         self.pxmode = msg.data
-        self.get_logger().info(f"PX Mode set to: {self.pxmode}")
 
     def set_rc_channel_pwm(self, pwm_list):
         rc_channel_values = [65535 for _ in range(8)]
@@ -51,6 +50,7 @@ class PWMController(Node):
             rclpy.spin_once(self)
             try:
                 if self.pwm_chan is not None and self.pxmode == PxMode.AUTO:
+                # self.get_logger().info("Sending PWM...Unsafe Mode Disabled")
                     self.set_rc_channel_pwm(self.pwm_chan)
 
             except Exception as e:

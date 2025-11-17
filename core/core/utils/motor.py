@@ -48,6 +48,22 @@ class Motor:
             self.channel.MOTOR_Y: self.calculateSpeed(int(control_effort_y * motor_speed)),
         })
 
+    def half_detected(self):
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)
+        Param.X_SPEED.setParam(self.node, SPEED.MediumFast)
+
+    def one_is_closer_detected(self):
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)
+        Param.X_SPEED.setParam(self.node, SPEED.Medium)
+
+    def full_detected(self): 
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.MediumFast)
+        Param.X_SPEED.setParam(self.node, SPEED.MediumFast)
+
+    def not_detected(self):
+        Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)
+        Param.X_SPEED.setParam(self.node, SPEED.Slow)
+
 def main(args=None):
     rclpy.init(args=args)
     node = rclpy.create_node('motor_node')

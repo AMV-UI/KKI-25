@@ -14,12 +14,8 @@ from std_msgs.msg import Float64, UInt8, UInt16, String
 from core_msgs.msg import Pwm, AutoControl, KillSwitch, Pixhawk
 
 from core.utils.config import (
-    AutoState,
-    RemoteState,
     Topic,
     MotorReverse,
-    SETPOINT,
-    Param,
     PxMode,
     NodeConfig
 )
@@ -78,13 +74,7 @@ class Microcontroller(Node):
         self.echosounder_dist = 0
         self.echosounder_conf = 0
 
-        self.auto_control = AutoControl()
-
         # GCS <> Micon
-        self.auto_status_gcs = UInt8()  # HARDWARE, AUTO, MANUAL
-        self.auto_status_gcs.data = AutoState.HARDWARE
-        self.auto_status_remote = UInt8()  # TBS_AUTO, TBS_MANUAL
-        self.auto_status_remote.data = RemoteState.TBS_MANUAL
         self.pixhawk = Pixhawk()
 
         sensor_variance = 0.1  # Sensor variance
@@ -276,24 +266,6 @@ class Microcontroller(Node):
         filtered_state_means, _ = self.kf_imu.filter(heading_deg)
         return heading_deg, filtered_state_means
 
-    def set_rc_channel_pwm(self, pwm_list):
-        """Set RC channel pwm value
-        Args:
-            channel_id (TYPE): Channel ID
-            pwm (int, optional): Channel pwm value 1100-1900nnel.MOTOR_LEFT
-        """
-        rc_channel_values = [65535 for _ in range(8)]
-        for idx, pwm in enumerate(pwm_list):
-            if idx < 8:
-                rc_channel_values[idx] = pwm
-            
-
-        self.ser_2.mav.rc_channels_override_send(
-            self.ser_2.target_system,  # target_system
-            self.ser_2.target_component,  # target_component
-            *rc_channel_values,
-        )  
-
     def _px_rc_val(self):
         rc_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
         if not rc_channels:
@@ -304,36 +276,6 @@ class Microcontroller(Node):
     def _get_pwm(self):
         rc_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
         self.info_throttle(2000, f"Channel Values : {rc_channels}")
-
-    def _send_pwm(self, rc_channels):
-        pwm_count = 1
-        # pwm_test = ["1600", "1500", "1700", "1600", "1500", "1700", "1700"]
-
-        #Magic Numbers => pxmode:
-        #LOW: Chan 8 : 983 => HOLD
-        #MID: Chan 8 : 1495 => MANUAL
-        #HIGH: Chan 8 : 2006 => AUTO
-
-        self.info_throttle(2000, f"Chan 8 : {rc_channels.chan8_raw}")
-
-        if rc_channels.chan8_raw > 1700:
-            try:
-                self.set_rc_channel_pwm(self.pwm_chan.channels)
-
-                self.error_throttle(5000, "PWM sent in Autonomous mode.")
-            except Exception as e:
-                self.get_logger().error(f"PWM Channel cannot pass. Error : {e}")
-
-        elif 1301 <= rc_channels.chan8_raw <= 1700:
-            try:
-                self.get_logger().error(f"Manual Mode: PWM Channel Ignored.")                
-                pass
-
-            except Exception as e:
-                self.get_logger().error(f"Manual Mode: PWM Channel cannot pass. Error : {e}")
-        else:
-            self.get_logger().error(f"Idle Mode: PWM Channel Ignored.")                        
-            self.error_throttle(5000, "Error Mode : PWM not sent")
 
     def _px_arm(self):
         self.ser_2.mav.command_long_send(
@@ -357,7 +299,7 @@ class Microcontroller(Node):
         if pwm_val <= 1300:
             self.pxmode = PxMode.HOLD
         elif 1301 <= pwm_val <= 1700:
-            self.pxmode = PxMode.MANUAL
+            self.pxmode = PxMode.Manual
         else:
             self.pxmode = PxMode.AUTO
 
@@ -419,7 +361,6 @@ class Microcontroller(Node):
         # Publisher
         self.kill_switch_pub = Topic.kill_switch.createPublisher(self)
         self.heading_deg_pub = Topic.heading_deg.createPublisher(self)
-        self.auto_status_remote_pub = Topic.auto_status_remote.createPublisher(self)
         self.jetson_batt_pub = Topic.jetson_batt.createPublisher(self)
         self.motor_batt_pub = Topic.motor_batt.createPublisher(self)
         self.mux_state_pub = Topic.mux_state.createPublisher(self)
@@ -446,7 +387,6 @@ class Microcontroller(Node):
             if data:
                 self.kill_switch_pub.publish(self.ks_kill_state)
                 self.heading_deg_pub.publish(self.msg_heading_msg)
-                self.auto_status_remote_pub.publish(self.auto_status_remote)
                 self.jetson_batt_msg.data = int(self._battery_value_safe(self.jetson_batt))
                 self.motor_batt_msg.data = int(self._battery_value_safe(self.motor_batt))
                 self.mux_state_msg.data = int(self.mux_state)
@@ -464,7 +404,6 @@ class Microcontroller(Node):
             
             self.rc_chans = self._px_rc_val()
             self._px_set_mode(self.rc_chans.chan8_raw)
-            self._send_pwm(self.rc_chans)
             
             self.warn_throttle(5000, "Sending PWM...")
             

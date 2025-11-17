@@ -8,7 +8,7 @@ import base64
 import time
 from core.perception.image.inference import ObjectDetector
 from core_msgs.msg import StateObject, AutoControl
-from core.utils.config import AutoState, Box, Camera, NodeConfig, Topic, Tower
+from core.utils.config import NodeConfig, Topic
 from rclpy.node import Node
 from std_msgs.msg import Float64, Bool, String
 

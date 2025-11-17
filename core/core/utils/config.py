@@ -141,17 +141,20 @@ class Tower:
 class Camera:
     # Using YUY2 Format, Raw video stream
     # FRONT = "v4l2src device=/dev/video0 ! video/x-raw,format=YUY2,width=640,height=480,framerate=30/1 ! nvvidconv ! video/x-raw(memory:NVMM) ! nvvidconv ! video/x-raw, format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
-
-    # Using MJPEG Format (razer Kiyo), Compressed video stream
     FRONT = "v4l2src device=/dev/video0 io-mode=2 ! image/jpeg, width=(int)1920, height=(int)1080, framerate=30/1 ! nvv4l2decoder mjpeg=1 ! nvvidconv ! video/x-raw,format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
     LEFT = "v4l2src device=/dev/video1 io-mode=2 ! image/jpeg, width=(int)1920, height=(int)1080, framerate=30/1 ! nvv4l2decoder mjpeg=1 ! nvvidconv ! video/x-raw,format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
     RIGHT = "v4l2src device=/dev/video2 io-mode=2 ! image/jpeg, width=(int)1920, height=(int)1080, framerate=30/1 ! nvv4l2decoder mjpeg=1 ! nvvidconv ! video/x-raw,format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
 
     TOP = "0"
     BOTTOM = "1"
-    # Using FFMPEG, not supported by Jetson Module (by default)
-    # FRONT = 0
 
+
+class SPEED:
+    Maximum = 1
+    MediumFast = 0.7
+    Medium = 0.5
+    Slow = 0.3
+    Idle = 0
 
 class Channel:
     MOTOR_X = 0

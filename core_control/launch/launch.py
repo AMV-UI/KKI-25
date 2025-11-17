@@ -32,8 +32,8 @@ def generate_launch_description():
         
         Node(
             package="core_control",
-            executable="microcontroller_asv",
-            name="microcontroller_asv",
+            executable="microcontroller",
+            name="microcontroller",
             output="screen",
         ),
         Node(

@@ -13,7 +13,7 @@ from io import BytesIO
 from core_msgs.msg import ObjectCount
 from core.utils.config import Param, SPEED
 from core.utils.motor import Motor
-from core.perception.image.camera_bottom import BottomCamera
+# from core.perception.image.camera_bottom import BottomCamera
 
 
 class ObjectDetector:
@@ -32,7 +32,7 @@ class ObjectDetector:
         self.cap.set(3, width)  # Set width
         self.cap.set(4, height)  # Set height
 
-        self.camera_bottom = BottomCamera()
+        # self.camera_bottom = BottomCamera()
         self.motor = Motor(self.node, offset_horizontal=200, motor_adjust=0)
 
         # Track
@@ -326,7 +326,7 @@ class ObjectDetector:
         img = ""
         if self.class_names[cls] == "blueBox":
             color = (0, 0, 255)
-            img = self.camera_bottom.do_capture()
+            # img = self.camera_bottom.do_capture()
 
             # cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             # cv2.putText(
