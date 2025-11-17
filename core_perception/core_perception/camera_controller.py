@@ -6,9 +6,9 @@ import rclpy
 import numpy as np
 import base64
 import time
-from core.perception.image.inference_new import ObjectDetector
+from core.perception.image.inference import ObjectDetector
 from core_msgs.msg import StateObject, AutoControl
-from core.utils.config import AutoState, Box, Camera, NodeConfig, Topic, ModelPath, Tower
+from core.utils.config import AutoState, Box, Camera, NodeConfig, Topic, Tower
 from rclpy.node import Node
 from std_msgs.msg import Float64, Bool, String
 
@@ -49,7 +49,7 @@ class CameraController(Node):
         self.current_state = StateObject()
         self.current_mission = 1
         self.mission_received = AutoControl()
-        self.show_result = True
+        self.show_result = False
         self.detected = False
 
         # Setup communication
@@ -94,11 +94,11 @@ class CameraController(Node):
                 return
 
             # Visualize if enabled
-            # if self.show_result:
-            #     exit_status = self.visualize()
-            #     if exit_status:
-            #         rclpy.shutdown()
-            #         return
+            if self.show_result:
+                exit_status = self.visualize()
+                if exit_status:
+                    rclpy.shutdown()
+                    return
 
             dsc_msg = Float64()
             dsc_msg.data = float(self.dsc)

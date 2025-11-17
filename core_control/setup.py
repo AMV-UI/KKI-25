@@ -23,12 +23,8 @@ setup(
     entry_points={
         'console_scripts': [
             'motor_controller = core_control.motor_controller:main',
-            'microcontroller_rov = core_control.microcontroller_rov:main',
-            'motor_test = scripts.motor_test:main',
-            'microcontroller_asv = core_control.microcontroller_asv:main',
-            'pid_controller = core_control.pid_controller:main',
-            'micon = core_control.microcontroller:main',
-            'pid_test = scripts.pid_test:main',
+            'microcontroller = core_control.microcontroller:main',
+            'pwm_controller = core_control.pwm_controller:main'
         ],
     },
 )

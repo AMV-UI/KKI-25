@@ -9,7 +9,7 @@ def generate_launch_description():
     # Declare launch arguments for this package
     track_arg = DeclareLaunchArgument(
         'track',
-        default_value='A',
+        default_value='B',
         description='Mission track (A or B)'
     )
     
@@ -35,25 +35,17 @@ def generate_launch_description():
             executable="microcontroller_asv",
             name="microcontroller_asv",
             output="screen",
-            # parameters=[{ ##if you want to pass any param just uncomment these lines
-            #     'track': LaunchConfiguration('track'),
-            # }]
+        ),
+        Node(
+            package="core_control",
+            executable="pwm_controller",
+            name="pwm_controller",
+            output="screen",
         ),
         Node(
             package="core_control",
             executable="motor_controller",
             name="motor_controller",
             output="screen",
-            # parameters=[{ ##if you want to pass any param just uncomment these lines
-            #     'track': LaunchConfiguration('track'),
-            #     'motor_speed': LaunchConfiguration('motor_speed'),
-            #     'x_speed': LaunchConfiguration('x_speed'),
-            # }]
         ),
-        # Node(
-        #     package="core_control",
-        #     executable="pid_controller",
-        #     name="pid_controller",
-        #     output="screen"
-        # ),
     ])
