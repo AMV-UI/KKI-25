@@ -2,7 +2,7 @@ import time
 
 class FrameCounter():
     """
-    
+    Checking against YOLO Object Detection False Positive
     """
     def __init__(self, frame_amount):
         self.amount = frame_amount

@@ -2,7 +2,7 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
-from core.utils.config import AutoState, Box, Camera, NodeConfig, Topic, ModelPath, Tower
+from core.utils.config import AutoState, Box, Camera, NodeConfig, Topic
 
 class MockPublish(Node):
     def __init__(self):

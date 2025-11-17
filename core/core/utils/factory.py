@@ -34,64 +34,6 @@ class TopicFactory:
             qos
         )
     
-    
-
-    # TODO: FIX ON TEST_FACTORY
-    def waitMessage(self, node, timeout_sec=5.0):
-        """ROS2-compatible message waiting implementation"""
-        future = rclpy.Future()
-        received_msg = [None]
-        executor = rclpy.executors.SingleThreadedExecutor()
-
-        # Match publisher QoS for latched messages
-        qos = rclpy.qos.QoSProfile(
-            depth=self.qos_profile,
-            durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL if self.latch else rclpy.qos.DurabilityPolicy.VOLATILE,
-            reliability=rclpy.qos.ReliabilityPolicy.RELIABLE
-        )
-
-        def callback(msg):
-            if not future.done():
-                received_msg[0] = msg
-                future.set_result(True)
-
-        sub = self.createSubscriber(node, callback)
-        executor.add_node(node)
-
-        try:
-            # Publish test message to trigger subscription
-            test_pub = node.create_publisher(self.msg_type, self.topic_name, qos)
-            test_msg = self.msg_type()
-            test_msg.data = "TEST_MESSAGE"
-            test_pub.publish(test_msg)
-
-            executor.spin_until_future_complete(future, timeout_sec=timeout_sec)
-            if future.done() and received_msg[0] is not None:
-                return received_msg[0]
-            raise TimeoutError(f"Timeout waiting for message on {self.topic_name}")
-        finally:
-            executor.remove_node(node)
-            node.destroy_subscription(sub)
-            node.destroy_publisher(test_pub)
-            executor.shutdown()
-
-
-
-class ServiceFactory:
-    def __init__(self, srv_name, srv_type):
-        self.srv_name = srv_name
-        self.srv_type = srv_type
-
-    def createProxy(self, node):
-        return node.create_client(self.srv_type, self.srv_name)
-
-    def handleService(self, node, handler):
-        return node.create_service(self.srv_type, self.srv_name, handler)
-
-    def waitService(self, node, timeout_sec=1.0):
-        return node.wait_for_service(timeout_sec=timeout_sec)
-
-
 class ParamFactory:
     """Simplified parameter factory using native ROS 2 parameters"""
     

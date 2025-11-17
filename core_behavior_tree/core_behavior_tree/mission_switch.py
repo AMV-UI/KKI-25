@@ -44,7 +44,6 @@ def main(args=None):
 
     bt_node = BehaviorTreeNode()
     
-
     #MultiThreadedExecutor for ascii tree rendering
     executor = rclpy.executors.MultiThreadedExecutor()
     executor.add_node(bt_node)

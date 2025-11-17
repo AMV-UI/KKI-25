@@ -58,8 +58,6 @@ class Microcontroller(Node):
         self.mc1 = MiconType.NONE
         self.mc2 = MiconType.NONE
 
-        # Node
-        # self.node = Node()
         self.imu = None
 
         # States from pico

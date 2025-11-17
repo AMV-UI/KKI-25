@@ -44,10 +44,6 @@ class FindMode:
     def get_state(self, raw_heading):
         """Get the direction state (GO_LEFT / GO_RIGHT) based on current heading and range"""
         self.current_heading = self.get_heading(raw_heading)
-        # kasus diluar bound
-
-        # lb => lower bound
-        # ub => upper bound
         lb = abs(self.current_heading - self.range_low)
         if self.range_low == 0:
             lb = min(lb, abs(self.current_heading - 360))
