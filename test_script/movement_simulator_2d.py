@@ -5,11 +5,12 @@
 Controls:
 - W/S: Forward/Backward speed control (+ forward, - backward)
 - A/D: Left/Right yaw control (A = - left, D = + right)
-- E: Set docking init point / Go to docking point
-- R: Record/Playback toggle
+- E: Set docking init point / Go to docking point / Reset docking
+- T: Record/Playback toggle
   * First press: Start recording movements
   * Second press: Stop recording and play back from initial position
   * Third press: Stop playback
+- R: Reset/Respawn simulation
 - Space: Stop movement
 - Q: Quit
 
@@ -32,18 +33,19 @@ The simulator visualizes:
 import pygame
 import math
 import sys
+import random
 from enum import Enum
 
 # Import the modularized docking controller
 sys.path.insert(0, '/home/amv/KKI-25')
-from core.core.mission.docking import DockingController
+from core.mission.docking import DockingController
 
 # Initialize Pygame
 pygame.init()
 
 # Constants
-WINDOW_WIDTH = 1200
-WINDOW_HEIGHT = 800
+WINDOW_WIDTH = 2000
+WINDOW_HEIGHT = 1200
 FPS = 60
 
 # Colors
@@ -63,12 +65,20 @@ MAX_SPEED_EFFORT = 300.0  # Maximum effort value (matching ROS)
 MAX_YAW_EFFORT = 300.0    # Maximum effort value (matching ROS)
 SPEED_INCREMENT = 10.0    # Delta effort per key press (can go up to ±100)
 YAW_INCREMENT = 10.0      # Delta effort per key press (can go up to ±100)
-SPEED_TO_VELOCITY = 0.01 # Conversion factor (tuned for ±300 range)
-YAW_TO_ANGULAR = 0.0005    # Conversion factor - reduced for less sensitive turning
+SPEED_TO_VELOCITY = 0.005 # Conversion factor (tuned for ±300 range)
+YAW_TO_ANGULAR = 0.0002    # Conversion factor - reduced for less sensitive turning
 
 # Coordinate conversion (pixels to lat/lon simulation)
 PIXELS_TO_METERS = 0.1
 METERS_TO_LATLON = 0.00001  # Approximate conversion
+
+# Simulation realism constants
+GPS_UPDATE_RATE = 5  # Hz (5-10 Hz typical)
+GPS_POSITION_NOISE = 5.0  # meters (±2-5m typical)
+GPS_HEADING_NOISE = 10  # degrees (±5-10° typical)
+CURRENT_STRENGTH = 0.03  # m/s (0.5-2 m/s typical)
+CURRENT_DIRECTION = 45.0  # degrees (can be changed)
+COMM_DELAY = 0.05  # seconds (50ms typical MAVLink delay)
 
 
 class DockingState(Enum):
@@ -86,9 +96,9 @@ class RecordingState(Enum):
 
 class Vehicle:
     def __init__(self, x, y):
-        self.x = x  # Screen position
+        self.x = x  # Screen position (true position)
         self.y = y
-        self.heading = 0.0  # Radians, 0 = right, positive = counterclockwise
+        self.heading = 0.0  # Radians, 0 = right, positive = counterclockwise (true heading)
         self.speed_effort = 0.0
         self.yaw_effort = 0.0
         self.velocity_x = 0.0
@@ -97,26 +107,69 @@ class Vehicle:
         self.path_history = []
         self.max_history = 500
         
-    def get_lat_lon(self):
+        # GPS simulation (noisy readings)
+        self.gps_x = x
+        self.gps_y = y
+        self.gps_heading = 0.0
+        self.gps_update_timer = 0.0
+        self.gps_update_interval = 1.0 / GPS_UPDATE_RATE
+        
+        # Environmental effects
+        self.current_x = CURRENT_STRENGTH * math.cos(math.radians(CURRENT_DIRECTION)) / PIXELS_TO_METERS
+        self.current_y = -CURRENT_STRENGTH * math.sin(math.radians(CURRENT_DIRECTION)) / PIXELS_TO_METERS
+        
+        # Communication delay buffer (store commands with timestamps)
+        self.command_buffer = []
+        
+    def get_lat_lon(self, use_gps=True):
         """Convert screen coordinates to simulated lat/lon"""
-        lat = (WINDOW_HEIGHT / 2 - self.y) * PIXELS_TO_METERS * METERS_TO_LATLON
-        lon = (self.x - WINDOW_WIDTH / 2) * PIXELS_TO_METERS * METERS_TO_LATLON
+        # Use noisy GPS position if requested, otherwise true position
+        x = self.gps_x if use_gps else self.x
+        y = self.gps_y if use_gps else self.y
+        lat = (WINDOW_HEIGHT / 2 - y) * PIXELS_TO_METERS * METERS_TO_LATLON
+        lon = (x - WINDOW_WIDTH / 2) * PIXELS_TO_METERS * METERS_TO_LATLON
         return lat, lon
     
-    def get_heading_pixhawk(self):
+    def update_gps(self, dt):
+        """Update GPS readings with realistic noise and update rate"""
+        self.gps_update_timer += dt
+        
+        if self.gps_update_timer >= self.gps_update_interval:
+            self.gps_update_timer = 0.0
+            
+            # Add position noise (Gaussian distribution)
+            noise_distance = random.gauss(0, GPS_POSITION_NOISE / 3)  # 3-sigma rule
+            noise_angle = random.uniform(0, 2 * math.pi)
+            noise_x = noise_distance * math.cos(noise_angle) / PIXELS_TO_METERS
+            noise_y = noise_distance * math.sin(noise_angle) / PIXELS_TO_METERS
+            
+            self.gps_x = self.x + noise_x
+            self.gps_y = self.y + noise_y
+            
+            # Add heading noise
+            heading_noise = random.gauss(0, GPS_HEADING_NOISE / 3)  # degrees
+            self.gps_heading = self.heading + math.radians(heading_noise)
+    
+    def get_heading_pixhawk(self, use_gps=True):
         """
         Get heading in Pixhawk convention (degrees).
         Internal: 0 = East (right), π/2 = North (up), CCW positive (radians)
         Pixhawk: 0 = North, 90 = East, 180 = South, 270 = West (degrees, clockwise)
         
+        Parameters:
+        use_gps: If True, return noisy GPS heading; if False, return true heading
+        
         Returns:
         float: Heading in degrees (Pixhawk convention: 0=North, clockwise)
         """
+        # Use noisy GPS heading if requested, otherwise true heading
+        heading = self.gps_heading if use_gps else self.heading
+        
         # Convert from mathematical convention (radians, East=0, CCW)
         # to Pixhawk convention (degrees, North=0, CW)
         
         # Step 1: Convert radians to degrees
-        heading_deg = math.degrees(self.heading)
+        heading_deg = math.degrees(heading)
         
         # Step 2: Convert East=0 to North=0 and flip direction (CCW to CW)
         # Math: East=0, North=90 (CCW)
@@ -127,7 +180,10 @@ class Vehicle:
         return pixhawk_heading
     
     def update(self, dt, apply_decay=True):
-        """Update vehicle physics"""
+        """Update vehicle physics with realistic effects"""
+        # Update GPS readings at realistic rate
+        self.update_gps(dt)
+        
         # Optional: Apply effort decay (simulates resistance/friction)
         if apply_decay:
             # Small decay to simulate natural resistance
@@ -154,6 +210,10 @@ class Vehicle:
         self.velocity_x = speed * math.cos(self.heading)
         self.velocity_y = -speed * math.sin(self.heading)  # Negative because Y increases downward
         
+        # Add environmental effects (current/drift)
+        self.velocity_x += self.current_x
+        self.velocity_y += self.current_y
+        
         # Update position
         self.x += self.velocity_x
         self.y += self.velocity_y
@@ -169,30 +229,56 @@ class Vehicle:
             if len(self.path_history) > self.max_history:
                 self.path_history.pop(0)
     
-    def set_speed_effort(self, effort):
-        """Set speed effort with clamping"""
-        self.speed_effort = max(-MAX_SPEED_EFFORT, min(MAX_SPEED_EFFORT, effort))
+    def set_speed_effort(self, effort, apply_delay=False, current_time=0.0):
+        """Set speed effort with clamping and optional communication delay"""
+        if apply_delay:
+            self.command_buffer.append(('speed', effort, current_time + COMM_DELAY))
+        else:
+            self.speed_effort = max(-MAX_SPEED_EFFORT, min(MAX_SPEED_EFFORT, effort))
     
-    def set_yaw_effort(self, effort):
-        """Set yaw effort with clamping"""
-        self.yaw_effort = max(-MAX_YAW_EFFORT, min(MAX_YAW_EFFORT, effort))
+    def set_yaw_effort(self, effort, apply_delay=False, current_time=0.0):
+        """Set yaw effort with clamping and optional communication delay"""
+        if apply_delay:
+            self.command_buffer.append(('yaw', effort, current_time + COMM_DELAY))
+        else:
+            self.yaw_effort = max(-MAX_YAW_EFFORT, min(MAX_YAW_EFFORT, effort))
+    
+    def process_delayed_commands(self, current_time):
+        """Process commands that have passed their delay time"""
+        remaining_commands = []
+        for cmd_type, effort, execute_time in self.command_buffer:
+            if current_time >= execute_time:
+                if cmd_type == 'speed':
+                    self.speed_effort = max(-MAX_SPEED_EFFORT, min(MAX_SPEED_EFFORT, effort))
+                elif cmd_type == 'yaw':
+                    self.yaw_effort = max(-MAX_YAW_EFFORT, min(MAX_YAW_EFFORT, effort))
+            else:
+                remaining_commands.append((cmd_type, effort, execute_time))
+        self.command_buffer = remaining_commands
     
     def stop(self):
         """Stop all movement"""
         self.speed_effort = 0.0
         self.yaw_effort = 0.0
     
-    def reset(self, x, y):
-        """Reset vehicle to position"""
+    def reset(self, x, y, heading=0.0):
+        """Reset vehicle to position with optional heading"""
         self.x = x
         self.y = y
-        self.heading = 0.0
+        self.heading = heading
         self.speed_effort = 0.0
         self.yaw_effort = 0.0
         self.velocity_x = 0.0
         self.velocity_y = 0.0
         self.angular_velocity = 0.0
         self.path_history = []
+        
+        # Reset GPS state
+        self.gps_x = x
+        self.gps_y = y
+        self.gps_heading = heading
+        self.gps_update_timer = 0.0
+        self.command_buffer = []
     
     def draw(self, screen):
         """Draw the vehicle as a triangle with heading indicator"""
@@ -314,13 +400,14 @@ class Simulator:
         
         # Calculate starting position (entry to U-turn course)
         # Position the vehicle at the start of the left lane (bottom center)
-        lane_width = 150
-        straight_length = 200
-        start_x = WINDOW_WIDTH // 2  # Center horizontally in the lane
-        start_y = WINDOW_HEIGHT // 2 + straight_length // 2 + 50  # Bottom of the course + offset
+        lane_width = 250  # Increased from 150
+        straight_length = 400  # Increased from 200
+        self.initial_spawn_x = WINDOW_WIDTH // 2  # Center horizontally in the lane
+        self.initial_spawn_y = WINDOW_HEIGHT // 2 + straight_length // 2  # Start of the course
+        self.initial_spawn_heading = 0.0  # Facing right (East)
         
         # Initialize vehicle at starting position
-        self.vehicle = Vehicle(start_x, start_y)
+        self.vehicle = Vehicle(self.initial_spawn_x, self.initial_spawn_y)
         self.docking_point = None
         self.docking_state = DockingState.IDLE
         
@@ -343,6 +430,12 @@ class Simulator:
         self.keys_pressed = set()
         self.running = True
         
+        # Simulation time (for delayed commands)
+        self.sim_time = 0.0
+        
+        # Toggle for showing simulation effects
+        self.show_sim_effects = True
+        
     def handle_input(self):
         """Handle keyboard input"""
         for event in pygame.event.get():
@@ -357,13 +450,18 @@ class Simulator:
                 elif event.key == pygame.K_SPACE:
                     self.vehicle.stop()
                     self.docking_state = DockingState.IDLE
-                elif event.key == pygame.K_r:
+                elif event.key == pygame.K_t:
                     self.handle_recording_action()
+                elif event.key == pygame.K_r:
+                    self.reset_simulation()
                 elif event.key == pygame.K_e:
                     self.handle_docking_action()
                 elif event.key == pygame.K_b:
                     self.show_bounding_boxes = not self.show_bounding_boxes
                     print(f"Bounding boxes: {'ON' if self.show_bounding_boxes else 'OFF'}")
+                elif event.key == pygame.K_n:
+                    self.show_sim_effects = not self.show_sim_effects
+                    print(f"Simulation effects display: {'ON' if self.show_sim_effects else 'OFF'}")
                     
             elif event.type == pygame.KEYUP:
                 self.keys_pressed.discard(event.key)
@@ -394,11 +492,11 @@ class Simulator:
         center_x = WINDOW_WIDTH // 2
         center_y = WINDOW_HEIGHT // 2
         
-        # U-turn course parameters
-        lane_width = 150  # Distance between inner and outer buoys
-        straight_length = 200  # Length of the straight sections
-        turn_radius = 100  # Radius of the U-turn
-        buoy_spacing = 50  # Spacing between buoys
+        # U-turn course parameters (made bigger)
+        lane_width = 250  # Distance between inner and outer buoys (increased from 150)
+        straight_length = 400  # Length of the straight sections (increased from 200)
+        turn_radius = 180  # Radius of the U-turn (increased from 100)
+        buoy_spacing = 60  # Spacing between buoys (increased from 50)
         
         # Left straight section (outer buoys)
         for i in range(int(straight_length / buoy_spacing) + 1):
@@ -471,7 +569,7 @@ class Simulator:
             print("Playback stopped")
     
     def handle_docking_action(self):
-        """Handle E key press for docking actions"""
+        """Handle E key press for docking actions (now reusable)"""
         if self.docking_state == DockingState.IDLE:
             # Set docking init point at current position
             self.docking_point = DockingPoint(self.vehicle.x, self.vehicle.y)
@@ -486,6 +584,32 @@ class Simulator:
             # Start autonomous navigation to docking point
             self.docking_state = DockingState.GOING_TO_DOCK
             print("Starting autonomous docking...")
+        elif self.docking_state == DockingState.DOCKED:
+            # Reset docking to allow setting a new point
+            self.docking_state = DockingState.IDLE
+            self.docking_point = None
+            print("Docking reset. Press E again to set a new docking point.")
+    
+    def reset_simulation(self):
+        """Reset the entire simulation to initial state"""
+        # Reset vehicle to spawn position
+        self.vehicle.reset(self.initial_spawn_x, self.initial_spawn_y, self.initial_spawn_heading)
+        
+        # Reset docking state
+        self.docking_point = None
+        self.docking_state = DockingState.IDLE
+        
+        # Reset recording state
+        self.recording_state = RecordingState.IDLE
+        self.playback_index = 0
+        self.playback_time_accumulator = 0.0
+        self.initial_vehicle_state = None
+        
+        # Reset collision counter
+        self.collision_count = 0
+        self.is_colliding = False
+        
+        print("Simulation reset to initial state.")
     
     def update_recording(self, dt):
         """Update movement recording during manual control"""
@@ -531,9 +655,9 @@ class Simulator:
         if self.docking_state != DockingState.GOING_TO_DOCK or self.docking_point is None:
             return
         
-        # Get current vehicle position and heading
-        current_lat, current_lon = self.vehicle.get_lat_lon()
-        current_heading_deg = self.vehicle.get_heading_pixhawk()  # Get in Pixhawk convention (degrees)
+        # Get current vehicle position and heading (with GPS noise)
+        current_lat, current_lon = self.vehicle.get_lat_lon(use_gps=True)
+        current_heading_deg = self.vehicle.get_heading_pixhawk(use_gps=True)  # Get in Pixhawk convention (degrees)
         
         # Use the modularized docking controller (now expects degrees in Pixhawk convention)
         yaw_effort, speed_effort, is_docked = self.docking_controller.calculate_control_efforts(
@@ -548,9 +672,9 @@ class Simulator:
             print(f"Docked successfully! Final distance: {distance:.2f}m")
             return
         
-        # Apply control efforts
-        self.vehicle.set_yaw_effort(yaw_effort)
-        self.vehicle.set_speed_effort(speed_effort)
+        # Apply control efforts with communication delay
+        self.vehicle.set_yaw_effort(yaw_effort, apply_delay=True, current_time=self.sim_time)
+        self.vehicle.set_speed_effort(speed_effort, apply_delay=True, current_time=self.sim_time)
     
     def draw_ui(self):
         """Draw UI elements"""
@@ -566,14 +690,33 @@ class Simulator:
         collision = self.check_collisions()
         heading_pixhawk = self.vehicle.get_heading_pixhawk()
         
+        # Get true position for comparison
+        true_lat, true_lon = self.vehicle.get_lat_lon(use_gps=False)
+        true_heading = self.vehicle.get_heading_pixhawk(use_gps=False)
+        
         info_texts = [
-            f"Position (Lat/Lon): {lat:.6f}, {lon:.6f}",
-            f"Heading (Pixhawk): {heading_pixhawk:.1f}° (0=N, 90=E, CW)",
+            f"GPS Position: {lat:.6f}, {lon:.6f}",
+            f"GPS Heading: {heading_pixhawk:.1f}° (0=N, 90=E, CW)",
             f"Speed Effort: {self.vehicle.speed_effort:.1f}",
             f"Yaw Effort: {self.vehicle.yaw_effort:.1f}",
             f"Docking State: {self.docking_state.name}",
             f"Recording State: {self.recording_state.name}",
         ]
+        
+        # Add simulation effects info if enabled
+        if self.show_sim_effects:
+            pos_error = math.sqrt((true_lat - lat)**2 + (true_lon - lon)**2) / METERS_TO_LATLON
+            heading_error = abs(true_heading - heading_pixhawk)
+            if heading_error > 180:
+                heading_error = 360 - heading_error
+            info_texts.extend([
+                f"--- Simulation Effects ---",
+                f"Position Error: {pos_error:.2f}m",
+                f"Heading Error: {heading_error:.1f}°",
+                f"Current: {CURRENT_STRENGTH:.1f} m/s @ {CURRENT_DIRECTION:.0f}°",
+                f"GPS Rate: {GPS_UPDATE_RATE} Hz",
+                f"Comm Delay: {COMM_DELAY*1000:.0f}ms",
+            ])
         
         # Add collision warning
         if collision:
@@ -619,14 +762,16 @@ class Simulator:
                 y_offset += 25
         
         # Controls help
-        y_offset = WINDOW_HEIGHT - 220
+        y_offset = WINDOW_HEIGHT - 240
         controls = [
             "Controls:",
             "W/S - Speed +/-",
             "A/D - Yaw Right(-)/Left(+)",
-            "E - Set Dock / Go to Dock",
-            "R - Record / Stop & Playback",
+            "E - Set Dock / Go / Reset Dock",
+            "T - Record / Stop & Playback",
+            "R - Reset Simulation",
             "B - Toggle Bounding Boxes",
+            "N - Toggle Sim Effects Info",
             "Space - Stop",
             "Q - Quit",
         ]
@@ -718,8 +863,13 @@ class Simulator:
         """Main simulation loop"""
         while self.running:
             dt = self.clock.tick(FPS) / 1000.0  # Delta time in seconds
+            self.sim_time += dt
             
             self.handle_input()
+            
+            # Process delayed commands
+            self.vehicle.process_delayed_commands(self.sim_time)
+            
             self.update_recording(dt)
             self.update_playback(dt)
             self.update_docking(dt)
@@ -762,6 +912,32 @@ class Simulator:
                 pygame.draw.line(self.screen, GREEN, (init_x, init_y - 10), (init_x, init_y + 10), 2)
             
             self.vehicle.draw(self.screen)
+            
+            # Draw simulation effects visualization
+            if self.show_sim_effects:
+                # Draw GPS position (noisy) vs true position
+                pygame.draw.circle(self.screen, YELLOW, (int(self.vehicle.gps_x), int(self.vehicle.gps_y)), 8, 2)
+                pygame.draw.line(self.screen, YELLOW, 
+                               (int(self.vehicle.x), int(self.vehicle.y)),
+                               (int(self.vehicle.gps_x), int(self.vehicle.gps_y)), 1)
+                
+                # Draw current direction arrow
+                arrow_length = 50
+                current_angle = math.radians(CURRENT_DIRECTION)
+                arrow_end_x = self.vehicle.x + arrow_length * math.cos(current_angle)
+                arrow_end_y = self.vehicle.y - arrow_length * math.sin(current_angle)
+                pygame.draw.line(self.screen, CYAN, 
+                               (int(self.vehicle.x), int(self.vehicle.y)),
+                               (int(arrow_end_x), int(arrow_end_y)), 2)
+                # Arrow head
+                arrow_size = 8
+                for angle_offset in [-2.5, 2.5]:
+                    head_angle = current_angle + angle_offset
+                    head_x = arrow_end_x - arrow_size * math.cos(head_angle)
+                    head_y = arrow_end_y + arrow_size * math.sin(head_angle)
+                    pygame.draw.line(self.screen, CYAN,
+                                   (int(arrow_end_x), int(arrow_end_y)),
+                                   (int(head_x), int(head_y)), 2)
             
             # Draw collision warning circle around vehicle
             if self.is_colliding:

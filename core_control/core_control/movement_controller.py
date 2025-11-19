@@ -72,7 +72,7 @@ class MovementController(Node):
         self.playback_index = 0
         self.playback_movements = []
         
-        # Control parameters
+        # # Control parameters
         self.control_rate = 50.0  # Hz
         self.dt = 1.0 / self.control_rate
         
@@ -359,7 +359,6 @@ class MovementController(Node):
             
             yaw_effort, speed_effort = self.calculate_control_efforts()
             
-            # If recording, use manual control efforts
             if self.is_recording:
                 yaw_effort = self.manual_yaw_effort
                 speed_effort = self.manual_speed_effort

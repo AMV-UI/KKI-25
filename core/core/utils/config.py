@@ -50,6 +50,7 @@ class NodeConfig:
     mission_manual = "mission_manual"
     mission = "mission"
     gcs = "GCS"
+    movement_controller = "movement_controller"
 
 
 class Topic:
