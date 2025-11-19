@@ -5,6 +5,7 @@ from core.utils.config import Topic, PxMode, Param
 from core_msgs.msg import Pixhawk
 from pymavlink import mavutil
 import traceback
+from time import time
 
 class PWMController(Node):
     def __init__(self, node = Node):
@@ -26,6 +27,22 @@ class PWMController(Node):
             self._pwm_callback
         )
 
+    def send_position_target_global(conn, lat, lon, alt):
+        conn.mav.set_position_target_global_int_send(
+            int(time.time() * 1e6),    # timestamp (ignored)
+            conn.target_system,
+            conn.target_component,
+            mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+            0b0000111111111000,        # type mask: use only position
+            int(lat * 1e7),            # lat 1e7
+            int(lon * 1e7),            # lon 1e7
+            alt,                       # altitude
+            0, 0, 0,                   # velocity
+            0, 0, 0,                   # acceleration
+            0, 0                       # yaw, yaw rate
+        )
+
+
     def _pwm_callback(self, pwm_msg):
         self.pwm_chan = pwm_msg.channels
 
@@ -42,16 +59,31 @@ class PWMController(Node):
             self.master.target_system, 
             self.master.target_component,
             *rc_channel_values,
-        )  
+        )
     
     def main(self):
         self.get_logger().info("PWM Controller Node Started")
         while rclpy.ok():
             rclpy.spin_once(self)
+            ## TESTING PURPOSE ONLY
+
+            # rc_channel_values = [0 for _ in range(8)]
+            # rc_channel_values[7] = 2007
+            # self.set_rc_channel_pwm(rc_channel_values)
+
+
             try:
+                # print(f"Current PxMode: {self.pxmode}")
                 if self.pwm_chan is not None and self.pxmode == PxMode.AUTO:
-                # self.get_logger().info("Sending PWM...Unsafe Mode Disabled")
+                    # self._get_pwm()
+                    # self.get_logger().info("Sending PWM...Unsafe Mode Disabled")
                     self.set_rc_channel_pwm(self.pwm_chan)
+                else:
+                    # self._get_pwm()
+                    rc_channel_values = [0 for _ in range(8)]
+                    self.set_rc_channel_pwm(rc_channel_values)
+
+                # time.sleep(1.0/60.0)
 
             except Exception as e:
                 self.get_logger().error(f"Error sending PWM: {e}")

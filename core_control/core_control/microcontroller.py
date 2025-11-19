@@ -275,7 +275,7 @@ class Microcontroller(Node):
 
     def _get_pwm(self):
         rc_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
-        self.info_throttle(2000, f"Channel Values : {rc_channels}")
+        self.info_throttle(2000, f"Channel Values : {rc_channels.chan1_raw}, {rc_channels.chan3_raw}, {rc_channels.chan8_raw}")
 
     def _px_arm(self):
         self.ser_2.mav.command_long_send(
@@ -299,7 +299,7 @@ class Microcontroller(Node):
         if pwm_val <= 1300:
             self.pxmode = PxMode.HOLD
         elif 1301 <= pwm_val <= 1700:
-            self.pxmode = PxMode.Manual
+            self.pxmode = PxMode.MANUAL
         else:
             self.pxmode = PxMode.AUTO
 
@@ -402,14 +402,17 @@ class Microcontroller(Node):
             
             self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
             
-            self.rc_chans = self._px_rc_val()
-            self._px_set_mode(self.rc_chans.chan8_raw)
+            # self.rc_chans = self._px_rc_val()
+            # self._px_set_mode(self.rc_chans.chan8_raw)
             
-            self.warn_throttle(5000, "Sending PWM...")
+            # if(self.pxmode != PxMode.AUTO):
+            self._get_pwm()
+
+            # self.warn_throttle(5000, "Sending PWM...")
             
             # Sleep equivalent to rospy.Rate(60).sleep()
-            time.sleep(1.0/60.0)
-            self.info_once("Successfully initialized node")
+            # time.sleep(1.0/60.0)
+            # self.info_once("Successfully initialized node")
 
 
 def main(args=None):

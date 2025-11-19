@@ -36,12 +36,12 @@ def generate_launch_description():
             name="microcontroller",
             output="screen",
         ),
-        Node(
-            package="core_control",
-            executable="pwm_controller",
-            name="pwm_controller",
-            output="screen",
-        ),
+        # Node(
+        #     package="core_control",
+        #     executable="pwm_controller",
+        #     name="pwm_controller",
+        #     output="screen",
+        # ),
         Node(
             package="core_control",
             executable="motor_controller",
