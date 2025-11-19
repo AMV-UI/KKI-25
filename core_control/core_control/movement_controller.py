@@ -1,0 +1,426 @@
+#!/usr/bin/env python3
+
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String, UInt8, Float64, Bool
+from core.utils.config import Topic, PxMode, Param, NodeConfig
+from core_msgs.msg import Pixhawk, Pwm
+from core.mission.docking import DockingController
+import traceback
+from time import time
+import math
+
+class MovementController(Node):
+    """
+    Advanced Movement Controller with Autonomous Docking Capability
+    
+    This controller integrates the DockingController for autonomous navigation
+    and provides both manual control and autonomous docking modes.
+    
+    Modes:
+    - MANUAL: Direct control via yaw_effort and speed_effort topics
+    - AUTONOMOUS_DOCKING: Uses DockingController to navigate to target position
+
+    #Channel 5 = Docking
+    #Channel 6 = Record Coord
+
+    #Magic Numbers => :
+        #LOW: Chan : 983
+        #MID: Chan  : 1495
+        #HIGH: Chan : 2006
+    
+    """
+    
+    def __init__(self):
+        super().__init__(NodeConfig.movement_controller)
+        
+        self.docking_controller = DockingController()
+        
+        self.current_lat = 0.0
+        self.current_lon = 0.0
+        self.current_heading = 0.0  # In degrees (Pixhawk: 0=North, 90=East, 180=South, 270=West, clockwise)
+        self.current_speed = 0.0
+        
+        self.manual_yaw_effort = 0.0
+        self.manual_speed_effort = 0.0
+        
+        # RC Channel values
+        self.chan5_docking = 983
+        self.chan6_recording = 983  # Recording channel
+        
+        # Channel thresholds
+        self.PWM_LOW = 983
+        self.PWM_MID = 1495
+        self.PWM_HIGH = 2006
+        self.PWM_THRESHOLD = 200  # Threshold for detecting state changes
+        
+        # Autonomous docking state
+        self.docking_enabled = False
+        self.docking_target_set = False
+        self.last_update_time = time()
+        
+        # Previous channel states for edge detection
+        self.prev_chan5_state = 'LOW'
+        self.prev_chan6_state = 'LOW'
+        
+        # Recording state
+        self.is_recording = False
+        self.recording_start_lat = 0.0
+        self.recording_start_lon = 0.0
+        self.recording_start_heading = 0.0
+        self.playback_enabled = False
+        self.playback_index = 0
+        self.playback_movements = []
+        
+        # Control parameters
+        self.control_rate = 50.0  # Hz
+        self.dt = 1.0 / self.control_rate
+        
+        self._setup_communication()
+        
+        self.get_logger().info(f"[{NodeConfig.movement_controller}] Successfully initialized")
+        self.get_logger().info("Waiting for Pixhawk data...")
+    
+    def _setup_communication(self):
+        """Initialize all ROS2 subscribers and publishers"""
+        
+        # Subscribers
+        self.pixhawk_sub = Topic.pixhawk.createSubscriber(self, self._pixhawk_callback)
+        self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
+
+        self.docking_target_sub = self.create_subscription(
+            Pixhawk, '/docking_target', self._docking_target_callback, 10
+        )
+        self.docking_enable_sub = self.create_subscription(
+            Bool, '/docking_enable', self._docking_enable_callback, 10
+        )
+        self.manual_yaw_sub = Topic.manual_yaw.createSubscriber(self, self._manual_yaw_callback)
+        self.manual_speed_sub = Topic.manual_speed.createSubscriber(self, self._manual_speed_callback)
+        
+        # Publishers
+        self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self)
+        self.speed_effort_pub = Topic.speed_effort.createPublisher(self)
+        self.docking_status_pub = self.create_publisher(String, '/docking_status', 10)
+        
+        
+        self.get_logger().info("Communication setup complete")
+    
+    def _manual_yaw_callback(self, msg: Float64):
+        """Store manual yaw effort for recording"""
+        self.manual_yaw_effort = msg.data
+    
+    def _manual_speed_callback(self, msg: Float64):
+        """Store manual speed effort for recording"""
+        self.manual_speed_effort = msg.data
+    
+    def _pixhawk_callback(self, msg: Pixhawk):
+        """Update current position and heading from Pixhawk"""
+        self.current_lat = msg.lat
+        self.current_lon = msg.lon
+        self.current_speed = msg.msg_spd
+        
+        # Store heading directly in Pixhawk convention (degrees, 0-360)
+        # Pixhawk: 0 = North, 90 = East, 180 = South, 270 = West (clockwise)
+        self.current_heading = msg.msg_heading
+    
+    def _pwm_callback(self, msg: Pwm):
+        """Update RC channel values from PWM message"""
+        # Channel 5 (index 4) = Docking control
+        # Channel 6 (index 5) = Recording control
+        if len(msg.channels) > 5:
+            self.chan5_docking = msg.channels[4]
+            self.chan6_recording = msg.channels[5]
+            
+            self._process_channel_controls()
+    
+    
+    def _docking_target_callback(self, msg: Pixhawk):
+        """Set docking target position"""
+        target_lat = msg.lat
+        target_lon = msg.lon
+        
+        self.docking_controller.set_target(target_lat, target_lon)
+        self.docking_target_set = True
+        
+        self.get_logger().info(
+            f"Docking target set: Lat={target_lat:.6f}, Lon={target_lon:.6f}"
+        )
+    
+    def _docking_enable_callback(self, msg: Bool):
+        """Enable or disable autonomous docking"""
+        if msg.data and not self.docking_target_set:
+            self.get_logger().warn("Cannot enable docking: No target set!")
+            return
+        
+        self.docking_enabled = msg.data
+        
+        if self.docking_enabled:
+            self.docking_controller.reset_controller()
+            self.get_logger().info("Autonomous docking ENABLED")
+        else:
+            self.get_logger().info("Autonomous docking DISABLED")
+    
+    def _get_channel_state(self, pwm_value):
+        """
+        Determine channel state from PWM value.
+        
+        Returns:
+        str: 'LOW', 'MID', or 'HIGH'
+        """
+        if pwm_value < self.PWM_MID - self.PWM_THRESHOLD:
+            return 'LOW'
+        elif pwm_value > self.PWM_MID + self.PWM_THRESHOLD:
+            return 'HIGH'
+        else:
+            return 'MID'
+    
+    def _process_channel_controls(self):
+        """
+        Process RC channel inputs for docking and recording control.
+        
+        Channel 5 (Docking):
+        - LOW: Neutral (manual control)
+        - MID: Set docking init point (current position)
+        - HIGH: Go to docking point (autonomous)
+        
+        Channel 6 (Recording):
+        - LOW: Neutral (stop recording/playback)
+        - MID: Start recording movements
+        - HIGH: Stop recording and playback from start
+        """
+        # Process Channel 5 - Docking
+        chan5_state = self._get_channel_state(self.chan5_docking)
+        
+        if chan5_state != self.prev_chan5_state:
+            if chan5_state == 'MID':
+                # Set docking init point at current position
+                self.docking_controller.set_target(self.current_lat, self.current_lon)
+                self.docking_target_set = True
+                self.docking_enabled = False
+                self.get_logger().info(
+                    f"[CH5-MID] Docking init point set: Lat={self.current_lat:.6f}, Lon={self.current_lon:.6f}"
+                )
+            
+            elif chan5_state == 'HIGH':
+                # Go to docking point
+                if self.docking_target_set:
+                    self.docking_enabled = True
+                    self.docking_controller.reset_controller()
+                    self.get_logger().info("[CH5-HIGH] Autonomous docking ENABLED - Going to docking point")
+                else:
+                    self.get_logger().warn("[CH5-HIGH] Cannot enable docking: No target set!")
+            
+            elif chan5_state == 'LOW':
+                # Neutral - disable docking
+                if self.docking_enabled:
+                    self.docking_enabled = False
+                    self.get_logger().info("[CH5-LOW] Docking DISABLED - Manual control")
+            
+            self.prev_chan5_state = chan5_state
+        
+        # Process Channel 6 - Recording
+        chan6_state = self._get_channel_state(self.chan6_recording)
+        
+        if chan6_state != self.prev_chan6_state:
+            if chan6_state == 'MID':
+                # Start recording
+                if not self.is_recording and not self.playback_enabled:
+                    self.docking_controller.start_recording(
+                        self.current_lat,
+                        self.current_lon,
+                        self.current_heading
+                    )
+                    self.is_recording = True
+                    self.recording_start_lat = self.current_lat
+                    self.recording_start_lon = self.current_lon
+                    self.recording_start_heading = self.current_heading
+                    self.get_logger().info("[CH6-MID] Recording STARTED")
+            
+            elif chan6_state == 'HIGH':
+                # Stop recording and start playback
+                if self.is_recording:
+                    num_frames = self.docking_controller.stop_recording()
+                    duration = self.docking_controller.get_recording_duration()
+                    self.is_recording = False
+                    
+                    if num_frames > 0:
+                        self.playback_movements = self.docking_controller.get_recorded_movements()
+                        self.playback_index = 0
+                        self.playback_enabled = True
+                        self.get_logger().info(
+                            f"[CH6-HIGH] Recording stopped ({num_frames} frames, {duration:.1f}s). "
+                            f"Playback STARTED - replaying from init position"
+                        )
+                    else:
+                        self.get_logger().warn("[CH6-HIGH] No movements recorded!")
+            
+            elif chan6_state == 'LOW':
+                # Neutral - stop recording/playback
+                if self.is_recording:
+                    self.docking_controller.stop_recording()
+                    self.is_recording = False
+                    self.get_logger().info("[CH6-LOW] Recording STOPPED")
+                
+                if self.playback_enabled:
+                    self.playback_enabled = False
+                    self.playback_index = 0
+                    self.get_logger().info("[CH6-LOW] Playback STOPPED")
+            
+            self.prev_chan6_state = chan6_state
+    
+    def calculate_control_efforts(self):
+        """
+        Calculate control efforts based on current mode.
+        Priority: Playback > Docking > Recording > Manual
+        
+        Returns:
+        tuple: (yaw_effort, speed_effort)
+        """
+        current_time = time()
+        dt = current_time - self.last_update_time
+        self.last_update_time = current_time
+        
+        # Priority 1: Playback mode
+        if self.playback_enabled and len(self.playback_movements) > 0:
+            if self.playback_index < len(self.playback_movements):
+                yaw_effort, speed_effort, _ = self.playback_movements[self.playback_index]
+                self.playback_index += 1
+                return yaw_effort, speed_effort
+            else:
+                # Playback finished
+                self.playback_enabled = False
+                self.playback_index = 0
+                self.get_logger().info("Playback complete!")
+                return 0.0, 0.0
+        
+        # Priority 2: Autonomous docking mode
+        if self.docking_enabled and self.docking_target_set:
+            yaw_effort, speed_effort, is_docked = self.docking_controller.calculate_control_efforts(
+                self.current_lat,
+                self.current_lon,
+                self.current_heading,  # Pixhawk degrees: 0=North, clockwise
+                dt
+            )
+            
+            if is_docked:
+                self.docking_enabled = False
+                self.get_logger().info("Docking complete! Switching to manual mode.")
+            
+            return yaw_effort, speed_effort
+        
+        # Priority 3: Recording mode (pass-through manual control but record)
+        if self.is_recording:
+            # In recording mode, we return 0,0 here and let manual control handle it
+            # The manual efforts will be recorded in control_loop
+            return 0.0, 0.0
+        
+        # Priority 4: Manual mode
+        return 0.0, 0.0
+    
+    def publish_docking_status(self):
+        """Publish current docking and recording status information"""
+        status_msg = String()
+        status_parts = []
+        
+        # Recording status
+        if self.is_recording:
+            duration = self.docking_controller.get_recording_duration()
+            status_parts.append(f"RECORDING ({duration:.1f}s)")
+        elif self.playback_enabled:
+            progress = (self.playback_index / len(self.playback_movements) * 100) if self.playback_movements else 0
+            status_parts.append(f"PLAYBACK ({progress:.0f}%)")
+        
+        # Docking status
+        if self.docking_target_set:
+            distance = self.docking_controller.get_distance_to_target(
+                self.current_lat, self.current_lon
+            )
+            heading_error = self.docking_controller.get_heading_error_deg()
+            
+            docking_status = (
+                f"Docking {'ACTIVE' if self.docking_enabled else 'SET'} | "
+                f"Dist: {distance:.2f}m | "
+                f"Hdg Err: {heading_error:.1f}° | "
+                f"Docked: {self.docking_controller.is_docked}"
+            )
+            status_parts.append(docking_status)
+        
+        # Channel states
+        status_parts.append(f"CH5:{self.prev_chan5_state} CH6:{self.prev_chan6_state}")
+        
+        status_msg.data = " | ".join(status_parts)
+        self.docking_status_pub.publish(status_msg)
+    
+    def control_loop(self):
+        """Main control loop callback"""
+        try:
+            current_time = time()
+            dt = current_time - self.last_update_time
+            
+            yaw_effort, speed_effort = self.calculate_control_efforts()
+            
+            # If recording, use manual control efforts
+            if self.is_recording:
+                yaw_effort = self.manual_yaw_effort
+                speed_effort = self.manual_speed_effort
+                self.docking_controller.record_movement(yaw_effort, speed_effort, dt)
+
+            yaw_effort = max(-300.0, min(300.0, yaw_effort))
+            speed_effort = max(-300.0, min(300.0, speed_effort))
+            
+            yaw_msg = Float64()
+            yaw_msg.data = yaw_effort
+            self.yaw_effort_pub.publish(yaw_msg)
+            
+            speed_msg = Float64()
+            speed_msg.data = speed_effort
+            self.speed_effort_pub.publish(speed_msg)
+            
+            self.publish_docking_status()
+
+            if int(time() * 2) % 10 == 0:  # Every 5 seconds
+                mode = "PLAYBACK" if self.playback_enabled else ("DOCKING" if self.docking_enabled else ("RECORDING" if self.is_recording else "MANUAL"))
+                status = f"Mode: {mode} | Pos: ({self.current_lat:.6f}, {self.current_lon:.6f}) | Heading: {self.current_heading:.1f}° | "
+                status += f"Yaw: {yaw_effort:.1f}, Speed: {speed_effort:.1f} | "
+                status += f"CH5: {self.chan5_docking} ({self.prev_chan5_state}), CH6: {self.chan6_recording} ({self.prev_chan6_state})"
+                self.get_logger().info(status)
+        
+        except Exception as e:
+            self.get_logger().error(f"Error in control loop: {traceback.format_exc()}")
+    
+    def run(self):
+        """Start the movement controller"""
+        # Create timer for control loop
+        self.timer = self.create_timer(self.dt, self.control_loop)
+        self.get_logger().info(f"Movement controller running at {self.control_rate} Hz")
+    
+    def set_target_from_current_position(self):
+        """
+        Convenience method to set current position as docking target.
+        Useful for testing or marking waypoints.
+        """
+        self.docking_controller.set_target(self.current_lat, self.current_lon)
+        self.docking_target_set = True
+        self.get_logger().info(
+            f"Docking target set to current position: "
+            f"Lat={self.current_lat:.6f}, Lon={self.current_lon:.6f}"
+        )
+
+
+def main(args=None):
+    try:
+        rclpy.init(args=args)
+        
+        movement_controller = MovementController()
+        movement_controller.run()
+        
+        rclpy.spin(movement_controller)
+        
+    except Exception as e:
+        print(f"Error in main: {traceback.format_exc()}")
+    finally:
+        if rclpy.ok():
+            rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()

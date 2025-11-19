@@ -38,7 +38,12 @@ _reverse_map = MotorReverse.map
 # PWM
 _pwm_offset = 15
 
+#Magic Numbers => pxmode:
+        #LOW: Chan 8 : 983 => HOLD
+        #MID: Chan 8 : 1495 => MANUAL
+        #HIGH: Chan 8 : 2006 => AUTO
 
+        
 class MiconType:
     PX = 1
     PICO = 2

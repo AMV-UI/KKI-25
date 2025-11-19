@@ -24,7 +24,8 @@ setup(
         'console_scripts': [
             'motor_controller = core_control.motor_controller:main',
             'microcontroller = core_control.microcontroller:main',
-            'pwm_controller = core_control.pwm_controller:main'
+            'pwm_controller = core_control.pwm_controller:main',
+            'movement_controller = core_control.movement_controller:main'
         ],
     },
 )

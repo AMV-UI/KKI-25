@@ -76,7 +76,7 @@ class PWMController(Node):
                 # print(f"Current PxMode: {self.pxmode}")
                 if self.pwm_chan is not None and self.pxmode == PxMode.AUTO:
                     # self._get_pwm()
-                    # self.get_logger().info("Sending PWM...Unsafe Mode Disabled")
+                    self.get_logger().info("Sending PWM...Unsafe Mode Disabled")
                     self.set_rc_channel_pwm(self.pwm_chan)
                 else:
                     # self._get_pwm()

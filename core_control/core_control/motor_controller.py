@@ -65,6 +65,8 @@ class MotorController(Node):
         
         # Publishers
         self.pwm_pub = Topic.pwm.createPublisher(self)
+        self.manual_yaw_pub = Topic.manual_yaw.createPublisher(self)
+        self.manual_speed_pub = Topic.manual_speed.createPublisher(self)
 
         # Subscribers
         self.yaw_effort_sub = Topic.yaw_effort.createSubscriber(self, self._yaw_effort_callback)
@@ -83,6 +85,11 @@ class MotorController(Node):
         self.get_logger().info("=" * 60)
 
     def autonomous(self):
+        """Autonomous control logic for motor PWM settings"""
+        self.manual_yaw_pub.publish(Float64(data=self.yaw_effort))
+        self.manual_speed_pub.publish(Float64(data=self.speed_effort))
+
+        
         for k, v in self.motor.autonomous(
             control_effort_x=self.yaw_effort,
             control_effort_y=self.speed_effort

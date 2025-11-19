@@ -1,59 +1,115 @@
 import math
 
-class Docking:
-    def __init__(self, current_lat, current_lon, target_lat, target_lon):
+class DockingController:
+    def __init__(self, target_lat=None, target_lon=None):
         """
-        PID docking station using coordinate from Pixhawk
+        Modular docking controller using PID control for autonomous navigation.
+        Works with effort values in range ±300 (matching ROS system).
+        
         Parameters:
-        current_lat (float): Current latitude, subscribed from Pixhawk
-        current_lon (float): Current longitude, subscribed from Pixhawk
-        target_lat (float): Target latitude, taken in first mission
-        target_lon (float): Target longitude, taken in first mission
+        target_lat (float, optional): Target latitude for docking
+        target_lon (float, optional): Target longitude for docking
         """
-        self.current_lat = current_lat
-        self.current_lon = current_lon
         self.target_lat = target_lat
         self.target_lon = target_lon
         
-        # PID parameters - tune these values
-        self.Kp = 5.0  # Proportional gain
-        self.Ki = 0.1  # Integral gain
-        self.Kd = 2.0  # Derivative gain
+        # PID parameters for yaw control - tune these values
+        self.Kp_yaw = 100.0    # Proportional gain for yaw (increased for ±300 range)
+        self.Ki_yaw = 0.5      # Integral gain for yaw
+        self.Kd_yaw = 20.0     # Derivative gain for yaw
+        
+        # PID parameters for speed control
+        self.Kp_speed = 100.0  # Proportional gain for speed (distance-based)
+        self.min_speed = 50.0  # Minimum speed effort when moving
+        self.max_speed = 200.0 # Maximum speed effort
         
         # PID state variables
-        self.error = 0.0
-        self.integral = 0.0
-        self.prev_error = 0.0
+        self.yaw_error = 0.0
+        self.yaw_integral = 0.0
+        self.prev_yaw_error = 0.0
         
-        # Effort constraints
-        self.IDLE_EFFORT = 1500
-        self.MAX_EFFORT = 1800
-        self.MIN_EFFORT = 1200
+        # Effort constraints (matching ROS ±300 system)
+        self.MAX_EFFORT = 300.0
+        self.MIN_EFFORT = -300.0
         
-    def calculate_bearing(self, lat1, lon1, lat2, lon2):
+        # Docking thresholds
+        self.docking_distance_threshold = 1.5  # meters - consider docked when closer
+        self.alignment_threshold = 0.3         # radians (~17 degrees) - move forward when aligned
+        
+        # State tracking
+        self.is_docked = False
+        
+        # Movement recording
+        self.recorded_movements = []  # List of (yaw_effort, speed_effort, dt) tuples
+        self.is_recording = False
+        self.initial_position = None  # (lat, lon, heading) when recording starts
+        self.recording_start_time = 0.0
+        
+    def calculate_bearing_rad(self, lat1, lon1, lat2, lon2):
         """
-        Calculate the bearing from current position to target position
-        Returns bearing in degrees (0-360)
+        Calculate the bearing from current position to target position.
+        Uses PIXHAWK convention: 0 = North, clockwise (0-360°).
+        
+        Parameters:
+        lat1, lon1 (float): Starting position in decimal degrees
+        lat2, lon2 (float): Target position in decimal degrees
+        
+        Returns:
+        float: Bearing in radians using Pixhawk convention (0 = North, clockwise), range [0, 2π]
         """
-        # Convert to radians
-        lat1_rad = math.radians(lat1)
-        lat2_rad = math.radians(lat2)
-        delta_lon = math.radians(lon2 - lon1)
+        # Calculate differences in lat/lon
+        delta_lat = lat2 - lat1
+        delta_lon = lon2 - lon1
         
-        # Calculate bearing
-        x = math.sin(delta_lon) * math.cos(lat2_rad)
-        y = math.cos(lat1_rad) * math.sin(lat2_rad) - \
-            math.sin(lat1_rad) * math.cos(lat2_rad) * math.cos(delta_lon)
+        # For accurate bearing calculation with real GPS coordinates,
+        # account for latitude's effect on longitude distances
+        lat_avg = math.radians((lat1 + lat2) / 2)
         
-        bearing = math.atan2(x, y)
-        bearing = math.degrees(bearing)
-        bearing = (bearing + 360) % 360  # Normalize to 0-360
+        # Convert to Cartesian-like coordinates (meters approximately)
+        dx_east = delta_lon * math.cos(lat_avg)  # East-West component
+        dy_north = delta_lat                      # North-South component
         
-        return bearing
+        # Calculate bearing using atan2(East, North) for Pixhawk convention
+        # atan2(x, y) gives: North=0, East=90°, South=180°, West=270° (clockwise)
+        bearing_rad = math.atan2(dx_east, dy_north)
+        
+        # Normalize to [0, 2π] for Pixhawk convention
+        if bearing_rad < 0:
+            bearing_rad += 2 * math.pi
+        
+        return bearing_rad
     
-    def normalize_angle(self, angle):
+    def calculate_bearing_deg(self, lat1, lon1, lat2, lon2):
         """
-        Normalize angle to range [-180, 180]
+        Calculate the bearing from current position to target position.
+        Returns bearing in degrees (0-360).
+        """
+        bearing_rad = self.calculate_bearing_rad(lat1, lon1, lat2, lon2)
+        bearing_deg = math.degrees(bearing_rad)
+        bearing_deg = (bearing_deg + 360) % 360  # Normalize to 0-360
+        return bearing_deg
+    
+    def normalize_angle_rad(self, angle):
+        """
+        Normalize angle to range [-π, π].
+        
+        Parameters:
+        angle (float): Angle in radians
+        
+        Returns:
+        float: Normalized angle in radians
+        """
+        return math.atan2(math.sin(angle), math.cos(angle))
+    
+    def normalize_angle_deg(self, angle):
+        """
+        Normalize angle to range [-180, 180] degrees.
+        
+        Parameters:
+        angle (float): Angle in degrees
+        
+        Returns:
+        float: Normalized angle in degrees
         """
         while angle > 180:
             angle -= 360
@@ -61,64 +117,124 @@ class Docking:
             angle += 360
         return angle
     
-    def calculate_yaw_effort(self, current_heading, dt):
+    def set_target(self, target_lat, target_lon):
         """
-        Calculate the yaw effort using PID controller
+        Set or update the docking target position.
+        
         Parameters:
-        current_heading (float): Current heading from Pixhawk in degrees (0-360)
+        target_lat (float): Target latitude
+        target_lon (float): Target longitude
+        """
+        self.target_lat = target_lat
+        self.target_lon = target_lon
+        self.reset_controller()
+    
+    def reset_controller(self):
+        """Reset PID controller state variables."""
+        self.yaw_error = 0.0
+        self.yaw_integral = 0.0
+        self.prev_yaw_error = 0.0
+        self.is_docked = False
+    
+    def calculate_control_efforts(self, current_lat, current_lon, current_heading_deg, dt):
+        """
+        Calculate yaw and speed efforts for autonomous docking.
+        
+        Convention (PIXHAWK SYSTEM):
+        - Yaw: POSITIVE = turn RIGHT (CW), NEGATIVE = turn LEFT (CCW)
+        - Speed: POSITIVE = forward, NEGATIVE = backward
+        - Heading: 0 = North, 90 = East, 180 = South, 270 = West (CLOCKWISE)
+        
+        Parameters:
+        current_lat (float): Current latitude in decimal degrees
+        current_lon (float): Current longitude in decimal degrees
+        current_heading_deg (float): Current heading in DEGREES (Pixhawk: 0=North, clockwise)
         dt (float): Time step since last calculation in seconds
         
         Returns:
-        int: Yaw effort value (1100-1900, where 1500 is idle)
+        tuple: (yaw_effort, speed_effort, is_docked)
+            - yaw_effort (float): Yaw control effort in range ±300 (+ = right, - = left)
+            - speed_effort (float): Speed control effort in range ±300 (+ = forward, - = backward)
+            - is_docked (bool): True if within docking threshold
         """
-        # Calculate desired bearing to target
-        desired_heading = self.calculate_bearing(
-            self.current_lat, self.current_lon,
+        if self.target_lat is None or self.target_lon is None:
+            return 0.0, 0.0, False
+        
+        distance = self.get_distance_to_target(current_lat, current_lon)
+
+        if distance < self.docking_distance_threshold:
+            self.is_docked = True
+            return 0.0, 0.0, True
+        
+        # Convert current heading to radians (Pixhawk convention: 0=N, clockwise)
+        current_heading_rad = math.radians(current_heading_deg)
+        
+        # Calculate desired bearing (in radians, Pixhawk convention, range [0, 2π])
+        desired_heading = self.calculate_bearing_rad(
+            current_lat, current_lon,
             self.target_lat, self.target_lon
         )
         
-        # Calculate heading error (normalized to -180 to 180)
-        self.error = self.normalize_angle(desired_heading - current_heading)
+        # Calculate heading error (normalized to -π to π)
+        # For Pixhawk clockwise convention:
+        # Positive error = need to turn clockwise (right)
+        # Negative error = need to turn counter-clockwise (left)
+        error = desired_heading - current_heading_rad
+        # Normalize to shortest rotation (-π to π)
+        self.yaw_error = math.atan2(math.sin(error), math.cos(error))
         
-        # PID calculations
-        self.integral += self.error * dt
+        # PID calculations for yaw
+        self.yaw_integral += self.yaw_error * dt
         
         # Anti-windup: limit integral term
-        max_integral = 50
-        self.integral = max(-max_integral, min(max_integral, self.integral))
+        max_integral = 30.0
+        self.yaw_integral = max(-max_integral, min(max_integral, self.yaw_integral))
         
-        derivative = (self.error - self.prev_error) / dt if dt > 0 else 0
+        derivative = (self.yaw_error - self.prev_yaw_error) / dt if dt > 0 else 0.0
         
-        pid_output = (self.Kp * self.error + 
-                      self.Ki * self.integral + 
-                      self.Kd * derivative)
+        yaw_pid_output = (self.Kp_yaw * self.yaw_error + 
+                          self.Ki_yaw * self.yaw_integral + 
+                          self.Kd_yaw * derivative)
         
-        # Convert PID output to yaw effort
-        # Positive error means turn right, negative means turn left
-        yaw_effort = self.IDLE_EFFORT + int(pid_output)
-        yaw_effort = max(self.MIN_EFFORT, min(self.MAX_EFFORT, yaw_effort))
-
-        self.prev_error = self.error
+        # Convert to yaw effort (clamp to ±300)
+        # In Pixhawk convention with clockwise positive:
+        # Positive error = need to turn RIGHT (clockwise) = positive yaw effort
+        # Negative error = need to turn LEFT (counter-clockwise) = negative yaw effort
+        # So NO inversion needed - signs match!
+        yaw_effort = max(self.MIN_EFFORT, min(self.MAX_EFFORT, yaw_pid_output))
         
-        return yaw_effort
+        # Calculate speed effort based on distance and alignment
+        if abs(self.yaw_error) < self.alignment_threshold:
+            # Well aligned - use distance-based speed
+            speed_effort = min(self.max_speed, max(self.min_speed, distance * self.Kp_speed))
+        else:
+            # Not aligned - slow down or stop
+            speed_effort = 0.0
+        
+        self.prev_yaw_error = self.yaw_error
+        
+        return yaw_effort, speed_effort, False
     
-    def update_position(self, current_lat, current_lon):
+    def get_distance_to_target(self, current_lat, current_lon):
         """
-        Update current position from Pixhawk
+        Calculate distance to target in meters using Haversine formula.
+        
+        Parameters:
+        current_lat (float): Current latitude in decimal degrees
+        current_lon (float): Current longitude in decimal degrees
+        
+        Returns:
+        float: Distance to target in meters
         """
-        self.current_lat = current_lat
-        self.current_lon = current_lon
-    
-    def get_distance_to_target(self):
-        """
-        Calculate distance to target in meters using Haversine formula
-        """
+        if self.target_lat is None or self.target_lon is None:
+            return float('inf')
+        
         R = 6371000  # Earth radius in meters
         
-        lat1_rad = math.radians(self.current_lat)
+        lat1_rad = math.radians(current_lat)
         lat2_rad = math.radians(self.target_lat)
-        delta_lat = math.radians(self.target_lat - self.current_lat)
-        delta_lon = math.radians(self.target_lon - self.current_lon)
+        delta_lat = math.radians(self.target_lat - current_lat)
+        delta_lon = math.radians(self.target_lon - current_lon)
         
         a = math.sin(delta_lat/2)**2 + \
             math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon/2)**2
@@ -126,3 +242,112 @@ class Docking:
         
         distance = R * c
         return distance
+    
+    def get_heading_error(self):
+        """
+        Get the current heading error in radians.
+        Useful for monitoring alignment during docking.
+        
+        Returns:
+        float: Current heading error in radians
+        """
+        return self.yaw_error
+    
+    def get_heading_error_deg(self):
+        """
+        Get the current heading error in degrees.
+        
+        Returns:
+        float: Current heading error in degrees
+        """
+        return math.degrees(self.yaw_error)
+    
+    # ========== Movement Recording/Playback Methods ==========
+    
+    def start_recording(self, current_lat, current_lon, current_heading):
+        """
+        Start recording manual movements.
+        
+        Parameters:
+        current_lat (float): Starting latitude
+        current_lon (float): Starting longitude
+        current_heading (float): Starting heading in degrees (Pixhawk: 0=North, clockwise)
+        """
+        self.is_recording = True
+        self.recorded_movements = []
+        self.initial_position = (current_lat, current_lon, current_heading)
+        self.recording_start_time = 0.0
+        return True
+    
+    def stop_recording(self):
+        """
+        Stop recording movements.
+        
+        Returns:
+        int: Number of recorded movement frames
+        """
+        self.is_recording = False
+        return len(self.recorded_movements)
+    
+    def record_movement(self, yaw_effort, speed_effort, dt):
+        """
+        Record a single movement frame during recording.
+        
+        Parameters:
+        yaw_effort (float): Current yaw effort
+        speed_effort (float): Current speed effort
+        dt (float): Time delta since last frame
+        
+        Returns:
+        bool: True if recorded, False if not recording
+        """
+        if not self.is_recording:
+            return False
+        
+        self.recorded_movements.append((yaw_effort, speed_effort, dt))
+        self.recording_start_time += dt
+        return True
+    
+    def get_initial_position(self):
+        """
+        Get the initial position when recording started.
+        
+        Returns:
+        tuple: (lat, lon, heading_deg) or None if no recording has been made
+               heading_deg is in Pixhawk convention (0=North, clockwise)
+        """
+        return self.initial_position
+    
+    def get_recorded_movements(self):
+        """
+        Get the list of recorded movements.
+        
+        Returns:
+        list: List of (yaw_effort, speed_effort, dt) tuples
+        """
+        return self.recorded_movements.copy()
+    
+    def has_recording(self):
+        """
+        Check if there is a recorded movement sequence.
+        
+        Returns:
+        bool: True if movements have been recorded
+        """
+        return len(self.recorded_movements) > 0
+    
+    def clear_recording(self):
+        """Clear the recorded movements."""
+        self.recorded_movements = []
+        self.initial_position = None
+        self.recording_start_time = 0.0
+        self.is_recording = False
+    
+    def get_recording_duration(self):
+        """
+        Get the total duration of the recorded movement.
+        
+        Returns:
+        float: Total duration in seconds
+        """
+        return sum(frame[2] for frame in self.recorded_movements)

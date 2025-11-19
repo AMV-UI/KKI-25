@@ -65,6 +65,9 @@ class Topic:
 
     # Pixhawk Data
     heading_deg = TopicFactory("/core/heading_deg", Float64)
+
+    manual_yaw = TopicFactory("/core/manual_yaw", Float64)
+    manual_speed = TopicFactory("/core/manual_speed", Float64)
     
     # Misc.
     kill_switch = TopicFactory("/core/kill_switch", KillSwitch)
