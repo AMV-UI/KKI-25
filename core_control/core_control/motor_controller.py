@@ -251,7 +251,7 @@ class MotorController(Node):
             self.get_logger().info("Motor test sequence completed successfully.")
 
         except Exception as e:
-            self.get_logger().error(f"Error during motor test sequence: {traceback.format_exc()}")
+            self.get_lmodeogger().error(f"Error during motor test sequence: {traceback.format_exc()}")
 
 
 def main(args=None):

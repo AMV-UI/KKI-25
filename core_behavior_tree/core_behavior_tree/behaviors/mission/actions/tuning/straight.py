@@ -4,7 +4,6 @@ from std_msgs.msg import Bool, Float64, UInt8, String, UInt32
 from core.utils.config import Topic
 from core.mission.find_mode import FindMode
 from core.mission.frame_counter import FrameCounter
-from core.mission.docking import Docking
 from core_msgs.msg import Pixhawk
 from core.utils.config import Param, PxMode
 
@@ -20,6 +19,7 @@ class Straight_Execution(BaseExecution):
         self.node = node
         self.success = False
         self.effort = 10.0
+        self.first_run: float
 
     def initialise(self):
         self.effort = 100.0
@@ -46,7 +46,7 @@ class Straight_Execution(BaseExecution):
 
     def _effort_cb(self, msg: Float64):
         self.effort = float(msg.data)
-
+        
     def execute(self) -> Status:
         self.node.get_logger().info(f"[{self.name}] Tuning")
         if(self.success):

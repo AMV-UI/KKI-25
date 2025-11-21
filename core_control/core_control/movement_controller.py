@@ -75,6 +75,9 @@ class MovementController(Node):
         # # Control parameters
         self.control_rate = 50.0  # Hz
         self.dt = 1.0 / self.control_rate
+
+        self.rc5 = float()
+        self.rc6 = float()
         
         self._setup_communication()
         
@@ -87,6 +90,10 @@ class MovementController(Node):
         # Subscribers
         self.pixhawk_sub = Topic.pixhawk.createSubscriber(self, self._pixhawk_callback)
         self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
+        self.rc5_sub = Topic.rc5.createSubscriber(self, self._rc5_callback)
+        self.rc6_sub = Topic.rc5.createSubscriber(self, self._rc6_callback)
+
+        
 
         self.docking_target_sub = self.create_subscription(
             Pixhawk, '/docking_target', self._docking_target_callback, 10
@@ -105,6 +112,15 @@ class MovementController(Node):
         
         self.get_logger().info("Communication setup complete")
     
+    def _rc5_callback(self, msg: Float64):
+        self.rc5 = msg.data
+
+    def _rc6_callback(self, msg: Float64):
+        self.rc6 = msg.data
+
+    def _pxmode_callback(self, msg: String):
+        self.pxmode = msg.data
+
     def _manual_yaw_callback(self, msg: Float64):
         """Store manual yaw effort for recording"""
         self.manual_yaw_effort = msg.data
@@ -127,11 +143,11 @@ class MovementController(Node):
         """Update RC channel values from PWM message"""
         # Channel 5 (index 4) = Docking control
         # Channel 6 (index 5) = Recording control
-        if len(msg.channels) > 5:
-            self.chan5_docking = msg.channels[4]
-            self.chan6_recording = msg.channels[5]
+        self.chan5_docking = self.rc5
+        self.chan6_recording = self.rc6
+        # self.get_logger().info(f"RC Channels - CH5: {self.chan5_docking}, CH6: {self.chan6_recording}")
             
-            self._process_channel_controls()
+        self._process_channel_controls()
     
     
     def _docking_target_callback(self, msg: Pixhawk):
@@ -245,12 +261,10 @@ class MovementController(Node):
                     
                     if num_frames > 0:
                         self.playback_movements = self.docking_controller.get_recorded_movements()
+                        self.get_logger().info(f"[CH6-HIGH] Recording stopped ({num_frames} frames, {duration:.1f}s).")
                         self.playback_index = 0
                         self.playback_enabled = True
-                        self.get_logger().info(
-                            f"[CH6-HIGH] Recording stopped ({num_frames} frames, {duration:.1f}s). "
-                            f"Playback STARTED - replaying from init position"
-                        )
+                        self.get_logger().info(f"playback {self.playback_movements}")
                     else:
                         self.get_logger().warn("[CH6-HIGH] No movements recorded!")
             

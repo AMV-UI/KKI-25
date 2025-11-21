@@ -1,0 +1,30 @@
+## straight test
+
+# first straight
+-6.363156,106.8255486
+
+# end of straight
+-6.363213,106.8250363
+
+# straight close to coast
+-6.36311,106.8249843
+
+## sharp turn test
+
+# init position
+-6.363134,106.8249743
+
+# Go to turning point
+-6.363137,106.8250933
+
+# sharp turn while back to coast
+-6.363026,106.8250513
+
+## smooth turn test
+-6.363051,106.825725
+-6.363088,106.825736
+-6.363125,106.825729
+
+## end smooth turn
+-6.363147,106.825693
+

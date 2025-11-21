@@ -38,7 +38,7 @@ from enum import Enum
 
 # Import the modularized docking controller
 sys.path.insert(0, '/home/amv/KKI-25')
-from core.mission.docking import DockingController
+from docking import DockingController
 
 # Initialize Pygame
 pygame.init()
@@ -76,7 +76,7 @@ METERS_TO_LATLON = 0.00001  # Approximate conversion
 GPS_UPDATE_RATE = 5  # Hz (5-10 Hz typical)
 GPS_POSITION_NOISE = 5.0  # meters (±2-5m typical)
 GPS_HEADING_NOISE = 10  # degrees (±5-10° typical)
-CURRENT_STRENGTH = 0.03  # m/s (0.5-2 m/s typical)
+CURRENT_STRENGTH = 0.01  # m/s (0.5-2 m/s typical)
 CURRENT_DIRECTION = 45.0  # degrees (can be changed)
 COMM_DELAY = 0.05  # seconds (50ms typical MAVLink delay)
 

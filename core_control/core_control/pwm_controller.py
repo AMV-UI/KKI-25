@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String, UInt8, Bool
+from std_msgs.msg import String, UInt8, Bool, Float64
 from core.utils.config import Topic, PxMode, Param
 from core_msgs.msg import Pixhawk
 from pymavlink import mavutil
@@ -42,7 +42,6 @@ class PWMController(Node):
             0, 0                       # yaw, yaw rate
         )
 
-
     def _pwm_callback(self, pwm_msg):
         self.pwm_chan = pwm_msg.channels
 
@@ -50,11 +49,11 @@ class PWMController(Node):
         self.pxmode = msg.data
 
     def set_rc_channel_pwm(self, pwm_list):
-        rc_channel_values = [65535 for _ in range(8)]
+        rc_channel_values = [0 for _ in range(8)]
         for idx, pwm in enumerate(pwm_list):
             if idx < 8:
                 rc_channel_values[idx] = pwm
-            
+        
         self.master.mav.rc_channels_override_send(
             self.master.target_system, 
             self.master.target_component,
@@ -65,6 +64,8 @@ class PWMController(Node):
         self.get_logger().info("PWM Controller Node Started")
         while rclpy.ok():
             rclpy.spin_once(self)
+                
+
             ## TESTING PURPOSE ONLY
 
             # rc_channel_values = [0 for _ in range(8)]
@@ -73,13 +74,12 @@ class PWMController(Node):
 
 
             try:
-                # print(f"Current PxMode: {self.pxmode}")
-                if self.pwm_chan is not None and self.pxmode == PxMode.AUTO:
-                    # self._get_pwm()
-                    self.get_logger().info("Sending PWM...Unsafe Mode Disabled")
+                # print(f"Current PxMode: {self.pxmode}"
+                # self.get_logger().info(f"Current PxMode: {self.pxmode}")
+                if self.pwm_chan is not None and self.pxmode == PxMode.AUTO:               
+                    # self.get_logger().info("Sending PWM...Unsafe Mode Disabled")
                     self.set_rc_channel_pwm(self.pwm_chan)
                 else:
-                    # self._get_pwm()
                     rc_channel_values = [0 for _ in range(8)]
                     self.set_rc_channel_pwm(rc_channel_values)
 

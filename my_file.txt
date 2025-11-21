@@ -1,0 +1,2 @@
+Start at Lat: -6.3652142 Lon: 106.8246725, Effort: 100.0, end at Lat: -6.3651749 Lon: 106.8246441, distance: 5.380199006269923 meters, Speed: 0.5380199006269923 m/s
+Start at Lat: -6.3652617 Lon: 106.8245611, Effort: 100.0, end at Lat: -6.3652607 Lon: 106.8245869, distance: 2.853311180455869 meters, Speed: 0.2853311180455869 m/s

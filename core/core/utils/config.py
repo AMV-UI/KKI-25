@@ -3,6 +3,7 @@
 import rclpy
 import py_trees
 from enum import Enum
+from pymavlink import mavutil
 from core.utils.factory import TopicFactory, ParamFactory
 from std_msgs.msg import Float64, Bool, UInt8, String, UInt16, UInt8MultiArray, UInt32
 from sensor_msgs.msg import Image, CompressedImage
@@ -18,7 +19,6 @@ from core_msgs.msg import (
     Pixhawk,
     StateObject,
 )
-
 
 class Param:
     KP = ParamFactory("/yaw_controller/yaw_controller/Kp", float)
@@ -64,7 +64,6 @@ class Topic:
     dsc = TopicFactory("/core/vision/image/dsc", Float64)
     detected = TopicFactory("/core/vision/image/detected", Bool)
 
-    # Pixhawk Data
     heading_deg = TopicFactory("/core/heading_deg", Float64)
 
     manual_yaw = TopicFactory("/core/manual_yaw", Float64)
@@ -81,6 +80,9 @@ class Topic:
     # SPEED = Y AXIS (Forward/Backward)
     yaw_effort = TopicFactory("/core/motor/yaw_effort", Float64)
     speed_effort = TopicFactory("/core/motor/speed_effort", Float64)
+
+    rc5 = TopicFactory("/core/motor/rc5", Float64)
+    rc6 = TopicFactory("/core/motor/rc6", Float64)
 
     # Mission
     mission = TopicFactory("/core/mission/current", UInt8)

@@ -2,11 +2,8 @@ from ..mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from std_msgs.msg import Bool, Float64, UInt8, String
 from core.utils.config import Topic
-from core.mission.find_mode import FindMode
 from core.mission.frame_counter import FrameCounter
-from core.mission.docking import Docking
 from core_msgs.msg import Pixhawk
-from core.utils.config import Param, PxMode
 
 
 import time
@@ -24,7 +21,7 @@ class Mission1_Execution(BaseExecution):
         self.frame_counter = None
         self.detected = True
         self.dsc = 0.0
-        self.speed_effort = 300.0
+        self.speed_effort = 100.0
         self.pixhawk = None
         self.arena = "B"
         self.initial_heading = -361  # (Max -360 until 360) So means is not setup yet

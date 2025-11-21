@@ -13,7 +13,7 @@ def generate_launch_description():
         # "core_perception",
         "core_gcs",
         "core_control",
-        # "core_behavior_tree"
+        "core_behavior_tree"
     ]
 
     packages_to_launch = []

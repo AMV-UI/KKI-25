@@ -9,21 +9,18 @@ from core.utils.config import Param, PxMode
 
 
 import time
-class Go_Execution(BaseExecution):
+class Straight_Execution(BaseExecution):
     """
-    Main execution: Set inital heading and finding the buoy
-    - Fallback: if pxmode is still on hold
+    Main execution: Go to specific coordinates in Lat/Lon 
     """
-    def __init__(self, name: str = "Turn_Execution", node=None):
+    def __init__(self, name: str = "Straight_Execution", node=None):
         super().__init__(name, node=node)
         self.node = node
         self.success = False
-        self.effort_tn = 0.0
-        self.effort_st = 0.0
+        self.effort = 10.0
 
     def initialise(self):
-        self.effort_st = 0.0
-        self.effort_tn = 0.0
+        self.effort = 100.0
         self.success = False
 
     def setup(self, **kwargs) -> None:
@@ -33,13 +30,9 @@ class Go_Execution(BaseExecution):
             self.node,
             self._mission_cb
         )        
-        self.effort_tn_sub = Topic.tuning_effort_tn.createSubscriber(
+        self.effort_sub = Topic.tuning_effort_st.createSubscriber(
             self.node,
-            self._effort_tn_cb
-        )        
-        self.effort_st_sub = Topic.tuning_effort_st.createSubscriber(
-            self.node,
-            self._effort_st_cb
+            self._effort_cb
         )        
 
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
@@ -49,30 +42,26 @@ class Go_Execution(BaseExecution):
         if(msg.data == 1):
             self.success = True
 
-    def _effort_st_cb(self, msg: Float64):
-        self.effort_st = float(msg.data)
-
-    def _effort_tn_cb(self, msg: Float64):
-        self.effort_tn = float(msg.data)
-
+    def _effort_cb(self, msg: Float64):
+        self.effort = float(msg.data)
 
     def execute(self) -> Status:
         self.node.get_logger().info(f"[{self.name}] Tuning")
         if(self.success):
             return Status.SUCCESS
 
-        self.yaw_effort_pub.publish(Float64(data=self.effort_tn))
-        self.speed_effort_pub.publish(Float64(data=self.effort_st))
+        self.yaw_effort_pub.publish(Float64(data=0.0))
+        self.speed_effort_pub.publish(Float64(data=self.effort))
 
         return Status.RUNNING
 
 
-class Go_Fallback(BaseFallback):
+class Straight_Fallback(BaseFallback):
     """
     Fallback: Remote still on hold and updating docking position
     - Execution: if remote change other than hold
     """
-    def __init__(self, name: str = "Turn_Fallback", node=None):
+    def __init__(self, name: str = "Straight_Fallback", node=None):
         super().__init__(name, node=node)
 
     def setup(self, **kwargs) -> None:

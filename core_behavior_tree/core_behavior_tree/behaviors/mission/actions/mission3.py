@@ -4,7 +4,6 @@ from std_msgs.msg import Bool, Float64, UInt8, String
 from core.utils.config import Topic
 from core.mission.find_mode import FindMode
 from core.mission.frame_counter import FrameCounter
-from core.mission.docking import Docking
 from core_msgs.msg import Pixhawk
 from core.utils.config import Param, PxMode
 

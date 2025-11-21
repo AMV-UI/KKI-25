@@ -79,6 +79,8 @@ class Microcontroller(Node):
         self.echosounder_dist = 0
         self.echosounder_conf = 0
 
+        self.rc_chans = None
+
         # GCS <> Micon
         self.pixhawk = Pixhawk()
 
@@ -101,6 +103,9 @@ class Microcontroller(Node):
         )
 
         self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
+        self.rc5_pub = Topic.rc5.createPublisher(self)
+        self.rc6_pub = Topic.rc6.createPublisher(self)
+
         self.get_logger().info("<> PWM Subscriber created")
 
     def warn_once(self, msg):
@@ -143,6 +148,7 @@ class Microcontroller(Node):
             self.mc1 = MiconType.ESP32
             self.get_logger().info(f"[MICON] ESP Successfully initiated")
 
+            
             #Pixhawk
             self.ser_2 = mavutil.mavlink_connection(px_port, baud=57600)
             self.ser_2.wait_heartbeat()
@@ -150,10 +156,9 @@ class Microcontroller(Node):
             self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
             self.get_logger().info("Pixhawk Successfully initiated")
             self._px_arm()
-            self.rc_chans = self._px_rc_val()
-
+            self.rc_chans = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
             self.mc2 = MiconType.PX
-
+            
         except Exception as e:
             self.error_throttle(5000, f"MC Index is not found: {e}")
             self.mc1 = MiconType.NONE
@@ -272,15 +277,14 @@ class Microcontroller(Node):
         return heading_deg, filtered_state_means
 
     def _px_rc_val(self):
-        rc_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
-        if not rc_channels:
-            self.error_throttle(5000, "No message in RC_CHANNELS")
-            return
-        return rc_channels
+        fetched_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=False)
+        self.rc_chans = fetched_channels if fetched_channels != None else self.rc_chans
+        return self.rc_chans
 
     def _get_pwm(self):
-        rc_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
-        self.info_throttle(2000, f"Channel Values : {rc_channels.chan1_raw}, {rc_channels.chan3_raw}, {rc_channels.chan8_raw}")
+        self.rc5_pub.publish(Float64(data=float(self.rc_chans.chan5_raw)))
+        self.rc6_pub.publish(Float64(data=float(self.rc_chans.chan6_raw)))
+        self.info_throttle(50, f"Channel Values : {self.rc_chans.chan1_raw}, {self.rc_chans.chan3_raw}, {self.rc_chans.chan8_raw}")
 
     def _px_arm(self):
         self.ser_2.mav.command_long_send(
@@ -329,18 +333,18 @@ class Microcontroller(Node):
     def request_pixhawk(self):
         try:
             msg_coor = self.ser_2.recv_match(
-                type="GLOBAL_POSITION_INT", blocking=True
+                type="GLOBAL_POSITION_INT", blocking=False
             )
-            lat = msg_coor.lat / 1e7
-            lon = msg_coor.lon / 1e7
+            lat = msg_coor.lat / 1e7 if msg_coor != None else self.pixhawk.lat
+            lon = msg_coor.lon / 1e7 if msg_coor != None else self.pixhawk.lon
             alt = (
                 msg_coor.alt / 1000
-            ) 
+            )  if msg_coor != None else self.pixhawk.alt
 
-            alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=True)
+            alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=False)
 
-            msg_spd = alignment.groundspeed  # Ground speed in m/s
-            msg_heading = alignment.heading
+            msg_spd = alignment.groundspeed if alignment != None else self.pixhawk.msg_spd  # Ground speed in m/s
+            msg_heading = alignment.heading  if alignment != None else self.pixhawk.msg_heading
 
             self.pixhawk.lat = lat
             self.pixhawk.lon = lon
@@ -353,6 +357,7 @@ class Microcontroller(Node):
         except Exception as error:
             self.get_logger().error(f"Error in request_pixhawk: {error}")
             return self.pixhawk
+
 
     def main(self):
 
@@ -371,6 +376,10 @@ class Microcontroller(Node):
         self.mux_state_pub = Topic.mux_state.createPublisher(self)
         self.pixhawk_pub = Topic.pixhawk.createPublisher(self)
         self.pxmode_pub = Topic.pxmode.createPublisher(self)
+
+        
+
+
         self.get_logger().info("<> Pixhawk Publisher created")
 
         while rclpy.ok():  
@@ -407,8 +416,8 @@ class Microcontroller(Node):
             
             self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
             
-            # self.rc_chans = self._px_rc_val()
-            # self._px_set_mode(self.rc_chans.chan8_raw)
+            self.rc_chans = self._px_rc_val()
+            self._px_set_mode(self.rc_chans.chan8_raw)
             
             # if(self.pxmode != PxMode.AUTO):
             self._get_pwm()
