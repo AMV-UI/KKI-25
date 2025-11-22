@@ -20,9 +20,9 @@ class MissionTreeBuilder:
     """Builder class responsible for constructing the behavior tree"""
 
     # Record Straight Config
-    MISSIONS_CONFIG = [
-        (RecordStraightExecution, Straight_Fallback, "Straight"),
-    ]
+    # MISSIONS_CONFIG = [
+    #     (RecordStraightExecution, Straight_Fallback, "Straight"),
+    # ]
 
     #MISSIONS_CONFIG = [
         
@@ -32,14 +32,14 @@ class MissionTreeBuilder:
     #]
 
     # Tuning Config
-    # MISSIONS_CONFIG = [
-    # (Straight_Execution, Done_Execution, "Straight"),
-    #      (Done_Execution, Done_Fallback, "Stall"),
-    #      (Turn_Execution, Done_Execution, "Turn"),
-    #      (Done_Execution, Done_Fallback, "Stall"),
-    #      (Go_Execution, Go_Fallback, "Go"),
-    #      (Done_Execution, Done_Fallback, "Done"),
-    #  ]
+    MISSIONS_CONFIG = [
+    (Straight_Execution, Done_Execution, "Straight"),
+         (Done_Execution, Done_Fallback, "Stall"),
+         (Turn_Execution, Done_Execution, "Turn"),
+         (Done_Execution, Done_Fallback, "Stall"),
+         (Go_Execution, Go_Fallback, "Go"),
+         (Done_Execution, Done_Fallback, "Done"),
+     ]
 
     def __init__(self, ros_node):
         self.ros_node = ros_node

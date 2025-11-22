@@ -277,7 +277,7 @@ class Microcontroller(Node):
         return heading_deg, filtered_state_means
 
     def _px_rc_val(self):
-        fetched_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=False)
+        fetched_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
         self.rc_chans = fetched_channels if fetched_channels != None else self.rc_chans
         return self.rc_chans
 
@@ -425,7 +425,7 @@ class Microcontroller(Node):
             # self.warn_throttle(5000, "Sending PWM...")
             
             # Sleep equivalent to rospy.Rate(60).sleep()
-            # time.sleep(1.0/60.0)
+            time.sleep(1.0/60.0)
             # self.info_once("Successfully initialized node")
 
 
