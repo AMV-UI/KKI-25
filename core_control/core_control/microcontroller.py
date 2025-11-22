@@ -284,7 +284,7 @@ class Microcontroller(Node):
     def _get_pwm(self):
         self.rc5_pub.publish(Float64(data=float(self.rc_chans.chan5_raw)))
         self.rc6_pub.publish(Float64(data=float(self.rc_chans.chan6_raw)))
-        self.info_throttle(50, f"Channel Values : {self.rc_chans.chan1_raw}, {self.rc_chans.chan3_raw}, {self.rc_chans.chan8_raw}")
+        self.info_throttle(1000, f"Channel Values : {self.rc_chans.chan1_raw}, {self.rc_chans.chan3_raw}, {self.rc_chans.chan8_raw}")
 
     def _px_arm(self):
         self.ser_2.mav.command_long_send(
@@ -333,7 +333,7 @@ class Microcontroller(Node):
     def request_pixhawk(self):
         try:
             msg_coor = self.ser_2.recv_match(
-                type="GLOBAL_POSITION_INT", blocking=False
+                type="GLOBAL_POSITION_INT", blocking=True
             )
             lat = msg_coor.lat / 1e7 if msg_coor != None else self.pixhawk.lat
             lon = msg_coor.lon / 1e7 if msg_coor != None else self.pixhawk.lon
@@ -341,7 +341,7 @@ class Microcontroller(Node):
                 msg_coor.alt / 1000
             )  if msg_coor != None else self.pixhawk.alt
 
-            alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=False)
+            alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=True)
 
             msg_spd = alignment.groundspeed if alignment != None else self.pixhawk.msg_spd  # Ground speed in m/s
             msg_heading = alignment.heading  if alignment != None else self.pixhawk.msg_heading

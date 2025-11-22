@@ -1,5 +1,6 @@
 import py_trees
 from typing import List, Tuple, Type, Callable
+
 # from ..behaviors.mission.actions.mission0 import Mission0_Execution, Mission0_Fallback
 from ..behaviors.mission.actions.mission1 import Mission1_Execution, Mission1_Fallback
 from ..behaviors.mission.actions.mission2 import Mission2_Execution, Mission2_Fallback
@@ -10,7 +11,7 @@ from ..behaviors.mission.actions.tuning.straight import Straight_Execution, Stra
 from ..behaviors.mission.actions.tuning.turn import Turn_Execution, Turn_Fallback
 from ..behaviors.mission.actions.tuning.go import Go_Execution, Go_Fallback
 from ..behaviors.mission.actions.tuning.done import Done_Execution, Done_Fallback
-from ..behaviors.mission.actions.tuning.recordSpeed import RecordStraightExecution
+from ..behaviors.mission.actions.tuning.hardcode import *
 
 from core.utils.config import Topic, BT
 
@@ -18,6 +19,13 @@ from ..behaviors.base_behavior import BaseBehavior
 
 class MissionTreeBuilder:
     """Builder class responsible for constructing the behavior tree"""
+
+
+    # Hard Code Config
+    MISSIONS_CONFIG = [
+        (RecordGPSExecution, RecordGPSFallback, "Hardcode"),
+        (Done_Execution, Done_Fallback, "Stall"),   
+    ]
 
     # Record Straight Config
     # MISSIONS_CONFIG = [
@@ -33,13 +41,13 @@ class MissionTreeBuilder:
 
     # Tuning Config
     MISSIONS_CONFIG = [
-    (Straight_Execution, Done_Execution, "Straight"),
-         (Done_Execution, Done_Fallback, "Stall"),
-         (Turn_Execution, Done_Execution, "Turn"),
-         (Done_Execution, Done_Fallback, "Stall"),
-         (Go_Execution, Go_Fallback, "Go"),
-         (Done_Execution, Done_Fallback, "Done"),
-     ]
+          (Straight_Execution, Done_Execution, "Straight"),
+          (Done_Execution, Done_Fallback, "Stall"),
+          (Turn_Execution, Done_Execution, "Turn"),
+          (Done_Execution, Done_Fallback, "Stall"),
+          (Go_Execution, Go_Fallback, "Go"),
+          (Done_Execution, Done_Fallback, "Done"),
+      ]
 
     def __init__(self, ros_node):
         self.ros_node = ros_node
