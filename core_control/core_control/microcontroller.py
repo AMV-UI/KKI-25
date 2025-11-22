@@ -322,6 +322,9 @@ class Microcontroller(Node):
             return
 
         mode_id = self.ser_2.mode_mapping()[self.pxmode]
+
+        # cursed = self.pxmode if self.pxmode != PxMode.AUTO else PxMode.MANUAL
+        # mode_id = self.ser_2.mode_mapping()[cursed] 
         self.ser_2.mav.set_mode_send(
             self.ser_2.target_system,
             mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,

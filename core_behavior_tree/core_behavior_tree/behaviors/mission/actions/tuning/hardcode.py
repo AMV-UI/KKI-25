@@ -111,14 +111,14 @@ class RecordGPSExecution(BaseExecution):
 
         
     def execute(self) -> Status:
-        self.node.get_logger().info("[{}] Execution...".format(self.name), throttle_duration_sec=1.0)
+        self.node.get_logger().info("[{}] Execution... {}".format(self.name, self.playback), throttle_duration_sec=1.0)
+
+        if (not self.playback):
+            return Status.FAILURE
 
         if self.px_mode != PxMode.AUTO:
             return Status.RUNNING
         
-        if (not self.playback):
-            return Status.FAILURE
-
         if (self.next_coor == ""):
             return Status.SUCCESS
         
@@ -197,17 +197,17 @@ class RecordGPSFallback(BaseFallback):
     def _px_cb(self, msg: Pixhawk):
         self.lat = msg.lat
         self.lon = msg.lon
-        
+
+        if (self.recording):
+            # self.last_time = time.time()
+            with open("core_behavior_tree/core_behavior_tree/behaviors/mission/actions/tuning/log/coordinate.txt", "a") as coor_file:
+                coor_file.write("{},{}\n".format(self.lon, self.lat))
+
     def fallback(self):        
         self.node.get_logger().info("[{}] Failure...".format(self.name), throttle_duration_sec=1.0)
 
         if (self.playback):
             return Status.FAILURE
         
-        if (self.recording):
-            self.node.get_logger().info("[{}] Recording GPS coordinates...".format(self.name), throttle_duration_sec=1.0)
-            # self.last_time = time.time()
-            with open("core_behavior_tree/core_behavior_tree/behaviors/mission/actions/tuning/log/coordinate.txt", "a") as coor_file:
-                coor_file.write("{},{}\n".format(self.lon, self.lat))
 
         return Status.RUNNING
