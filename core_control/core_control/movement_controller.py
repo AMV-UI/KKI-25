@@ -44,9 +44,6 @@ class MovementController(Node):
         self.manual_yaw_effort = 0.0
         self.manual_speed_effort = 0.0
         
-        self.chan5_docking = 983
-        self.chan6_recording = 983
-        
         self.PWM_LOW = 1000
         self.PWM_MID = 1500
         self.PWM_HIGH = 1700
@@ -61,12 +58,6 @@ class MovementController(Node):
         self.prev_chan5_state = 'LOW'
         self.prev_chan6_state = 'LOW'
         
-        self.is_recording = False
-        self.recording_start_lat = 0.0
-        self.recording_start_lon = 0.0
-        self.recording_start_heading = 0.0
-        self.playback_enabled = False
-        self.playback_index = 0
         self.is_recording = False
         self.recording_start_lat = 0.0
         self.recording_start_lon = 0.0
@@ -93,7 +84,7 @@ class MovementController(Node):
         self.pixhawk_sub = Topic.pixhawk.createSubscriber(self, self._pixhawk_callback)
         self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
         self.rc5_sub = Topic.rc5.createSubscriber(self, self._rc5_callback)
-        self.rc6_sub = Topic.rc5.createSubscriber(self, self._rc6_callback)
+        self.rc6_sub = Topic.rc6.createSubscriber(self, self._rc6_callback)
 
     
         self.docking_target_sub = self.create_subscription(
@@ -393,7 +384,7 @@ class MovementController(Node):
                 mode = "PLAYBACK" if self.playback_enabled else ("DOCKING" if self.docking_enabled else ("RECORDING" if self.is_recording else "MANUAL"))
                 status = f"Mode: {mode} | Pos: ({self.current_lat:.6f}, {self.current_lon:.6f}) | Heading: {self.current_heading:.1f}° | "
                 status += f"Yaw: {yaw_effort:.1f}, Speed: {speed_effort:.1f} | "
-                status += f"CH5: {self.chan5_docking} ({self.prev_chan5_state}), CH6: {self.chan6_recording} ({self.prev_chan6_state})"
+                status += f"CH5: {self.rc5} ({self.prev_chan5_state}), CH6: {self.rc6} ({self.prev_chan6_state})"
                 self.get_logger().info(status)
         
         except Exception as e:
