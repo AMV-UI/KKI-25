@@ -13,37 +13,36 @@ class DockingController:
         self.target_lat = target_lat
         self.target_lon = target_lon
         
-        # PID parameters for yaw control - tune these values
         self.Kp_yaw = 100.0    # Proportional gain for yaw (increased for ±300 range)
         self.Ki_yaw = 0.5      # Integral gain for yaw
         self.Kd_yaw = 20.0     # Derivative gain for yaw
         
-        # PID parameters for speed control
         self.Kp_speed = 100.0  # Proportional gain for speed (distance-based)
         self.min_speed = 50.0  # Minimum speed effort when moving
         self.max_speed = 200.0 # Maximum speed effort
         
-        # PID state variables
         self.yaw_error = 0.0
         self.yaw_integral = 0.0
         self.prev_yaw_error = 0.0
         
-        # Effort constraints (matching ROS ±300 system)
         self.MAX_EFFORT = 300.0
         self.MIN_EFFORT = -300.0
         
-        # Docking thresholds
         self.docking_distance_threshold = 1.5  # meters - consider docked when closer
         self.alignment_threshold = 0.3         # radians (~17 degrees) - move forward when aligned
         
-        # State tracking
         self.is_docked = False
         
-        # Movement recording
         self.recorded_movements = []  # List of (yaw_effort, speed_effort, dt) tuples
-        self.is_recording = False
+        self.recorded_lat_lon = []  # List of (lat, lon, dt) tuples
+        self.is_recording = False # For movements
+        self.is_recording_lat_lon = False # For lat/lon
         self.initial_position = None  # (lat, lon, heading) when recording starts
         self.recording_start_time = 0.0
+
+
+        self.error_coordinate_threshold = 7.0
+        self.accumulated_dt = 0.0
         
     def calculate_bearing_rad(self, lat1, lon1, lat2, lon2):
         """
@@ -57,16 +56,13 @@ class DockingController:
         Returns:
         float: Bearing in radians using Pixhawk convention (0 = North, clockwise), range [0, 2π]
         """
-        # Calculate differences in lat/lon
+
         delta_lat = lat2 - lat1
         delta_lon = lon2 - lon1
         
-        # For accurate bearing calculation with real GPS coordinates,
-        # account for latitude's effect on longitude distances
         lat_avg = math.radians((lat1 + lat2) / 2)
         
-        # Convert to Cartesian-like coordinates (meters approximately)
-        dx_east = delta_lon * math.cos(lat_avg)  # East-West component
+        dx_east = delta_lon * math.cos(lat_avg)   # East-West component
         dy_north = delta_lat                      # North-South component
         
         # Calculate bearing using atan2(East, North) for Pixhawk convention
@@ -262,8 +258,6 @@ class DockingController:
         """
         return math.degrees(self.yaw_error)
     
-    # ========== Movement Recording/Playback Methods ==========
-    
     def start_recording(self, current_lat, current_lon, current_heading):
         """
         Start recording manual movements.
@@ -278,6 +272,22 @@ class DockingController:
         self.initial_position = (current_lat, current_lon, current_heading)
         self.recording_start_time = 0.0
         return True
+
+    def start_lat_lon_recording(self, current_lat, current_lon, current_heading):
+        """
+        Start recording latitude and longitude.
+        
+        Parameters:
+        current_lat (float): Starting latitude
+        current_lon (float): Starting longitude
+        current_heading (float): Starting heading in degrees (Pixhawk: 0=North, clockwise)
+        """
+        self.is_recording_lat_lon = True
+        self.recorded_lat_lon = []
+        self.initial_position = (current_lat, current_lon, current_heading)
+        self.recording_start_time = 0.0
+        self.accumulated_dt = 0.0
+        return True
     
     def stop_recording(self):
         """
@@ -288,6 +298,16 @@ class DockingController:
         """
         self.is_recording = False
         return len(self.recorded_movements)
+
+    def stop_lat_lon_recording(self):
+        """
+        Stop recording latitude and longitude.
+        
+        Returns:
+        int: Number of recorded latitude and longitude frames
+        """
+        self.is_recording_lat_lon = False
+        return len(self.recorded_lat_lon)
     
     def record_movement(self, yaw_effort, speed_effort, dt):
         """
@@ -304,8 +324,67 @@ class DockingController:
         if not self.is_recording:
             return False
         
+        if yaw_effort or speed_effort < self.error_coordinate_threshold:
+            pass
+        
         self.recorded_movements.append((yaw_effort, speed_effort, dt))
         self.recording_start_time += dt
+        return True
+
+    def calculate_distance(self, lat1, lon1, lat2, lon2):
+        """
+        Calculate distance between two points in meters using Haversine formula.
+        
+        Parameters:
+        lat1, lon1 (float): First point
+        lat2, lon2 (float): Second point
+        
+        Returns:
+        float: Distance in meters
+        """
+        R = 6371000  # Earth radius in meters
+        
+        lat1_rad = math.radians(lat1)
+        lat2_rad = math.radians(lat2)
+        delta_lat = math.radians(lat2 - lat1)
+        delta_lon = math.radians(lon2 - lon1)
+        
+        a = math.sin(delta_lat/2)**2 + \
+            math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon/2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+        
+        return R * c
+
+    def record_lat_lon(self, lat, lon, dt):
+        """
+        Record a single latitude and longitude during recording.
+        Ignores points closer than 5 meters to the last recorded point.
+        
+        Parameters:
+        lat (float): Current latitude
+        lon (float): Current longitude
+        dt (float): Time delta since last frame
+        
+        Returns:
+        bool: True if recorded, False if not recording or ignored
+        """
+        if not self.is_recording_lat_lon:
+            return False
+        
+        if self.target_lat is None or self.target_lon is None:
+            return False
+            
+        self.accumulated_dt += dt
+            
+        if self.recorded_lat_lon:
+            last_lat, last_lon, _ = self.recorded_lat_lon[-1]
+            distance = self.calculate_distance(lat, lon, last_lat, last_lon)
+            if distance < self.error_coordinate_threshold:
+                return False
+        
+        self.recorded_lat_lon.append((lat, lon, self.accumulated_dt))
+        self.recording_start_time += self.accumulated_dt
+        self.accumulated_dt = 0.0
         return True
     
     def get_initial_position(self):
@@ -326,6 +405,15 @@ class DockingController:
         list: List of (yaw_effort, speed_effort, dt) tuples
         """
         return self.recorded_movements.copy()
+
+    def get_recorded_lat_lon(self):
+        """
+        Get the list of recorded latitude and longitude.
+        
+        Returns:
+        list: List of (lat, lon, dt) tuples
+        """
+        return self.recorded_lat_lon.copy()
     
     def has_recording(self):
         """
@@ -336,12 +424,23 @@ class DockingController:
         """
         return len(self.recorded_movements) > 0
     
+    def has_lat_lon(self):
+        """
+        Check if there is a recorded latitude and longitude sequence.
+        
+        Returns:
+        bool: True if latitude and longitude have been recorded
+        """
+        return len(self.recorded_lat_lon) > 0
+    
     def clear_recording(self):
         """Clear the recorded movements."""
         self.recorded_movements = []
+        self.recorded_lat_lon = []
         self.initial_position = None
         self.recording_start_time = 0.0
         self.is_recording = False
+        self.is_recording_lat_lon = False
     
     def get_recording_duration(self):
         """
@@ -351,3 +450,12 @@ class DockingController:
         float: Total duration in seconds
         """
         return sum(frame[2] for frame in self.recorded_movements)
+
+    def get_lat_lon_duration(self):
+        """
+        Get the total duration of the recorded latitude and longitude.
+        
+        Returns:
+        float: Total duration in seconds
+        """
+        return sum(frame[2] for frame in self.recorded_lat_lon)

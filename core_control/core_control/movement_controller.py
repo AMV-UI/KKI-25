@@ -44,36 +44,38 @@ class MovementController(Node):
         self.manual_yaw_effort = 0.0
         self.manual_speed_effort = 0.0
         
-        # RC Channel values
         self.chan5_docking = 983
-        self.chan6_recording = 983  # Recording channel
+        self.chan6_recording = 983
         
-        # Channel thresholds
-        self.PWM_LOW = 983
-        self.PWM_MID = 1495
-        self.PWM_HIGH = 2006
-        self.PWM_THRESHOLD = 200  # Threshold for detecting state changes
+        self.PWM_LOW = 1000
+        self.PWM_MID = 1500
+        self.PWM_HIGH = 1700
+        self.PWM_THRESHOLD = 200
         
-        # Autonomous docking state
         self.docking_enabled = False
         self.docking_target_set = False
         self.last_update_time = time()
         
-        # Previous channel states for edge detection
+        self.distance_threshold = 2.0
+        
         self.prev_chan5_state = 'LOW'
         self.prev_chan6_state = 'LOW'
         
-        # Recording state
         self.is_recording = False
         self.recording_start_lat = 0.0
         self.recording_start_lon = 0.0
         self.recording_start_heading = 0.0
         self.playback_enabled = False
         self.playback_index = 0
-        self.playback_movements = []
+        self.is_recording = False
+        self.recording_start_lat = 0.0
+        self.recording_start_lon = 0.0
+        self.recording_start_heading = 0.0
+        self.playback_enabled = False
+        self.playback_index = 0
+        self.playback_lat_lon = []
         
-        # # Control parameters
-        self.control_rate = 50.0  # Hz
+        self.control_rate = 50.0
         self.dt = 1.0 / self.control_rate
 
         self.rc5 = float()
@@ -93,8 +95,7 @@ class MovementController(Node):
         self.rc5_sub = Topic.rc5.createSubscriber(self, self._rc5_callback)
         self.rc6_sub = Topic.rc5.createSubscriber(self, self._rc6_callback)
 
-        
-
+    
         self.docking_target_sub = self.create_subscription(
             Pixhawk, '/docking_target', self._docking_target_callback, 10
         )
@@ -114,9 +115,11 @@ class MovementController(Node):
     
     def _rc5_callback(self, msg: Float64):
         self.rc5 = msg.data
+        self._process_channel_controls()
 
     def _rc6_callback(self, msg: Float64):
         self.rc6 = msg.data
+        self._process_channel_controls()
 
     def _pxmode_callback(self, msg: String):
         self.pxmode = msg.data
@@ -141,14 +144,7 @@ class MovementController(Node):
     
     def _pwm_callback(self, msg: Pwm):
         """Update RC channel values from PWM message"""
-        # Channel 5 (index 4) = Docking control
-        # Channel 6 (index 5) = Recording control
-        self.chan5_docking = self.rc5
-        self.chan6_recording = self.rc6
-        # self.get_logger().info(f"RC Channels - CH5: {self.chan5_docking}, CH6: {self.chan6_recording}")
-            
-        self._process_channel_controls()
-    
+        self.pwm_chan = msg.channels
     
     def _docking_target_callback(self, msg: Pixhawk):
         """Set docking target position"""
@@ -183,9 +179,9 @@ class MovementController(Node):
         Returns:
         str: 'LOW', 'MID', or 'HIGH'
         """
-        if pwm_value < self.PWM_MID - self.PWM_THRESHOLD:
+        if pwm_value < self.PWM_LOW:
             return 'LOW'
-        elif pwm_value > self.PWM_MID + self.PWM_THRESHOLD:
+        elif pwm_value > self.PWM_HIGH:
             return 'HIGH'
         else:
             return 'MID'
@@ -204,8 +200,8 @@ class MovementController(Node):
         - MID: Start recording movements
         - HIGH: Stop recording and playback from start
         """
-        # Process Channel 5 - Docking
-        chan5_state = self._get_channel_state(self.chan5_docking)
+        chan5_state = self._get_channel_state(self.rc5)
+        chan6_state = self._get_channel_state(self.rc6)
         
         if chan5_state != self.prev_chan5_state:
             if chan5_state == 'MID':
@@ -234,14 +230,11 @@ class MovementController(Node):
             
             self.prev_chan5_state = chan5_state
         
-        # Process Channel 6 - Recording
-        chan6_state = self._get_channel_state(self.chan6_recording)
-        
         if chan6_state != self.prev_chan6_state:
             if chan6_state == 'MID':
                 # Start recording
                 if not self.is_recording and not self.playback_enabled:
-                    self.docking_controller.start_recording(
+                    self.docking_controller.start_lat_lon_recording(
                         self.current_lat,
                         self.current_lon,
                         self.current_heading
@@ -255,23 +248,23 @@ class MovementController(Node):
             elif chan6_state == 'HIGH':
                 # Stop recording and start playback
                 if self.is_recording:
-                    num_frames = self.docking_controller.stop_recording()
-                    duration = self.docking_controller.get_recording_duration()
+                    num_frames = self.docking_controller.stop_lat_lon_recording()
+                    duration = self.docking_controller.get_lat_lon_duration()
                     self.is_recording = False
                     
                     if num_frames > 0:
-                        self.playback_movements = self.docking_controller.get_recorded_movements()
+                        self.playback_lat_lon = self.docking_controller.get_recorded_lat_lon()
                         self.get_logger().info(f"[CH6-HIGH] Recording stopped ({num_frames} frames, {duration:.1f}s).")
                         self.playback_index = 0
                         self.playback_enabled = True
-                        self.get_logger().info(f"playback {self.playback_movements}")
+                        self.get_logger().info(f"playback {self.playback_lat_lon}")
                     else:
                         self.get_logger().warn("[CH6-HIGH] No movements recorded!")
             
             elif chan6_state == 'LOW':
                 # Neutral - stop recording/playback
                 if self.is_recording:
-                    self.docking_controller.stop_recording()
+                    self.docking_controller.stop_lat_lon_recording()
                     self.is_recording = False
                     self.get_logger().info("[CH6-LOW] Recording STOPPED")
                 
@@ -295,13 +288,27 @@ class MovementController(Node):
         self.last_update_time = current_time
         
         # Priority 1: Playback mode
-        if self.playback_enabled and len(self.playback_movements) > 0:
-            if self.playback_index < len(self.playback_movements):
-                yaw_effort, speed_effort, _ = self.playback_movements[self.playback_index]
-                self.playback_index += 1
+        if self.playback_enabled and len(self.playback_lat_lon) > 0:
+            if self.playback_index < len(self.playback_lat_lon):
+                target_lat, target_lon, _ = self.playback_lat_lon[self.playback_index]
+                
+                if self.docking_controller.target_lat != target_lat or self.docking_controller.target_lon != target_lon:
+                    self.docking_controller.set_target(target_lat, target_lon)
+                
+                yaw_effort, speed_effort, is_docked = self.docking_controller.calculate_control_efforts(
+                    self.current_lat,
+                    self.current_lon,
+                    self.current_heading,
+                    dt
+                )
+                
+                distance_to_target = self.docking_controller.get_distance_to_target(self.current_lat, self.current_lon)
+                
+                if distance_to_target < self.distance_threshold:
+                    self.playback_index += 1
+                
                 return yaw_effort, speed_effort
             else:
-                # Playback finished
                 self.playback_enabled = False
                 self.playback_index = 0
                 self.get_logger().info("Playback complete!")
@@ -312,7 +319,7 @@ class MovementController(Node):
             yaw_effort, speed_effort, is_docked = self.docking_controller.calculate_control_efforts(
                 self.current_lat,
                 self.current_lon,
-                self.current_heading,  # Pixhawk degrees: 0=North, clockwise
+                self.current_heading,
                 dt
             )
             
@@ -324,11 +331,8 @@ class MovementController(Node):
         
         # Priority 3: Recording mode (pass-through manual control but record)
         if self.is_recording:
-            # In recording mode, we return 0,0 here and let manual control handle it
-            # The manual efforts will be recorded in control_loop
             return 0.0, 0.0
         
-        # Priority 4: Manual mode
         return 0.0, 0.0
     
     def publish_docking_status(self):
@@ -336,15 +340,13 @@ class MovementController(Node):
         status_msg = String()
         status_parts = []
         
-        # Recording status
         if self.is_recording:
-            duration = self.docking_controller.get_recording_duration()
+            duration = self.docking_controller.get_lat_lon_duration()
             status_parts.append(f"RECORDING ({duration:.1f}s)")
         elif self.playback_enabled:
-            progress = (self.playback_index / len(self.playback_movements) * 100) if self.playback_movements else 0
+            progress = (self.playback_index / len(self.playback_lat_lon) * 100) if self.playback_lat_lon else 0
             status_parts.append(f"PLAYBACK ({progress:.0f}%)")
         
-        # Docking status
         if self.docking_target_set:
             distance = self.docking_controller.get_distance_to_target(
                 self.current_lat, self.current_lon
@@ -359,14 +361,12 @@ class MovementController(Node):
             )
             status_parts.append(docking_status)
         
-        # Channel states
         status_parts.append(f"CH5:{self.prev_chan5_state} CH6:{self.prev_chan6_state}")
         
         status_msg.data = " | ".join(status_parts)
         self.docking_status_pub.publish(status_msg)
     
     def control_loop(self):
-        """Main control loop callback"""
         try:
             current_time = time()
             dt = current_time - self.last_update_time
@@ -374,20 +374,18 @@ class MovementController(Node):
             yaw_effort, speed_effort = self.calculate_control_efforts()
             
             if self.is_recording:
+                self.docking_controller.record_lat_lon(self.current_lat, self.current_lon, dt)
                 yaw_effort = self.manual_yaw_effort
                 speed_effort = self.manual_speed_effort
-                self.docking_controller.record_movement(yaw_effort, speed_effort, dt)
 
             yaw_effort = max(-300.0, min(300.0, yaw_effort))
             speed_effort = max(-300.0, min(300.0, speed_effort))
             
-            yaw_msg = Float64()
-            yaw_msg.data = yaw_effort
-            self.yaw_effort_pub.publish(yaw_msg)
-            
-            speed_msg = Float64()
-            speed_msg.data = speed_effort
-            self.speed_effort_pub.publish(speed_msg)
+            self.yaw_msg.data = yaw_effort
+            self.speed_msg.data = speed_effort
+
+            self.yaw_effort_pub.publish(self.yaw_msg)
+            self.speed_effort_pub.publish(self.speed_msg)
             
             self.publish_docking_status()
 
@@ -402,8 +400,6 @@ class MovementController(Node):
             self.get_logger().error(f"Error in control loop: {traceback.format_exc()}")
     
     def run(self):
-        """Start the movement controller"""
-        # Create timer for control loop
         self.timer = self.create_timer(self.dt, self.control_loop)
         self.get_logger().info(f"Movement controller running at {self.control_rate} Hz")
     

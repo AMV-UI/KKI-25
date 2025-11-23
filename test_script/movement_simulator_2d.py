@@ -74,9 +74,9 @@ METERS_TO_LATLON = 0.00001  # Approximate conversion
 
 # Simulation realism constants
 GPS_UPDATE_RATE = 5  # Hz (5-10 Hz typical)
-GPS_POSITION_NOISE = 5.0  # meters (±2-5m typical)
+GPS_POSITION_NOISE = 2.0  # meters (±2-5m typical)
 GPS_HEADING_NOISE = 10  # degrees (±5-10° typical)
-CURRENT_STRENGTH = 0.01  # m/s (0.5-2 m/s typical)
+CURRENT_STRENGTH = 0.50  # m/s (0.5-2 m/s typical)
 CURRENT_DIRECTION = 45.0  # degrees (can be changed)
 COMM_DELAY = 0.05  # seconds (50ms typical MAVLink delay)
 
@@ -536,15 +536,15 @@ class Simulator:
         if self.recording_state == RecordingState.IDLE:
             # Start recording
             lat, lon = self.vehicle.get_lat_lon()
-            self.docking_controller.start_recording(lat, lon, self.vehicle.get_heading_pixhawk())
+            self.docking_controller.start_lat_lon_recording(lat, lon, self.vehicle.get_heading_pixhawk())
             self.initial_vehicle_state = (self.vehicle.x, self.vehicle.y, self.vehicle.heading)
             self.recording_state = RecordingState.RECORDING
-            print("Started recording movements...")
+            print("Started recording lat/lon...")
             
         elif self.recording_state == RecordingState.RECORDING:
             # Stop recording and start playback
-            num_frames = self.docking_controller.stop_recording()
-            duration = self.docking_controller.get_recording_duration()
+            num_frames = self.docking_controller.stop_lat_lon_recording()
+            duration = self.docking_controller.get_lat_lon_duration()
             print(f"Recording stopped. Recorded {num_frames} frames ({duration:.1f}s)")
             
             if num_frames > 0:
@@ -614,57 +614,66 @@ class Simulator:
     def update_recording(self, dt):
         """Update movement recording during manual control"""
         if self.recording_state == RecordingState.RECORDING:
-            # Record current control efforts
-            self.docking_controller.record_movement(
-                self.vehicle.yaw_effort,
-                self.vehicle.speed_effort,
-                dt
-            )
+            # Record current lat/lon
+            lat, lon = self.vehicle.get_lat_lon()
+            self.docking_controller.record_lat_lon(lat, lon, dt)
     
     def update_playback(self, dt):
         """Update movement playback"""
         if self.recording_state != RecordingState.PLAYING_BACK:
             return
         
-        recorded_movements = self.docking_controller.get_recorded_movements()
+        recorded_lat_lon = self.docking_controller.get_recorded_lat_lon()
         
-        if self.playback_index >= len(recorded_movements):
+        if self.playback_index >= len(recorded_lat_lon):
             # Playback finished
             self.vehicle.stop()
             self.recording_state = RecordingState.IDLE
             print("Playback completed!")
             return
         
-        # Get current frame
-        yaw_effort, speed_effort, frame_dt = recorded_movements[self.playback_index]
+        # Get target lat/lon from recording
+        target_lat, target_lon, frame_dt = recorded_lat_lon[self.playback_index]
         
-        # Accumulate time
-        self.playback_time_accumulator += dt
+        # Only update target if it has changed (to avoid resetting PID controller)
+        if self.docking_controller.target_lat != target_lat or self.docking_controller.target_lon != target_lon:
+            self.docking_controller.set_target(target_lat, target_lon)
         
-        # Apply efforts for this frame
+        # Use docking controller to navigate to the recorded point
+        current_lat, current_lon = self.vehicle.get_lat_lon(use_gps=True)
+        current_heading_deg = self.vehicle.get_heading_pixhawk(use_gps=True)
+        
+        # Temporarily set target to recorded point
+        # self.docking_controller.set_target(target_lat, target_lon)
+        
+        yaw_effort, speed_effort, is_docked = self.docking_controller.calculate_control_efforts(
+            current_lat, current_lon, current_heading_deg, dt
+        )
+        
+        # Apply efforts
         self.vehicle.set_yaw_effort(yaw_effort)
         self.vehicle.set_speed_effort(speed_effort)
         
-        # Check if we should move to next frame
-        if self.playback_time_accumulator >= frame_dt:
-            self.playback_time_accumulator -= frame_dt
+        # Check distance to current target to advance to next waypoint
+        distance_to_target = self.docking_controller.get_distance_to_target(current_lat, current_lon)
+        
+        # If close enough to target, move to next waypoint
+        # Using 2.0 meters as threshold (slightly larger than docking threshold to ensure smooth path following)
+        if distance_to_target < 2.0:
             self.playback_index += 1
     
     def update_docking(self, dt):
         """Update autonomous docking behavior using DockingController"""
         if self.docking_state != DockingState.GOING_TO_DOCK or self.docking_point is None:
             return
-        
-        # Get current vehicle position and heading (with GPS noise)
+
         current_lat, current_lon = self.vehicle.get_lat_lon(use_gps=True)
-        current_heading_deg = self.vehicle.get_heading_pixhawk(use_gps=True)  # Get in Pixhawk convention (degrees)
+        current_heading_deg = self.vehicle.get_heading_pixhawk(use_gps=True)
         
-        # Use the modularized docking controller (now expects degrees in Pixhawk convention)
         yaw_effort, speed_effort, is_docked = self.docking_controller.calculate_control_efforts(
             current_lat, current_lon, current_heading_deg, dt
         )
         
-        # Check if we've reached the docking point
         if is_docked:
             self.vehicle.stop()
             self.docking_state = DockingState.DOCKED
@@ -672,7 +681,6 @@ class Simulator:
             print(f"Docked successfully! Final distance: {distance:.2f}m")
             return
         
-        # Apply control efforts with communication delay
         self.vehicle.set_yaw_effort(yaw_effort, apply_delay=True, current_time=self.sim_time)
         self.vehicle.set_speed_effort(speed_effort, apply_delay=True, current_time=self.sim_time)
     
@@ -726,10 +734,10 @@ class Simulator:
         
         # Add recording info if applicable
         if self.recording_state == RecordingState.RECORDING:
-            duration = self.docking_controller.get_recording_duration()
+            duration = self.docking_controller.get_lat_lon_duration()
             info_texts.append(f"Recording Time: {duration:.1f}s")
         elif self.recording_state == RecordingState.PLAYING_BACK:
-            recorded = self.docking_controller.get_recorded_movements()
+            recorded = self.docking_controller.get_recorded_lat_lon()
             progress = (self.playback_index / len(recorded) * 100) if recorded else 0
             info_texts.append(f"Playback: {progress:.0f}% ({self.playback_index}/{len(recorded)})")
         
@@ -859,6 +867,36 @@ class Simulator:
             color = GRAY if y == WINDOW_HEIGHT // 2 else DARK_GRAY
             pygame.draw.line(self.screen, color, (0, y), (WINDOW_WIDTH, y), 1)
     
+    def lat_lon_to_screen(self, lat, lon):
+        """Convert lat/lon to screen coordinates"""
+        # Inverse of get_lat_lon
+        # lat = (WINDOW_HEIGHT / 2 - y) * PIXELS_TO_METERS * METERS_TO_LATLON
+        # y = WINDOW_HEIGHT / 2 - lat / (PIXELS_TO_METERS * METERS_TO_LATLON)
+        y = WINDOW_HEIGHT / 2 - lat / (PIXELS_TO_METERS * METERS_TO_LATLON)
+        x = WINDOW_WIDTH / 2 + lon / (PIXELS_TO_METERS * METERS_TO_LATLON)
+        return int(x), int(y)
+
+    def draw_recorded_path(self):
+        """Draw the recorded lat/lon path"""
+        recorded_lat_lon = self.docking_controller.get_recorded_lat_lon()
+        if not recorded_lat_lon or len(recorded_lat_lon) < 2:
+            return
+            
+        points = []
+        for lat, lon, _ in recorded_lat_lon:
+            x, y = self.lat_lon_to_screen(lat, lon)
+            points.append((x, y))
+            
+        if len(points) > 1:
+            pygame.draw.lines(self.screen, YELLOW, False, points, 2)
+            
+        # Draw start and end points
+        start_x, start_y = points[0]
+        end_x, end_y = points[-1]
+        
+        pygame.draw.circle(self.screen, GREEN, (start_x, start_y), 5)
+        pygame.draw.circle(self.screen, RED, (end_x, end_y), 5)
+
     def run(self):
         """Main simulation loop"""
         while self.running:
@@ -912,6 +950,9 @@ class Simulator:
                 pygame.draw.line(self.screen, GREEN, (init_x, init_y - 10), (init_x, init_y + 10), 2)
             
             self.vehicle.draw(self.screen)
+            
+            # Draw recorded path
+            self.draw_recorded_path()
             
             # Draw simulation effects visualization
             if self.show_sim_effects:

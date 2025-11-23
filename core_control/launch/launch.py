@@ -32,14 +32,14 @@ def generate_launch_description():
         
         Node(
             package="core_control",
-            executable="microcontroller",
-            name="microcontroller",
+            executable="pixhawk_controller",
+            name="pixhawk_controller",
             output="screen",
         ),
         Node(
             package="core_control",
-            executable="pwm_controller",
-            name="pwm_controller",
+            executable="esp_controller",
+            name="esp_controller",
             output="screen",
         ),
         Node(
