@@ -18,14 +18,14 @@ from core.utils.motor import Motor
 
 class ObjectDetector:
     def __init__(
-        self, model_path, node, track, class_names, camera_index, width=640, height=480, fps=30
+        self, model_path, node, arena, class_names, camera_index, width=640, height=480, fps=30
     ):
 
         self.model = YOLO(model_path)
         self.class_names = class_names
         self.conf_threshold = 0.2
         self.node = node
-        self.track = track
+        self.arena = arena
 
         self.cap = cv2.VideoCapture(camera_index)
         self.cap.set(1, fps)  # Set FPS
@@ -33,20 +33,7 @@ class ObjectDetector:
         self.cap.set(4, height)  # Set height
 
         # self.camera_bottom = BottomCamera()
-        self.motor = Motor(self.node, offset_horizontal=100, motor_adjust=0)
-
-        # Track
-        # self.track = rospy.get_param(Param.TRACK)
-
-        #new param factory implementation [untested]
-        self.track = "B"
-
-
-        # PARAM EXAMPLES
-        # self.create_example = Param.TRACK.createParam(self.node, default_value=self.track)
-        # self.change_example = Param.TRACK.setParam(self.node, "A")
-        # self.get_example = Param.TRACK.getValue(self.node)
-
+        # self.motor = Motor(self.node, offset_horizontal=100, motor_adjust=0)
 
         # PID
         self.pid_adjust = 100
@@ -68,7 +55,7 @@ class ObjectDetector:
         # self.cameraBottomPub = Topic.image_blue_box.createPublisher()
     
     def _arena_cb(self, msg: String):
-        self.track = str(msg.data)
+        self.arena = str(msg.data)
 
     def draw_detections(self, img, results):
         """Draw detection boxes and labels on frame"""
@@ -127,7 +114,6 @@ class ObjectDetector:
         # self.minimum_blue_box_area = 200
         # self.minimum_green_box_area = 200
         for r in results:
-            # self.track = rospy.get_param(Param.TRACK)
             boxes = r.boxes
             for box in boxes:
                 # Get bounding box coordinates
@@ -142,8 +128,6 @@ class ObjectDetector:
                 # put box in cam
                 color = (0, 0, 0)
 
-
-
                 # Get area of the box experimentation with actual area instead of x only
                 # area = abs(x1 - x2)
                 area = abs((x2 - x1) * (y2 - y1))
@@ -153,8 +137,6 @@ class ObjectDetector:
                     )
 
                 elif mission == "green_box":
-                    # Motor.full_detected()
-                    # yaw_state = self.pid_adjust * (1 if self.track == "A" else -1)
                     img, status = self.green_box_detected(
                         img, x1, y1, x2, y2, confidence, area
                     )
@@ -164,9 +146,6 @@ class ObjectDetector:
                     return img, yaw_state, detected
 
                 elif mission == "blue_box":
-                    # Motor.full_detected()
-                    # yaw_state = self.pid_adjust * (1 if self.track == "A" else -1)
-
                     img_64, status = self.blue_box_detected(
                         img, x1, y1, x2, y2, confidence, area
                     )
@@ -182,20 +161,18 @@ class ObjectDetector:
                     img, status = self.docking_detected(
                         cls, img, x1, y1, x2, y2, confidence
                     )
-                    # Motor.full_detected()
-                    # yaw_state = self.pid_adjust * (1 if self.track == "A" else -1)
                     detected = status
 
-                    if detected:
-                        self.motor.full_detected()
+                    # if detected:
+                    #     self.motor.full_detected()
 
                     return img, yaw_state, detected
 
         if self.max_red < self.max_green * self.treshold:
-            self.motor.one_is_closer_detected()
+            # self.motor.one_is_closer_detected()
             self.max_red = -1
         elif self.max_green < self.max_red * self.treshold:
-            self.motor.one_is_closer_detected()
+            # self.motor.one_is_closer_detected()
             self.max_green = -1
 
         self.mid_red = (self.red["x1"] + self.red["x2"]) // 2
@@ -211,25 +188,20 @@ class ObjectDetector:
             ) // 2
 
             dsc_x = mid_x - width
-            # dsc_y = mid_y - height
 
-            self.motor.full_detected()
+            # self.motor.full_detected()
             yaw_state = dsc_x
-        # Half Motor
         else:
             # Only Green Buoy
             if self.max_green != -1:
-                self.motor.half_detected()
-                yaw_state = self.pid_adjust * (-1 if self.track == "A" else 1)
-
+                # self.motor.half_detected()
+                yaw_state = self.pid_adjust * (-1 if self.arena == "A" else 1)
             # Only Red Buoy
             elif self.max_red != -1:
-                self.motor.half_detected()
-                yaw_state = self.pid_adjust * (1 if self.track == "A" else -1)
-
-            # No Buoy
+                # self.motor.half_detected()
+                yaw_state = self.pid_adjust * (1 if self.arena == "A" else -1)
             else:
-                self.motor.not_detected()
+                # self.motor.not_detected()
                 yaw_state = 0
 
         if self.max_green != -1 or self.max_red != -1:
@@ -243,15 +215,15 @@ class ObjectDetector:
                 ) // 2
                 yaw_state = mid_x - width
                 detected = True
-                self.motor.full_detected()
+                # self.motor.full_detected()
             elif self.green_box["x1"] != -1:
                 # lintasan B = A, A = B
-                self.motor.half_detected()
-                yaw_state = self.pid_adjust * (-1 if self.track == "A" else 1)
+                # self.motor.half_detected()
+                yaw_state = self.pid_adjust * (-1 if self.arena == "A" else 1)
                 detected = True
             else:
-                self.motor.half_detected()
-                yaw_state = self.pid_adjust * (1 if self.track == "A" else 1)
+                # self.motor.half_detected()
+                yaw_state = self.pid_adjust * (1 if self.arena == "A" else 1)
                 detected = True
 
         color = (0, 0, 0)

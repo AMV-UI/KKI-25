@@ -51,10 +51,11 @@ class NodeConfig:
 class Topic:
 
     # Migrate From Param
-    x_speed = ParamFactory("/motor_controller/x_speed", Float64)
-    motor_speed = ParamFactory("/motor_controller/motor_speed", Float64)
-    docking_lat = ParamFactory("/docking/target_latitude", Float64)
-    docking_lon = ParamFactory("/docking/target_longitude", Float64)
+    arena = TopicFactory("core/arena", String)
+    st_speed = TopicFactory("/motor_controller/x_speed", Float64)
+    tn_speed = TopicFactory("/motor_controller/motor_speed", Float64)
+    dock_lat = TopicFactory("/docking/target_latitude", Float64)
+    dock_lon = TopicFactory("/docking/target_longitude", Float64)
 
     # Camera
     camera_processed = TopicFactory("/asv/vision/camera/processed", String)
@@ -104,9 +105,6 @@ class Topic:
     tuning_mission = TopicFactory("/core/tuning/mission", UInt8) 
     tuning_effort_st = TopicFactory("/core/tuning/effort/st", Float64)
     tuning_effort_tn = TopicFactory("/core/tuning/effort/tn", Float64)
-
-    # Arena
-    arena = TopicFactory("core/arena", String)
 
 class BT:
     class ALL:

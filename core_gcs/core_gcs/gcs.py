@@ -18,11 +18,14 @@ class Gcs(Node):
         self.lat_history = []
         self.pxmode = PxMode.HOLD
 
+        self.arena = "B"
+        self.setup()
 
-        Param.TRACK.createParam(self.node, default_value="B")
-        self.track = Param.TRACK.getValue(self.node) 
-        self.track_pub = Topic.arena.createPublisher(self.node)
-        self.track_pub.publish(String(data=self.track))
+    def setup(self):
+        self.arena_subscriber = Topic.arena.createSubscriber(
+            self,
+            self.arena_callback
+        )
 
         self.image_subscriber = Topic.camera_processed.createSubscriber(
             self,
@@ -48,6 +51,9 @@ class Gcs(Node):
             self,
             self.pxmode_callback
         )
+
+    def arena_callback(self, msg: String):
+        self.arena = msg.data
 
     def pxmode_callback(self, msg: String):
         self.pxmode = msg.data
@@ -81,7 +87,7 @@ class Gcs(Node):
             "alt": msg.alt,
             "msg_spd": msg.msg_spd,
             "msg_heading": msg.msg_heading,
-            "track": self.track,
+            "track": self.arena,
         }
         self._handle_incoming_data("pixhawk", data)
 

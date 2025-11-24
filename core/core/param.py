@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
-from rcl_interfaces.msg import SetParametersResult
 from std_msgs.msg import String, Float64
+from core.utils.config import Topic
 
 class ParameterBlackboard(Node):    
     def __init__(self, node = Node):
@@ -21,11 +21,11 @@ class ParameterBlackboard(Node):
         self.setup()
 
     def setup(self):
-        self.arena_pub = Topic.arena.create_publisher(self.node).publish(self.arena)
-        self.st_speed_pub = Topic.st_speed.create_publisher(self.node).publish(self.st_speed)
-        self.tn_speed_pub = Topic.tn_speed.create_publisher(self.node).publish(self.tn_speed)
-        self.dock_lat_pub = Topic.dock_lat.create_publisher(self.node).publish(self.dock_lat)
-        self.dock_lon_pub = Topic.dock_lon.create_publisher(self.node).publish(self.dock_lon)
+        self.arena_pub = Topic.arena.createPublisher(self.node).publish(String(data=self.arena))
+        self.st_speed_pub = Topic.st_speed.createPublisher(self.node).publish(Float64(data=self.st_speed))
+        self.tn_speed_pub = Topic.tn_speed.createPublisher(self.node).publish(Float64(data=self.tn_speed))
+        self.dock_lat_pub = Topic.dock_lat.createPublisher(self.node).publish(Float64(data=self.dock_lat))
+        self.dock_lon_pub = Topic.dock_lon.createPublisher(self.node).publish(Float64(data=self.dock_lon))
 
         self.arena_sub = Topic.arena.createSubscriber(
             self,

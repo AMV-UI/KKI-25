@@ -1,7 +1,7 @@
 from core.utils.config import Direction, Param
 
 class FindMode:
-    def __init__(self, node):
+    def __init__(self, node, arena):
         self.node = node
         self.initial_heading = -1
         self.current_heading = -1
@@ -11,8 +11,8 @@ class FindMode:
         self.range_low = -1
         self.range_high = -1
 
-        self.track = Param.TRACK.getValue(self.node)
-        self.find_status = "Left" if self.track == "A" else "Right"
+        self.arena = arena
+        self.find_status = "Left" if self.arena == "A" else "Right"
 
         self.GO_LEFT = -200  # STATE
         self.GO_RIGHT = 200
@@ -27,7 +27,7 @@ class FindMode:
 
     def set_range(self, direction):
         """Set the search range based on direction and track"""
-        if self.track == "A":
+        if self.arena == "A":
             self.range_low = Direction.A[direction] - self.threshold
             self.range_high = Direction.A[direction] + self.threshold
         else:
