@@ -71,6 +71,8 @@ class MovementController(Node):
 
         self.rc5 = float()
         self.rc6 = float()
+        self.yaw_msg = Float64()
+        self.speed_msg = Float64()
         
         self._setup_communication()
         

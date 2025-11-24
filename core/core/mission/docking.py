@@ -41,7 +41,7 @@ class DockingController:
         self.recording_start_time = 0.0
 
 
-        self.error_coordinate_threshold = 7.0
+        self.error_coordinate_threshold = 0.5
         self.accumulated_dt = 0.0
         
     def calculate_bearing_rad(self, lat1, lon1, lat2, lon2):

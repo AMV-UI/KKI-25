@@ -20,11 +20,11 @@ class Initial_Execution(BaseExecution):
         self.arena = "B"
         self.detected = False
         self.time_threshold = 1
-        self.target = 100
+        self.target = 180
         self.hold = False
 
         self.frame_counter = FrameCounter(self.time_threshold)
-        self.effort = 100.0 
+        self.effort = 200.0 
         self.heading = 0
 
     def setup(self, **kwargs) -> None:
@@ -40,13 +40,13 @@ class Initial_Execution(BaseExecution):
         self.heading_sub = Topic.heading_deg.createSubscriber(self.node, self._heading_cb)
 
     def calc_dsc(self):
-        kanan = (self.target - self.heading + 360) % 360
-        kiri = (self.heading - self.target + 360) % 360
+        kanan = (abs(self.target - self.heading) + 360) % 360
+        kiri = (abs(self.heading - self.target) + 360) % 360
 
         if kanan <= kiri:
-            return -1
-        else:
             return 1
+        else:
+            return -1
 
 
     def _pxmode_cb(self, msg: String):

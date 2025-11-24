@@ -1,6 +1,8 @@
 from re import split
 from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
+import py_trees
+
 from std_msgs.msg import Bool, Float64, UInt8, String, UInt32
 from core.utils.config import Topic
 from core.mission.gps_stuff import turner
@@ -37,12 +39,12 @@ class RecordGPSExecution(BaseExecution):
         self.px_mode = PxMode.HOLD
         self.effort_st = 100.0
         self.effort_tn = 100.0
-        self.file_position = 0
+        self.position_idx = 0
         self.margin_error = 1.0
-        # self.coor_file = open("core_behavior_tree/core_behavior_tree/behaviors/mission/actions/tuning/log/coordinate.txt", "r")
+        self.turn_error = 10.0
         self.playback = False
-        self.next_coor = float(0.0), float(0.0)
-        # self.continue_file_line()
+        self.blackboard_client = py_trees.blackboard.Client(name="RecordGPSExecutionBBClient")
+        self.blackboard_client.register_key(key="tuning_coordinate_file_position", access=py_trees.common.Access.READ)
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
@@ -103,13 +105,14 @@ class RecordGPSExecution(BaseExecution):
             line = coor_file.readline().strip().split(",")
             if len(line) != 2:
                 self.node.get_logger().info("[{}] CEEEEEEEEEEk")
-                self.next_coor = ""
+                self.next_coor = float(0.0), float(0.0)
             else:
                 self.node.get_logger().info("[{}] CEEEEEEEEEEk {} {} {}".format(self.name, line[0], line[1], self.file_position))
                 self.next_coor = float(line[0]), float(line[1])
                 self.file_position = coor_file.tell()
 
         
+
     def execute(self) -> Status:
         self.node.get_logger().info("[{}] Execution... {}".format(self.name, self.playback), throttle_duration_sec=1.0)
 
@@ -124,10 +127,10 @@ class RecordGPSExecution(BaseExecution):
         
         self.node.get_logger().info("[{}] Playing back GPS coordinates... Next Coordinate: {}".format(self.name, self.next_coor), throttle_duration_sec=1.0)
         if self.next_coor != (0.0, 0.0):
-            theta = turner((self.lat, self.lon), self.heading, self.next_coor)       
-            if theta > 0:
+            theta = turner((self.lon, self.lat), self.heading, self.next_coor)       
+            if theta > self.turn_error:
                 self.yaw_effort_pub.publish(Float64(data=self.effort_tn))
-            elif theta < 0:
+            elif theta < -self.turn_error:
                 self.yaw_effort_pub.publish(Float64(data=-self.effort_tn))
             else:
                 self.yaw_effort_pub.publish(Float64(data=0.0))
@@ -154,7 +157,6 @@ class RecordGPSFallback(BaseFallback):
     def initialise(self):
         self.time_step = 2.0  # seconds
         self.last_time = time.time()
-        self.coor_str = []
         self.playback = False
         self.lat = 0
         self.lon = 0
@@ -188,7 +190,7 @@ class RecordGPSFallback(BaseFallback):
             self.playback = False
 
     def _rc6_cb(self, msg: UInt8):
-        if 1301 <= msg.data <= 1700:
+        if 1301 <= msg.data <= 1700 and not self.recording:
             open("core_behavior_tree/core_behavior_tree/behaviors/mission/actions/tuning/log/coordinate.txt", "w").close()  # reset file
             self.recording = True
         else:

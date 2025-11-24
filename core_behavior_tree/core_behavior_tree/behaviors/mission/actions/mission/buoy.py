@@ -82,7 +82,7 @@ class Buoy_Execution(BaseExecution):
 
         self.frame_counter.reset()
 
-        self.yaw_effort_pub.publish(Float64(data=self.dsc))
+        self.yaw_effort_pub.publish(Float64(data=-self.dsc))
         self.speed_effort_pub.publish(Float64(data=self.speed_effort))
             
         self.node.get_logger().info(
