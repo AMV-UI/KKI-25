@@ -25,7 +25,7 @@ setup(
             'motor_controller = core_control.motor_controller:main',
             'pixhawk_controller = core_control.pixhawk_controller:main',
             'esp_controller = core_control.esp_controller:main',
-            # 'pwm_controller = core_control.pwm_controller:main',
+            'pwm_controller = core_control.pwm_controller:main',
             'movement_controller = core_control.movement_controller:main',
         ],
     },

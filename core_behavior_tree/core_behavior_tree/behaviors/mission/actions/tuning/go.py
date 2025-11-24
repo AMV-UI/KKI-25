@@ -57,7 +57,7 @@ class Go_Execution(BaseExecution):
 
 
     def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}] Tuning")
+        self.node.get_logger().info(f"[{self.name}] Tuning", throttle_duration_sec=1.0)
         if(self.success):
             return Status.SUCCESS
 

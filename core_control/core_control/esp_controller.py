@@ -75,9 +75,7 @@ class ESPController(Node):
 
         for port in ports:
             try:
-                ser = serial.Serial(port, 115200, timeout=1)
-                self.get_logger().info(f"Trying port: {port}")
-   
+                ser = serial.Serial(port, 115200, timeout=1)   
                 start_time = time.time()
                 while time.time() - start_time < 2.0:
                     if ser.in_waiting:
@@ -90,8 +88,6 @@ class ESPController(Node):
             except Exception as e:
                 self.get_logger().warn(f"Failed to open {port}: {e}")
         
-        self.error_throttle(5000, "ESP32 not found on any port")
-
     @staticmethod
     def _parse_raw(raw_str):
         try:

@@ -13,6 +13,10 @@ from ..behaviors.mission.actions.tuning.go import Go_Execution, Go_Fallback
 from ..behaviors.mission.actions.tuning.done import Done_Execution, Done_Fallback
 from ..behaviors.mission.actions.tuning.hardcode import *
 
+from ..behaviors.mission.actions.mission.initial import Initial_Execution, Initial_Fallback
+from ..behaviors.mission.actions.mission.buoy  import Buoy_Execution, Buoy_Fallback
+from ..behaviors.mission.actions.mission.finding import Finding_Execution, Finding_Fallback
+
 from core.utils.config import Topic, BT
 
 from ..behaviors.base_behavior import BaseBehavior
@@ -40,14 +44,22 @@ class MissionTreeBuilder:
     #]
 
     # Tuning Config
+    # MISSIONS_CONFIG = [
+    #      (Straight_Execution, Done_Execution, "Straight"),
+    #      (Done_Execution, Done_Fallback, "Stall"),
+    #      (Turn_Execution, Done_Execution, "Turn"),
+    #      (Done_Execution, Done_Fallback, "Stall"),
+    #      (Go_Execution, Go_Fallback, "Go"),
+    #      (Done_Execution, Done_Fallback, "Done"),
+    # ]
+
+    # Perception
     MISSIONS_CONFIG = [
-         (Straight_Execution, Done_Execution, "Straight"),
-         (Done_Execution, Done_Fallback, "Stall"),
-         (Turn_Execution, Done_Execution, "Turn"),
-         (Done_Execution, Done_Fallback, "Stall"),
-         (Go_Execution, Go_Fallback, "Go"),
-         (Done_Execution, Done_Fallback, "Done"),
-     ]
+        (Initial_Execution, Initial_Fallback, "Initial"),
+        (Buoy_Execution, Buoy_Fallback, "Buoy"),
+        (Finding_Execution, Finding_Fallback, "Finding"),
+        (Done_Execution, Done_Fallback, "Done"),
+    ]
 
     def __init__(self, ros_node):
         self.ros_node = ros_node

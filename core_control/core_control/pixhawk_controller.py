@@ -125,6 +125,11 @@ class PixhawkController(Node):
         self.rc_chans = fetched_channels if fetched_channels != None else self.rc_chans
         return self.rc_chans
 
+    def _get_pwm(self):
+        self.rc5_pub.publish(Float64(data=float(self.rc_chans.chan5_raw)))
+        self.rc6_pub.publish(Float64(data=float(self.rc_chans.chan6_raw)))
+        self.get_logger().info(f"Channel Values : {self.rc_chans.chan1_raw}, {self.rc_chans.chan3_raw}, {self.rc_chans.chan8_raw}", throttle_duration_sec=1.0)
+
     def _px_set_mode(self, pwm_val):
         if self.ser_2 is None: return
         
@@ -187,17 +192,7 @@ class PixhawkController(Node):
             self.rc_chans = self._px_rc_val()
             if self.rc_chans:
                 self._px_set_mode(self.rc_chans.chan8_raw)
-                
-                self.rc5_pub.publish(Float64(data=float(self.rc_chans.chan5_raw)))
-                self.rc6_pub.publish(Float64(data=float(self.rc_chans.chan6_raw)))
-                # self.info_throttle(1000, f"Channel Values : {self.rc_chans.chan1_raw}, {self.rc_chans.chan3_raw}, {self.rc_chans.chan8_raw}")
-
-            # PWM Control
-            if self.pwm_chan is not None and self.pxmode == PxMode.AUTO:               
-                self.set_rc_channel_pwm(self.pwm_chan)
-            else:
-                rc_channel_values = [0 for _ in range(8)]
-                self.set_rc_channel_pwm(rc_channel_values)
+                self._get_pwm()
             
 def main(args=None):
     rclpy.init(args=args)

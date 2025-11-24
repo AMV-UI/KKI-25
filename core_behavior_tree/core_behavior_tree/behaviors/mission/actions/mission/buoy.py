@@ -1,4 +1,4 @@
-from ..mission_behaviors import BaseExecution, BaseFallback
+from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from std_msgs.msg import Bool, Float64, UInt8, String
 from core.utils.config import Topic
@@ -7,7 +7,7 @@ from core_msgs.msg import Pixhawk
 
 
 import time
-class Mission1_Execution(BaseExecution):
+class Buoy_Execution(BaseExecution):
     """
     Main execution: APPROACH to 2 Buoys (Different color, Green and Red) phase only
     - Navigate toward detected target using DSC from vision
@@ -15,7 +15,7 @@ class Mission1_Execution(BaseExecution):
     - If target not detected -> FAILURE (triggers fallback to search)
     - Store Pixhawk coordinate to docking station after to use in the last mission
     """
-    def __init__(self, name, node=None):
+    def __init__(self, name: str = "Mission1_Execution", node=None):
         super().__init__(name, node=node)
         self.node = node
         self.frame_counter = None
@@ -24,7 +24,7 @@ class Mission1_Execution(BaseExecution):
         self.speed_effort = 100.0
         self.pixhawk = None
         self.arena = "B"
-        self.initial_heading = -361
+        self.initial_heading = -361  # (Max -360 until 360) So means is not setup yet
         self.gps_ready = False
         self.time_threshold = 2 # in Seconds    
         
@@ -43,7 +43,15 @@ class Mission1_Execution(BaseExecution):
         self.pixhawk_sub = Topic.pixhawk.createSubscriber(self.node, self._pixhawk_cb)
         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
         self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
+
+        self.speed_sub = Topic.tuning_effort_st.createSubscriber(
+            self.node,
+            self._speed_cb
+        )
     
+    def _speed_cb(self, msg: Float64):
+        self.speed_effort = float(msg.data)
+
     def _pixhawk_cb(self, msg: Pixhawk):
         self.pixhawk = msg
         if msg.lat != 0.0 and msg.lon != 0.0:
@@ -86,7 +94,7 @@ class Mission1_Execution(BaseExecution):
         return Status.RUNNING
 
 
-class Mission1_Fallback(BaseFallback):
+class Buoy_Fallback(BaseFallback):
     """
     Fallback: FINDING phase
     - Search for target using constant yaw + find_mode
@@ -125,7 +133,6 @@ class Mission1_Fallback(BaseFallback):
 
     def _heading_cb(self, msg: Float64):
         self.px_heading = float(msg.data)
-        self.initial_heading_pub.publish(self.px_heading)
 
     def fallback(self) -> Status:
 
