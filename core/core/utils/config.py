@@ -25,14 +25,9 @@ class Param:
     KI = ParamFactory("/yaw_controller/yaw_controller/Ki", float)
     KD = ParamFactory("/yaw_controller/yaw_controller/Kd", float)
     THRESHOLD = ParamFactory("/camera_front/threshold", float)
-    TRACK = ParamFactory("/mission/track", str)
-    BOW_SPEED = ParamFactory("/motor_controller/bow_speed", float)
-    X_SPEED = ParamFactory("/motor_controller/x_speed", float)
-    MOTOR_SPEED = ParamFactory("/motor_controller/motor_speed", float)
-    CONF_THRESHOLD = ParamFactory("/mission/confidence_threshold", float)
 
-    DOCKING_LAT = ParamFactory("/docking/target_latitude", float)
-    DOCKING_LON = ParamFactory("/docking/target_longitude", float)
+    BOW_SPEED = ParamFactory("/motor_controller/bow_speed", float)
+    CONF_THRESHOLD = ParamFactory("/mission/confidence_threshold", float)
     FLAG = ParamFactory("/mission/flag", bool)
 
 
@@ -54,6 +49,12 @@ class NodeConfig:
 
 
 class Topic:
+
+    # Migrate From Param
+    x_speed = ParamFactory("/motor_controller/x_speed", Float64)
+    motor_speed = ParamFactory("/motor_controller/motor_speed", Float64)
+    docking_lat = ParamFactory("/docking/target_latitude", Float64)
+    docking_lon = ParamFactory("/docking/target_longitude", Float64)
 
     # Camera
     camera_processed = TopicFactory("/asv/vision/camera/processed", String)

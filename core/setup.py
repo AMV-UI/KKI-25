@@ -23,7 +23,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'parameter_blackboard = core.parameter_blackboard:main',
+            'param = core.param:main',
         ],
     },
 )
