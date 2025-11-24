@@ -61,7 +61,7 @@ class ESPController(Node):
     def _get_serial_ports(self):
         dirs = []
         list_of_files = os.listdir("/dev")
-        pattern = "ttyUSB*"
+        pattern = "ttyACM*"
         for entry in list_of_files:
             if fnmatch.fnmatch(entry, pattern):
                 dirs.append(f"/dev/{entry}")

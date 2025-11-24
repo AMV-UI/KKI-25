@@ -16,8 +16,8 @@ class Motor:
         self.motor_adjust = motor_adjust
         self.channel = Channel
 
-        Param.MOTOR_SPEED.createParam(self.node, default_value=SPEED.Maximum)
-        Param.X_SPEED.createParam(self.node, default_value=SPEED.Maximum)
+        # Param.MOTOR_SPEED.createParam(self.node, default_value=SPEED.Maximum)
+        # Param.X_SPEED.createParam(self.node, default_value=SPEED.Maximum)
 
     def __adjust(self, input_pwm, adjust):
         if input_pwm > self.STANDBY:
@@ -39,8 +39,12 @@ class Motor:
         return self.STANDBY + control_effort
 
     def autonomous(self, control_effort_x=50, control_effort_y=300):
-        motor_speed = Param.MOTOR_SPEED.getValue(self.node)
-        x_speed = Param.X_SPEED.getValue(self.node)
+        # motor_speed = Param.MOTOR_SPEED.getValue(self.node)
+        # x_speed = Param.X_SPEED.getValue(self.node)
+
+        motor_speed = 1
+        x_speed = 1 
+
 
         self.node.get_logger().debug(f"Autonomous Mode: motor_speed={motor_speed}, x_speed={x_speed}")
         return self.__calcAdjustedSpeed({
@@ -48,21 +52,21 @@ class Motor:
             self.channel.MOTOR_Y: self.calculateSpeed(int(control_effort_y * motor_speed)),
         })
 
-    def half_detected(self):
-        Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)
-        Param.X_SPEED.setParam(self.node, SPEED.MediumFast)
+    # def half_detected(self):
+    #     Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)
+    #     Param.X_SPEED.setParam(self.node, SPEED.MediumFast)
 
-    def one_is_closer_detected(self):
-        Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)
-        Param.X_SPEED.setParam(self.node, SPEED.Medium)
+    # def one_is_closer_detected(self):
+    #     Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)
+    #     Param.X_SPEED.setParam(self.node, SPEED.Medium)
 
-    def full_detected(self): 
-        Param.MOTOR_SPEED.setParam(self.node, SPEED.MediumFast)
-        Param.X_SPEED.setParam(self.node, SPEED.MediumFast)
+    # def full_detected(self): 
+    #     Param.MOTOR_SPEED.setParam(self.node, SPEED.MediumFast)
+    #     Param.X_SPEED.setParam(self.node, SPEED.MediumFast)
 
-    def not_detected(self):
-        Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)
-        Param.X_SPEED.setParam(self.node, SPEED.Slow)
+    # def not_detected(self):
+    #     Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)
+    #     Param.X_SPEED.setParam(self.node, SPEED.Slow)
 
 def main(args=None):
     rclpy.init(args=args)

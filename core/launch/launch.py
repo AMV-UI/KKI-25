@@ -6,8 +6,8 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package="core",
-            executable="parameter_blackboard",
-            name="parameter_blackboard",        
+            executable="param",
+            name="param",        
             output="screen",
         )
     ])

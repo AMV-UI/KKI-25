@@ -44,7 +44,7 @@ class PixhawkController(Node):
     def _get_serial_ports(self):
         dirs = []
         list_of_files = os.listdir("/dev")
-        pattern = "ttyACM*"
+        pattern = "ttyUSB*"
         for entry in list_of_files:
             if fnmatch.fnmatch(entry, pattern):
                 dirs.append(f"/dev/{entry}")
@@ -53,9 +53,10 @@ class PixhawkController(Node):
     def _init_serial(self):
         ports = self._get_serial_ports()
         if not ports:
-            self.error_throttle(5000, "No ACM serial ports found (Pixhawk)")
+            self.error_throttle(5000, "No USB serial ports found (Pixhawk)")
             return
-        
+
+        self.get_logger().info(f"Available USB ports: {ports}")            
         for port in ports:
             try:
                 self.ser_2 = mavutil.mavlink_connection(port, baud=57600)
@@ -189,7 +190,7 @@ class PixhawkController(Node):
                 
                 self.rc5_pub.publish(Float64(data=float(self.rc_chans.chan5_raw)))
                 self.rc6_pub.publish(Float64(data=float(self.rc_chans.chan6_raw)))
-                self.info_throttle(1000, f"Channel Values : {self.rc_chans.chan1_raw}, {self.rc_chans.chan3_raw}, {self.rc_chans.chan8_raw}")
+                # self.info_throttle(1000, f"Channel Values : {self.rc_chans.chan1_raw}, {self.rc_chans.chan3_raw}, {self.rc_chans.chan8_raw}")
 
             # PWM Control
             if self.pwm_chan is not None and self.pxmode == PxMode.AUTO:               

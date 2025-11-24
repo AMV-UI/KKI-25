@@ -29,7 +29,7 @@ def generate_launch_description():
         track_arg,
         motor_speed_arg,
         x_speed_arg,
-        
+
         Node(
             package="core_control",
             executable="pixhawk_controller",
