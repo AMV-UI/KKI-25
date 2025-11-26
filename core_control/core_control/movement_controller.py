@@ -391,7 +391,7 @@ class MovementController(Node):
             return yaw_effort, speed_effort
         
         # Priority 3: Recording mode (pass-through manual control but record)
-        if self.is_recording:
+        if self.recording_state == RecordingState.RECORDING:
             return 0.0, 0.0
         
         return 0.0, 0.0
