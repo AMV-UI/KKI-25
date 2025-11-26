@@ -54,10 +54,10 @@ def generate_launch_description():
             name="motor_controller",
             output="screen",
         ),
-         Node(
-            package="core_control",
-            executable="movement_controller",
-            name="movement_controller",
-            output="screen",
-        ),
+        # Node(
+        #     package="core_control",
+        #     executable="movement_controller",
+        #     name="movement_controller",
+        #     output="screen",
+        # ),
     ])

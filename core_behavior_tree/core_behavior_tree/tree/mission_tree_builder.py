@@ -57,7 +57,9 @@ class MissionTreeBuilder:
     MISSIONS_CONFIG = [
         (Initial_Execution, Initial_Fallback, "Initial"),
         (Buoy_Execution, Buoy_Fallback, "Buoy"),
-        (Finding_Execution, Finding_Fallback, "Finding"),
+        (Finding_Execution, Finding_Fallback, "Finding"), 
+        (Buoy_Execution, Buoy_Fallback, "Buoy"),
+        (Do)
         (Done_Execution, Done_Fallback, "Done"),
     ]
 

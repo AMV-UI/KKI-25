@@ -53,7 +53,7 @@ class MovementController(Node):
         self.docking_target_set = False
         self.last_update_time = time()
         
-        self.distance_threshold = 2.0
+        self.distance_threshold = 1.0
         
         self.prev_chan5_state = 'LOW'
         self.prev_chan6_state = 'LOW'

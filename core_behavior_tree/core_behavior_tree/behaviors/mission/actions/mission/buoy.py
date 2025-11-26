@@ -67,7 +67,7 @@ class Buoy_Execution(BaseExecution):
         self.dsc = float(msg.data)
 
     def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}] Mission 1 EXECUTION mode active... GPS Ready: {self.gps_ready}")
+        self.node.get_logger().info(f"[{self.name}]")
 
         if not self.detected:
             self.frame_counter.is_started() 
@@ -75,6 +75,7 @@ class Buoy_Execution(BaseExecution):
             if self.frame_counter.is_enough():
                 self.frame_counter.reset()
                 self.node.get_logger().info(f"[{self.name}] Condition Succeeded from EXECUTION -> Mission COMPLETE")
+                self.mission_pub.publish(UInt8(data=1))
                 return Status.SUCCESS
 
             self.node.get_logger().info(f"[{self.name}] Condition Failed -> Switching to FALLBACK")
@@ -82,7 +83,7 @@ class Buoy_Execution(BaseExecution):
 
         self.frame_counter.reset()
 
-        self.yaw_effort_pub.publish(Float64(data=-self.dsc))
+        self.yaw_effort_pub.publish(Float64(data=self.dsc))
         self.speed_effort_pub.publish(Float64(data=self.speed_effort))
             
         self.node.get_logger().info(

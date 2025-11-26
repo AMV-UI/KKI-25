@@ -13,7 +13,7 @@ class DockingController:
         self.target_lat = target_lat
         self.target_lon = target_lon
         
-        self.Kp_yaw = 100.0    # Proportional gain for yaw (increased for ±300 range)
+        self.Kp_yaw = 200.0    # Proportional gain for yaw (increased for ±300 range)
         self.Ki_yaw = 0.5      # Integral gain for yaw
         self.Kd_yaw = 20.0     # Derivative gain for yaw
         
@@ -28,7 +28,7 @@ class DockingController:
         self.MAX_EFFORT = 300.0
         self.MIN_EFFORT = -300.0
         
-        self.docking_distance_threshold = 1.5  # meters - consider docked when closer
+        self.docking_distance_threshold = 1.0  # meters - consider docked when closer
         self.alignment_threshold = 0.3         # radians (~17 degrees) - move forward when aligned
         
         self.is_docked = False

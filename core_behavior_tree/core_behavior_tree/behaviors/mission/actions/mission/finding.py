@@ -34,11 +34,13 @@ class Finding_Execution(BaseExecution):
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
         self.find_mode = FindMode(self.node, self.arena)
-        self.frame_counter = FrameCounter(2)
+        self.frame_counter = FrameCounter(1)
 
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
         
+        self.mission_pub = Topic.mission.createPublisher(self.node)
+
         self.arena_sub = Topic.arena.createSubscriber(self.node, self._arena_cb)
         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
         self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
@@ -54,8 +56,7 @@ class Finding_Execution(BaseExecution):
             self._speed_cb
         )
         
-        self.mission_pub = Topic.mission.createPublisher(self.node)
-        self.mission_pub.publish(UInt8(data=2))
+        self.mission_pub.publish(UInt8(data=1))
 
     def _speed_cb(self, msg: Float64):
         self.speed_effort = float(msg.data)
@@ -76,7 +77,7 @@ class Finding_Execution(BaseExecution):
         self.px_heading = float(msg.data)
 
     def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}] We are executing Mission 2...")        
+        self.node.get_logger().info(f"[{self.name}] We are executing Finding...")        
         if self.detected:
             self.frame_counter.is_started()
             if self.frame_counter.is_enough():
@@ -84,12 +85,13 @@ class Finding_Execution(BaseExecution):
                 self.node.get_logger().info(
                     f"[{self.name}] Lost tower -> STEP_TWO complete, ready for docking"
                 )
+                self.mission_pub.publish(UInt8(data=1))
                 return Status.SUCCESS
         else:
             self.frame_counter.reset()
 
-        self.yaw_effort_pub.publish(Float64(data=self.dsc))
-        self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+        self.yaw_effort_pub.publish(Float64(data=self.speed_effort))
+        self.speed_effort_pub.publish(Float64(data=70.0))
         return Status.RUNNING
 
 class Finding_Fallback(BaseFallback):

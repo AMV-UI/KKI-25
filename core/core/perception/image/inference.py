@@ -36,7 +36,7 @@ class ObjectDetector:
         # self.motor = Motor(self.node, offset_horizontal=100, motor_adjust=0)
 
         # PID
-        self.pid_adjust = 100
+        self.pid_adjust = 200
         self.treshold = 0.25
 
         # Data Frame

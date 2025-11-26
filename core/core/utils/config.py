@@ -67,6 +67,7 @@ class Topic:
     detected = TopicFactory("/core/vision/image/detected", Bool)
 
     heading_deg = TopicFactory("/core/heading_deg", Float64)
+    initial_heading = TopicFactory("/core/initial/heading", Float64) 
 
     manual_yaw = TopicFactory("/core/manual_yaw", Float64)
     manual_speed = TopicFactory("/core/manual_speed", Float64)
@@ -99,7 +100,6 @@ class Topic:
     pxmode = TopicFactory("/core/micon/pixhawk/mode", String)
 
     #Finding Mode
-    initial_heading = TopicFactory("/core/initial/heading", UInt8) 
 
     # Tuning
     tuning_mission = TopicFactory("/core/tuning/mission", UInt8) 
