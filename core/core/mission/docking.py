@@ -13,13 +13,13 @@ class DockingController:
         self.target_lat = target_lat
         self.target_lon = target_lon
         
-        self.Kp_yaw = 200.0    # Proportional gain for yaw (increased for ±300 range)
-        self.Ki_yaw = 1.0      # Integral gain for yaw
-        self.Kd_yaw = 50.0     # Derivative gain for yaw
+        self.Kp_yaw = 300.0    # Proportional gain for yaw (increased for ±300 range)
+        self.Ki_yaw = 10.0      # Integral gain for yaw
+        self.Kd_yaw = 100.0     # Derivative gain for yaw
         
-        self.Kp_speed = 100.0  # Proportional gain for speed (distance-based)
+        self.Kp_speed = 200.0  # Proportional gain for speed (distance-based)
         self.min_speed = 50.0  # Minimum speed effort when moving
-        self.max_speed = 200.0 # Maximum speed effort
+        self.max_speed = 300.0 # Maximum speed effort
         
         self.yaw_error = 0.0
         self.yaw_integral = 0.0

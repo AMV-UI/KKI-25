@@ -73,12 +73,12 @@ PIXELS_TO_METERS = 0.1
 METERS_TO_LATLON = 0.00001  # Approximate conversion
 
 # Simulation realism constants
-GPS_UPDATE_RATE = 5  # Hz (5-10 Hz typical)
-GPS_POSITION_NOISE = 2.0  # meters (±2-5m typical)
+GPS_UPDATE_RATE = 500  # Hz (5-10 Hz typical)
+GPS_POSITION_NOISE = 0.5  # meters (±2-5m typical)
 GPS_HEADING_NOISE = 10  # degrees (±5-10° typical)
-CURRENT_STRENGTH = 0.01  # m/s (0.5-2 m/s typical)
+CURRENT_STRENGTH = 0.03  # m/s (0.5-2 m/s typical)
 CURRENT_DIRECTION = 45.0  # degrees (can be changed)
-COMM_DELAY = 0.05  # seconds (50ms typical MAVLink delay)
+COMM_DELAY = 0.01  # seconds (50ms typical MAVLink delay)
 
 
 class DockingState(Enum):

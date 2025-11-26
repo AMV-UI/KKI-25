@@ -55,6 +55,9 @@ class MovementController(Node):
         self.PWM_MID = 1500
         self.PWM_HIGH = 1700
         self.PWM_THRESHOLD = 200
+
+        self.MAX_PWM = 300
+        self.MIN_PWM = -300
         
         self.docking_enabled = False
         self.docking_target_set = False
@@ -96,19 +99,18 @@ class MovementController(Node):
         self.rc6_sub = Topic.rc6.createSubscriber(self, self._rc6_callback)
 
     
-        self.docking_target_sub = self.create_subscription(
-            Pixhawk, '/docking_target', self._docking_target_callback, 10
-        )
-        self.docking_enable_sub = self.create_subscription(
-            Bool, '/docking_enable', self._docking_enable_callback, 10
-        )
+        # self.docking_target_sub = self.create_subscription(
+        #     Pixhawk, '/docking_target', self._docking_target_callback, 10
+        # )
+        # self.docking_enable_sub = self.create_subscription(
+        #     Bool, '/docking_enable', self._docking_enable_callback, 10
+        # )
         self.manual_yaw_sub = Topic.manual_yaw.createSubscriber(self, self._manual_yaw_callback)
         self.manual_speed_sub = Topic.manual_speed.createSubscriber(self, self._manual_speed_callback)
         
         # Publishers
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self)
-        self.docking_status_pub = self.create_publisher(String, '/docking_status', 10)
         
         
         self.get_logger().info("Communication setup complete")
@@ -234,18 +236,15 @@ class MovementController(Node):
             if chan6_state == 'MID':
                 # Set docking point (home) and start recording
                 if self.recording_state == RecordingState.IDLE:
-                    # Check if there's already a docking point - if yes, navigate to it
                     if self.docking_target_set:
                         self.docking_enabled = True
                         self.docking_controller.reset_controller()
                         self.get_logger().info("[CH6-MID] Navigating back to home point...")
                     else:
-                        # Set docking point at current position
                         self.docking_controller.set_target(self.current_lat, self.current_lon)
                         self.docking_target_set = True
                         self.docking_enabled = False
                         
-                        # Start recording
                         self.docking_controller.start_lat_lon_recording(
                             self.current_lat,
                             self.current_lon,
@@ -263,18 +262,15 @@ class MovementController(Node):
                         self.get_logger().info("Recording will automatically stop when you return to the home point.")
             
             elif chan6_state == 'HIGH':
-                # During recording: inform user; After playback: ignored
                 if self.recording_state == RecordingState.RECORDING:
                     self.get_logger().info("[CH6-HIGH] Recording in progress... Return to home point to auto-stop and playback.")
             
             elif chan6_state == 'LOW':
-                # Stop playback and keep docking point available
                 if self.recording_state == RecordingState.PLAYING_BACK:
                     self.recording_state = RecordingState.IDLE
                     self.playback_index = 0
                     self.get_logger().info("[CH6-LOW] Playback STOPPED. Set CH6 to MID to navigate back to home.")
                 elif self.recording_state == RecordingState.RECORDING:
-                    # Stop recording manually
                     num_frames = self.docking_controller.stop_lat_lon_recording()
                     self.recording_state = RecordingState.IDLE
                     self.get_logger().info(f"[CH6-LOW] Recording manually stopped ({num_frames} frames)")
@@ -396,38 +392,6 @@ class MovementController(Node):
         
         return 0.0, 0.0
     
-    def publish_docking_status(self):
-        """Publish current docking and recording status information"""
-        status_msg = String()
-        status_parts = []
-        
-        if self.recording_state == RecordingState.RECORDING:
-            duration = self.docking_controller.get_lat_lon_duration()
-            status_parts.append(f"RECORDING ({duration:.1f}s)")
-        elif self.recording_state == RecordingState.PLAYING_BACK:
-            progress = (self.playback_index / len(self.playback_lat_lon) * 100) if self.playback_lat_lon else 0
-            status_parts.append(f"PLAYBACK ({progress:.0f}%)")
-        elif self.recording_state == RecordingState.RETURNING_TO_START:
-            status_parts.append("RETURNING TO START")
-        
-        if self.docking_target_set:
-            distance = self.docking_controller.get_distance_to_target(
-                self.current_lat, self.current_lon
-            )
-            heading_error = self.docking_controller.get_heading_error_deg()
-            
-            docking_status = (
-                f"Docking {'ACTIVE' if self.docking_enabled else 'SET'} | "
-                f"Dist: {distance:.2f}m | "
-                f"Hdg Err: {heading_error:.1f}° | "
-                f"Docked: {self.docking_controller.is_docked}"
-            )
-            status_parts.append(docking_status)
-        
-        status_parts.append(f"CH5:{self.prev_chan5_state} CH6:{self.prev_chan6_state}")
-        
-        status_msg.data = " | ".join(status_parts)
-        self.docking_status_pub.publish(status_msg)
     
     def control_loop(self):
         try:
@@ -442,8 +406,8 @@ class MovementController(Node):
                 yaw_effort = self.manual_yaw_effort
                 speed_effort = self.manual_speed_effort
 
-            yaw_effort = max(-300.0, min(300.0, yaw_effort))
-            speed_effort = max(-300.0, min(300.0, speed_effort))
+            yaw_effort = max(self.MIN_PWM, min(self.MAX_PWM, yaw_effort))
+            speed_effort = max(self.MIN_PWM, min(self.MAX_PWM, speed_effort))
             
             self.yaw_msg.data = yaw_effort
             self.speed_msg.data = speed_effort
@@ -451,7 +415,6 @@ class MovementController(Node):
             self.yaw_effort_pub.publish(self.yaw_msg)
             self.speed_effort_pub.publish(self.speed_msg)
             
-            self.publish_docking_status()
 
             # if int(time() * 2) % 10 == 0:  # Every 5 seconds
             #     state_name = self.recording_state.name
