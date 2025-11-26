@@ -409,8 +409,8 @@ class MovementController(Node):
             yaw_effort = max(self.MIN_PWM, min(self.MAX_PWM, yaw_effort))
             speed_effort = max(self.MIN_PWM, min(self.MAX_PWM, speed_effort))
             
-            self.yaw_msg.data = yaw_effort
-            self.speed_msg.data = speed_effort
+            self.yaw_msg = yaw_effort
+            self.speed_msg = speed_effort
 
             self.yaw_effort_pub.publish(self.yaw_msg)
             self.speed_effort_pub.publish(self.speed_msg)
