@@ -111,7 +111,6 @@ class MovementController(Node):
         # Publishers
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self)
-        self.docking_status_pub = self.create_publisher(String, '/docking_status', 10)
         
         
         self.get_logger().info("Communication setup complete")
@@ -393,38 +392,6 @@ class MovementController(Node):
         
         return 0.0, 0.0
     
-    def publish_docking_status(self):
-        """Publish current docking and recording status information"""
-        status_msg = String()
-        status_parts = []
-        
-        if self.recording_state == RecordingState.RECORDING:
-            duration = self.docking_controller.get_lat_lon_duration()
-            status_parts.append(f"RECORDING ({duration:.1f}s)")
-        elif self.recording_state == RecordingState.PLAYING_BACK:
-            progress = (self.playback_index / len(self.playback_lat_lon) * 100) if self.playback_lat_lon else 0
-            status_parts.append(f"PLAYBACK ({progress:.0f}%)")
-        elif self.recording_state == RecordingState.RETURNING_TO_START:
-            status_parts.append("RETURNING TO START")
-        
-        if self.docking_target_set:
-            distance = self.docking_controller.get_distance_to_target(
-                self.current_lat, self.current_lon
-            )
-            heading_error = self.docking_controller.get_heading_error_deg()
-            
-            docking_status = (
-                f"Docking {'ACTIVE' if self.docking_enabled else 'SET'} | "
-                f"Dist: {distance:.2f}m | "
-                f"Hdg Err: {heading_error:.1f}° | "
-                f"Docked: {self.docking_controller.is_docked}"
-            )
-            status_parts.append(docking_status)
-        
-        status_parts.append(f"CH5:{self.prev_chan5_state} CH6:{self.prev_chan6_state}")
-        
-        status_msg.data = " | ".join(status_parts)
-        self.docking_status_pub.publish(status_msg)
     
     def control_loop(self):
         try:
@@ -448,7 +415,6 @@ class MovementController(Node):
             self.yaw_effort_pub.publish(self.yaw_msg)
             self.speed_effort_pub.publish(self.speed_msg)
             
-            # self.publish_docking_status()
 
             # if int(time() * 2) % 10 == 0:  # Every 5 seconds
             #     state_name = self.recording_state.name
