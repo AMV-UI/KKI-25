@@ -55,6 +55,9 @@ class MovementController(Node):
         self.PWM_MID = 1500
         self.PWM_HIGH = 1700
         self.PWM_THRESHOLD = 200
+
+        self.MAX_PWM = 300
+        self.MIN_PWM = -300
         
         self.docking_enabled = False
         self.docking_target_set = False
@@ -96,12 +99,12 @@ class MovementController(Node):
         self.rc6_sub = Topic.rc6.createSubscriber(self, self._rc6_callback)
 
     
-        self.docking_target_sub = self.create_subscription(
-            Pixhawk, '/docking_target', self._docking_target_callback, 10
-        )
-        self.docking_enable_sub = self.create_subscription(
-            Bool, '/docking_enable', self._docking_enable_callback, 10
-        )
+        # self.docking_target_sub = self.create_subscription(
+        #     Pixhawk, '/docking_target', self._docking_target_callback, 10
+        # )
+        # self.docking_enable_sub = self.create_subscription(
+        #     Bool, '/docking_enable', self._docking_enable_callback, 10
+        # )
         self.manual_yaw_sub = Topic.manual_yaw.createSubscriber(self, self._manual_yaw_callback)
         self.manual_speed_sub = Topic.manual_speed.createSubscriber(self, self._manual_speed_callback)
         
@@ -234,18 +237,15 @@ class MovementController(Node):
             if chan6_state == 'MID':
                 # Set docking point (home) and start recording
                 if self.recording_state == RecordingState.IDLE:
-                    # Check if there's already a docking point - if yes, navigate to it
                     if self.docking_target_set:
                         self.docking_enabled = True
                         self.docking_controller.reset_controller()
                         self.get_logger().info("[CH6-MID] Navigating back to home point...")
                     else:
-                        # Set docking point at current position
                         self.docking_controller.set_target(self.current_lat, self.current_lon)
                         self.docking_target_set = True
                         self.docking_enabled = False
                         
-                        # Start recording
                         self.docking_controller.start_lat_lon_recording(
                             self.current_lat,
                             self.current_lon,
@@ -263,18 +263,15 @@ class MovementController(Node):
                         self.get_logger().info("Recording will automatically stop when you return to the home point.")
             
             elif chan6_state == 'HIGH':
-                # During recording: inform user; After playback: ignored
                 if self.recording_state == RecordingState.RECORDING:
                     self.get_logger().info("[CH6-HIGH] Recording in progress... Return to home point to auto-stop and playback.")
             
             elif chan6_state == 'LOW':
-                # Stop playback and keep docking point available
                 if self.recording_state == RecordingState.PLAYING_BACK:
                     self.recording_state = RecordingState.IDLE
                     self.playback_index = 0
                     self.get_logger().info("[CH6-LOW] Playback STOPPED. Set CH6 to MID to navigate back to home.")
                 elif self.recording_state == RecordingState.RECORDING:
-                    # Stop recording manually
                     num_frames = self.docking_controller.stop_lat_lon_recording()
                     self.recording_state = RecordingState.IDLE
                     self.get_logger().info(f"[CH6-LOW] Recording manually stopped ({num_frames} frames)")
@@ -442,8 +439,8 @@ class MovementController(Node):
                 yaw_effort = self.manual_yaw_effort
                 speed_effort = self.manual_speed_effort
 
-            yaw_effort = max(-300.0, min(300.0, yaw_effort))
-            speed_effort = max(-300.0, min(300.0, speed_effort))
+            yaw_effort = max(self.MIN_PWM, min(self.MAX_PWM, yaw_effort))
+            speed_effort = max(self.MIN_PWM, min(self.MAX_PWM, speed_effort))
             
             self.yaw_msg.data = yaw_effort
             self.speed_msg.data = speed_effort
