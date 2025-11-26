@@ -20,7 +20,7 @@ class Initial_Execution(BaseExecution):
         self.arena = "B"
         self.detected = False
         self.time_threshold = 0.2
-        self.target = 180
+        self.target = 126
         self.hold = False
 
         self.frame_counter = FrameCounter(self.time_threshold)

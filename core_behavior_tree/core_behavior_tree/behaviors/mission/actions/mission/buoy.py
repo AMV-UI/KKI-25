@@ -83,7 +83,7 @@ class Buoy_Execution(BaseExecution):
 
         self.frame_counter.reset()
 
-        self.yaw_effort_pub.publish(Float64(data=self.dsc))
+        self.yaw_effort_pub.publish(Float64(data=-self.dsc))
         self.speed_effort_pub.publish(Float64(data=self.speed_effort))
             
         self.node.get_logger().info(
@@ -109,7 +109,7 @@ class Buoy_Fallback(BaseFallback):
 
         self.px_heading = 0.0
         self.arena = "B"
-        self.dsc = 160.0 if self.arena == "A" else -160.0
+        self.dsc = 160.0 if self.arena == "B" else -160.0
         self.speed_effort = 100.0
         self.time_threshold = 2 # in Seconds
 
