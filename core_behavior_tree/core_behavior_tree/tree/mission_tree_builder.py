@@ -16,6 +16,7 @@ from ..behaviors.mission.actions.tuning.hardcode import *
 from ..behaviors.mission.actions.mission.initial import Initial_Execution, Initial_Fallback
 from ..behaviors.mission.actions.mission.buoy  import Buoy_Execution, Buoy_Fallback
 from ..behaviors.mission.actions.mission.finding import Finding_Execution, Finding_Fallback
+from ..behaviors.mission.actions.mission.dock import Docking_Execution, Docking_Fallback
 
 from core.utils.config import Topic, BT
 
@@ -55,11 +56,11 @@ class MissionTreeBuilder:
 
     # Perception
     MISSIONS_CONFIG = [
-        (Initial_Execution, Initial_Fallback, "Initial"),
-        (Buoy_Execution, Buoy_Fallback, "Buoy"),
-        (Finding_Execution, Finding_Fallback, "Finding"), 
-        (Buoy_Execution, Buoy_Fallback, "Buoy"),
-        (Do)
+        # (Initial_Execution, Initial_Fallback, "Initial"),
+        # (Buoy_Execution, Buoy_Fallback, "Buoy"),
+        # (Finding_Execution, Finding_Fallback, "Finding"), 
+        # (Buoy_Execution, Buoy_Fallback, "Buoy"),
+        (Docking_Execution, Docking_Fallback, "Docking"),
         (Done_Execution, Done_Fallback, "Done"),
     ]
 

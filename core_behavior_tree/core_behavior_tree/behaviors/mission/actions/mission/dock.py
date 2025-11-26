@@ -1,134 +1,85 @@
-# from ...mission_behaviors import BaseExecution, BaseFallback
-# from py_trees.common import Status
-# from std_msgs.msg import Bool, Float64, UInt8, String
-# from core.utils.config import Topic
-# from core.mission.frame_counter import FrameCounter
-# from core_msgs.msg import Pixhawk
-# from core.utils.config import PxMode
-# from core.mission.docking import DockingController
+from ...mission_behaviors import BaseExecution, BaseFallback
+from py_trees.common import Status
+from std_msgs.msg import Bool, Float64, UInt8, String
+from core.utils.config import Topic
+from core.mission.frame_counter import FrameCounter
+from core_msgs.msg import Pixhawk
+from core.mission.docking import DockingController
+from core.mission.gps_stuff import turner
 
-# import time
-# class Docking_Execution(BaseExecution):
-#     """
-#     Main execution: Set inital heading and finding the buoy
-#     - Fallback: if pxmode is still on hold
-#     """
-#     def __init__(self, name, node=None):
-#         super().__init__(name, node=node)
-#         self.node = node
+import time
+class Docking_Execution(BaseExecution):
+    """
+    Main execution: Set inital heading and finding the buoy
+    - Fallback: if pxmode is still on hold
+    """
+    def __init__(self, name, node=None):
+        super().__init__(name, node=node)
+        self.node = node
 
-#         self.arena = "B"
-#         self.detected = False
-#         self.time_threshold = 0.2
-#         self.target = 180
-#         self.hold = False
+        self.arena = "B"
+        self.detected = False
+        self.time_threshold = 0.2
+        self.target = 180
+        self.hold = False
 
-#         self.frame_counter = FrameCounter(self.time_threshold)
-#         self.effort = 120.0 
-#         self.heading = 0
-#         self.last_update_time = time()
-#         self.docking_controller = DockingController()
+        self.frame_counter = FrameCounter(self.time_threshold)
+        self.effort = 120.0 
+        self.heading = 0
+        self.docking_lat = 0.0
+        self.docking_lon = 0.0
+        self.lat = 0.0
+        self.lon = 0.0
+        self.speed_effort = 100.0
 
 
-#     def setup(self, **kwargs) -> None:
-#         super().setup(**kwargs)
-#         self.pixhawk = Pixhawk()
-        
-#         self.initial_heading_pub = Topic.initial_heading.createPublisher(self.node)
-#         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
+    def setup(self, **kwargs) -> None:
+        super().setup(**kwargs)
+        self.pixhawk = Pixhawk()
 
-#         self.mission_pub = Topic.mission.createPublisher(self.node)
+        self.docking_lat_sub = Topic.dock_lat.createSubscriber(self.node, self._docking_lat_cb)
+        self.docking_lon_sub = Topic.dock_lon.createSubscriber(self.node, self._docking_lon_cb)
+        self.heading_sub = Topic.heading_deg.createSubscriber(self.node, self._heading_cb)
+        self.pixhawk = Topic.pixhawk.createSubscriber(self.node, self._pixhawk_cb) 
 
-#         self.arena_sub = Topic.arena.createSubscriber(self.node, self._arena_cb)
-#         self.pxmode_sub = Topic.pxmode.createSubscriber(self.node, self._pxmode_cb)
-#         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
-#         self.heading_sub = Topic.heading_deg.createSubscriber(self.node, self._heading_cb)
+        self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
+        self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
+
+        self.mission_pub = Topic.mission.createPublisher(self.node)
+
+    def _heading_cb(self, msg: Float64):
+        self.heading = float(msg.data)
+
+    def _pixhawk_cb(self, msg: Pixhawk):
+        self.lat = msg.lat
+        self.lon = msg.lon
+
+    def _docking_lat_cb(self, msg: Float64):
+        self.docking_lat = float(msg.data)
     
-#     def calc_dsc(self):
-#         dsc = self.target - self.heading
-#         dsc = dsc if abs(dsc) <= 180 else (360 - abs(dsc)) * (-1 if dsc > 0 else 1)
-#         self.node.get_logger().info(f"[{self.name}] DSC Calculation: Target {self.target} - Heading {self.heading} = DSC {dsc}", throttle_duration_sec=1.0)    
-#         return 1 if dsc > 0 else -1
+    def _docking_lon_cb(self, msg: Float64):
+        self.docking_lon = float(msg.data)
 
-#     def _pxmode_cb(self, msg: String):
-#         if msg.data != PxMode.AUTO:
-#             self.hold = True
-#         else:
-#             self.hold = False
+    def execute(self) -> Status:
+        self.node.get_logger().info(f"[{self.name}] Initial Dock mode", throttle_duration_sec=1.0)
 
-#     def _arena_cb(self, msg: String):
-#         self.arena = str(msg.data)
+        theta = turner((self.lon, self.lat), self.heading, (self.docking_lon, self.docking_lat))       
+        self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+        self.yaw_effort_pub.publish(Float64(data=theta))
 
-#     def _heading_cb(self, msg: Float64):
-#         self.heading = float(msg.data)
+        return Status.RUNNING
 
-#     def _detected_cb(self, msg: Bool):
-#         self.detected = bool(msg.data)
-
-#     def execute(self) -> Status:
-#         self.node.get_logger().info(f"[{self.name}] Initial Dock mode", throttle_duration_sec=1.0)
-
-#         current_time = time()
-#         dt = current_time - self.last_update_time
-#         self.last_update_time = current_time
-
-#         yaw_effort, speed_effort, is_docked = self.docking_controller.calculate_control_efforts(
-#                 self.current_lat,
-#                 self.current_lon,
-#                 self.current_heading,
-#                 dt
-#             )
+class Docking_Fallback(BaseFallback):
+    """
+    Fallback: Remote still on hold and updating docking position
+    - Execution: if remote change other than hold
+    """
+    def __init__(self, name, node=None):
+        super().__init__(name, node=node)
+       
+    def setup(self, **kwargs) -> None:
+        super().setup(**kwargs)
         
-#         self.yaw_effort_pub.publish(Float64(data=yaw_effort))
-#         self.speed_effort_pub.publish(Float64(data=speed_effort))
 
-#         return Status.RUNNING
-
-# class Docking_Fallback(BaseFallback):
-#     """
-#     Fallback: Remote still on hold and updating docking position
-#     - Execution: if remote change other than hold
-#     """
-#     def __init__(self, name, node=None):
-#         super().__init__(name, node=node)
-#         self.node = node
-#         self.pixhawk = Pixhawk()
-#         self.gps_ready = False
-#         self.hold = True
-
-#     def setup(self, **kwargs) -> None:
-#         super().setup(**kwargs)
-#         self.docking_lat_pub = Topic.dock_lat.createPublisher(self.node)
-#         self.docking_lon_pub = Topic.dock_lon.createPublisher(self.node)
-#         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
-
-#         self.pxmode_sub = Topic.pxmode.createSubscriber(self.node, self._pxmode_cb)
-#         self.pixhawk_sub = Topic.pixhawk.createSubscriber(self.node, self._pixhawk_cb)
-    
-#     def _pxmode_cb(self, msg: String):
-#         if msg.data != PxMode.AUTO:
-#             self.hold = True
-#         else:
-#             self.hold = False
-
-#     def _pixhawk_cb(self, msg: Pixhawk):
-#         self.pixhawk = msg
-#         if msg.lat != 0.0 and msg.lon != 0.0:
-#             self.gps_ready = True
-
-#     def set_docking_coordinates(self):
-#         """Save Pixhawk coordinates for docking mission"""
-#         self.docking_lat_pub.publish(Float64(data=self.pixhawk.lat))
-#         self.docking_lon_pub.publish(Float64(data=self.pixhawk.lon))
-#         self.node.get_logger().info(f"[{self.name}] Saving Docking Location on {self.pixhawk.lat}, {self.pixhawk.lon} {self.pixhawk.lat}")
-
-#     def fallback(self) -> Status:        
-#         self.node.get_logger().info(f"[{self.name}] Initial Fallback mode active..", throttle_duration_sec=1.0)
-#         self.yaw_effort_pub.publish(Float64(data=0.0))        
-#         if self.gps_ready:
-#             self.set_docking_coordinates()
-
-#         if not self.hold:
-#             return Status.FAILURE
-
-#         return Status.RUNNING
+    def fallback(self) -> Status:        
+        return Status.FAILURE
