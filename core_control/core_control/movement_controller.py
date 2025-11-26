@@ -9,6 +9,13 @@ from core.mission.docking import DockingController
 import traceback
 from time import time
 import math
+from enum import Enum
+
+class RecordingState(Enum):
+    IDLE = 0
+    RECORDING = 1
+    RETURNING_TO_START = 2
+    PLAYING_BACK = 3
 
 class MovementController(Node):
     """
@@ -58,11 +65,11 @@ class MovementController(Node):
         self.prev_chan5_state = 'LOW'
         self.prev_chan6_state = 'LOW'
         
-        self.is_recording = False
-        self.recording_start_lat = 0.0
-        self.recording_start_lon = 0.0
-        self.recording_start_heading = 0.0
-        self.playback_enabled = False
+        self.recording_state = RecordingState.IDLE
+        self.has_left_dock = False  # Track if vehicle has moved away from docking point
+        self.initial_vehicle_lat = 0.0
+        self.initial_vehicle_lon = 0.0
+        self.initial_vehicle_heading = 0.0
         self.playback_index = 0
         self.playback_lat_lon = []
         
@@ -225,53 +232,94 @@ class MovementController(Node):
         
         if chan6_state != self.prev_chan6_state:
             if chan6_state == 'MID':
-                # Start recording
-                if not self.is_recording and not self.playback_enabled:
-                    self.docking_controller.start_lat_lon_recording(
-                        self.current_lat,
-                        self.current_lon,
-                        self.current_heading
-                    )
-                    self.is_recording = True
-                    self.recording_start_lat = self.current_lat
-                    self.recording_start_lon = self.current_lon
-                    self.recording_start_heading = self.current_heading
-                    self.get_logger().info("[CH6-MID] Recording STARTED")
+                # Set docking point (home) and start recording
+                if self.recording_state == RecordingState.IDLE:
+                    # Check if there's already a docking point - if yes, navigate to it
+                    if self.docking_target_set:
+                        self.docking_enabled = True
+                        self.docking_controller.reset_controller()
+                        self.get_logger().info("[CH6-MID] Navigating back to home point...")
+                    else:
+                        # Set docking point at current position
+                        self.docking_controller.set_target(self.current_lat, self.current_lon)
+                        self.docking_target_set = True
+                        self.docking_enabled = False
+                        
+                        # Start recording
+                        self.docking_controller.start_lat_lon_recording(
+                            self.current_lat,
+                            self.current_lon,
+                            self.current_heading
+                        )
+                        self.recording_state = RecordingState.RECORDING
+                        self.initial_vehicle_lat = self.current_lat
+                        self.initial_vehicle_lon = self.current_lon
+                        self.initial_vehicle_heading = self.current_heading
+                        self.has_left_dock = False
+                        
+                        self.get_logger().info(
+                            f"[CH6-MID] Home point set and recording started at: Lat={self.current_lat:.6f}, Lon={self.current_lon:.6f}"
+                        )
+                        self.get_logger().info("Recording will automatically stop when you return to the home point.")
             
             elif chan6_state == 'HIGH':
-                # Stop recording and start playback
-                if self.is_recording:
-                    num_frames = self.docking_controller.stop_lat_lon_recording()
-                    duration = self.docking_controller.get_lat_lon_duration()
-                    self.is_recording = False
-                    
-                    if num_frames > 0:
-                        self.playback_lat_lon = self.docking_controller.get_recorded_lat_lon()
-                        self.get_logger().info(f"[CH6-HIGH] Recording stopped ({num_frames} frames, {duration:.1f}s).")
-                        self.playback_index = 0
-                        self.playback_enabled = True
-                        self.get_logger().info(f"playback {self.playback_lat_lon}")
-                    else:
-                        self.get_logger().warn("[CH6-HIGH] No movements recorded!")
+                # During recording: inform user; After playback: ignored
+                if self.recording_state == RecordingState.RECORDING:
+                    self.get_logger().info("[CH6-HIGH] Recording in progress... Return to home point to auto-stop and playback.")
             
             elif chan6_state == 'LOW':
-                # Neutral - stop recording/playback
-                if self.is_recording:
-                    self.docking_controller.stop_lat_lon_recording()
-                    self.is_recording = False
-                    self.get_logger().info("[CH6-LOW] Recording STOPPED")
-                
-                if self.playback_enabled:
-                    self.playback_enabled = False
+                # Stop playback and keep docking point available
+                if self.recording_state == RecordingState.PLAYING_BACK:
+                    self.recording_state = RecordingState.IDLE
                     self.playback_index = 0
-                    self.get_logger().info("[CH6-LOW] Playback STOPPED")
+                    self.get_logger().info("[CH6-LOW] Playback STOPPED. Set CH6 to MID to navigate back to home.")
+                elif self.recording_state == RecordingState.RECORDING:
+                    # Stop recording manually
+                    num_frames = self.docking_controller.stop_lat_lon_recording()
+                    self.recording_state = RecordingState.IDLE
+                    self.get_logger().info(f"[CH6-LOW] Recording manually stopped ({num_frames} frames)")
             
             self.prev_chan6_state = chan6_state
+    
+    def update_recording_with_auto_stop(self, dt):
+        """Update recording with automatic stop detection when returning to home"""
+        if self.recording_state != RecordingState.RECORDING:
+            return
+        
+        # Record current lat/lon
+        self.docking_controller.record_lat_lon(self.current_lat, self.current_lon, dt)
+        
+        # Check if vehicle has reached the home point
+        if self.docking_target_set:
+            distance_to_home = self.docking_controller.get_distance_to_target(self.current_lat, self.current_lon)
+            
+            # Track if vehicle has left the docking area (moved at least 3m away)
+            if not self.has_left_dock and distance_to_home > self.distance_threshold:
+                self.has_left_dock = True
+                self.get_logger().info("Left docking area - recording path...")
+            
+            # Only check for return to home after vehicle has left the area
+            if self.has_left_dock and distance_to_home < self.docking_controller.docking_distance_threshold:
+                num_frames = self.docking_controller.stop_lat_lon_recording()
+                duration = self.docking_controller.get_lat_lon_duration()
+                self.get_logger().info(f"Reached home point! Recording stopped. Recorded {num_frames} frames ({duration:.1f}s)")
+                
+                if num_frames > 0:
+                    # Navigate back to home point (already set when recording started)
+                    self.playback_lat_lon = self.docking_controller.get_recorded_lat_lon()
+                    
+                    # Start return navigation phase
+                    self.playback_index = 0
+                    self.recording_state = RecordingState.RETURNING_TO_START
+                    self.get_logger().info(f"Navigating back to home point: Lat={self.initial_vehicle_lat:.6f}, Lon={self.initial_vehicle_lon:.6f}")
+                else:
+                    self.get_logger().warn("No movements recorded!")
+                    self.recording_state = RecordingState.IDLE
     
     def calculate_control_efforts(self):
         """
         Calculate control efforts based on current mode.
-        Priority: Playback > Docking > Recording > Manual
+        Priority: RETURNING_TO_START > Playback > Docking > Recording > Manual
         
         Returns:
         tuple: (yaw_effort, speed_effort)
@@ -280,8 +328,28 @@ class MovementController(Node):
         dt = current_time - self.last_update_time
         self.last_update_time = current_time
         
-        # Priority 1: Playback mode
-        if self.playback_enabled and len(self.playback_lat_lon) > 0:
+        # Priority 1: RETURNING_TO_START - navigate back to initial recording point
+        if self.recording_state == RecordingState.RETURNING_TO_START:
+            yaw_effort, speed_effort, is_docked = self.docking_controller.calculate_control_efforts(
+                self.current_lat,
+                self.current_lon,
+                self.current_heading,
+                dt
+            )
+            
+            if is_docked:
+                # Reached initial point, transition to playback
+                distance = self.docking_controller.get_distance_to_target(self.current_lat, self.current_lon)
+                self.get_logger().info(f"Reached initial point! Distance: {distance:.2f}m")
+                self.get_logger().info("Starting playback...")
+                self.recording_state = RecordingState.PLAYING_BACK
+                self.playback_index = 0
+                return 0.0, 0.0
+            
+            return yaw_effort, speed_effort
+        
+        # Priority 2: Playback mode
+        if self.recording_state == RecordingState.PLAYING_BACK and len(self.playback_lat_lon) > 0:
             if self.playback_index < len(self.playback_lat_lon):
                 target_lat, target_lon, _ = self.playback_lat_lon[self.playback_index]
                 
@@ -302,12 +370,12 @@ class MovementController(Node):
                 
                 return yaw_effort, speed_effort
             else:
-                self.playback_enabled = False
+                self.recording_state = RecordingState.IDLE
                 self.playback_index = 0
                 self.get_logger().info("Playback complete!")
                 return 0.0, 0.0
         
-        # Priority 2: Autonomous docking mode
+        # Priority 3: Autonomous docking mode
         if self.docking_enabled and self.docking_target_set:
             yaw_effort, speed_effort, is_docked = self.docking_controller.calculate_control_efforts(
                 self.current_lat,
@@ -333,12 +401,14 @@ class MovementController(Node):
         status_msg = String()
         status_parts = []
         
-        if self.is_recording:
+        if self.recording_state == RecordingState.RECORDING:
             duration = self.docking_controller.get_lat_lon_duration()
             status_parts.append(f"RECORDING ({duration:.1f}s)")
-        elif self.playback_enabled:
+        elif self.recording_state == RecordingState.PLAYING_BACK:
             progress = (self.playback_index / len(self.playback_lat_lon) * 100) if self.playback_lat_lon else 0
             status_parts.append(f"PLAYBACK ({progress:.0f}%)")
+        elif self.recording_state == RecordingState.RETURNING_TO_START:
+            status_parts.append("RETURNING TO START")
         
         if self.docking_target_set:
             distance = self.docking_controller.get_distance_to_target(
@@ -366,8 +436,9 @@ class MovementController(Node):
             
             yaw_effort, speed_effort = self.calculate_control_efforts()
             
-            if self.is_recording:
-                self.docking_controller.record_lat_lon(self.current_lat, self.current_lon, dt)
+            # Update recording with auto-stop detection
+            if self.recording_state == RecordingState.RECORDING:
+                self.update_recording_with_auto_stop(dt)
                 yaw_effort = self.manual_yaw_effort
                 speed_effort = self.manual_speed_effort
 
@@ -382,12 +453,13 @@ class MovementController(Node):
             
             self.publish_docking_status()
 
-            if int(time() * 2) % 10 == 0:  # Every 5 seconds
-                mode = "PLAYBACK" if self.playback_enabled else ("DOCKING" if self.docking_enabled else ("RECORDING" if self.is_recording else "MANUAL"))
-                status = f"Mode: {mode} | Pos: ({self.current_lat:.6f}, {self.current_lon:.6f}) | Heading: {self.current_heading:.1f}° | "
-                status += f"Yaw: {yaw_effort:.1f}, Speed: {speed_effort:.1f} | "
-                status += f"CH5: {self.rc5} ({self.prev_chan5_state}), CH6: {self.rc6} ({self.prev_chan6_state})"
-                self.get_logger().info(status)
+            # if int(time() * 2) % 10 == 0:  # Every 5 seconds
+            #     state_name = self.recording_state.name
+            #     mode = state_name if self.recording_state != RecordingState.IDLE else ("DOCKING" if self.docking_enabled else "MANUAL")
+            #     status = f"Mode: {mode} | Pos: ({self.current_lat:.6f}, {self.current_lon:.6f}) | Heading: {self.current_heading:.1f}° | "
+            #     status += f"Yaw: {yaw_effort:.1f}, Speed: {speed_effort:.1f} | "
+            #     status += f"CH5: {self.rc5} ({self.prev_chan5_state}), CH6: {self.rc6} ({self.prev_chan6_state})"
+            #     self.get_logger().info(status)
         
         except Exception as e:
             self.get_logger().error(f"Error in control loop: {traceback.format_exc()}")

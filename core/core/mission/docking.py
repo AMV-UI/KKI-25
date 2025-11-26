@@ -13,9 +13,9 @@ class DockingController:
         self.target_lat = target_lat
         self.target_lon = target_lon
         
-        self.Kp_yaw = 100.0    # Proportional gain for yaw (increased for ±300 range)
-        self.Ki_yaw = 0.5      # Integral gain for yaw
-        self.Kd_yaw = 20.0     # Derivative gain for yaw
+        self.Kp_yaw = 200.0    # Proportional gain for yaw (increased for ±300 range)
+        self.Ki_yaw = 1.0      # Integral gain for yaw
+        self.Kd_yaw = 50.0     # Derivative gain for yaw
         
         self.Kp_speed = 100.0  # Proportional gain for speed (distance-based)
         self.min_speed = 50.0  # Minimum speed effort when moving
@@ -41,7 +41,7 @@ class DockingController:
         self.recording_start_time = 0.0
 
 
-        self.error_coordinate_threshold = 0.5
+        self.error_coordinate_threshold = 5.0  # meters - minimum distance between recorded points
         self.accumulated_dt = 0.0
         
     def calculate_bearing_rad(self, lat1, lon1, lat2, lon2):
