@@ -448,7 +448,7 @@ class MovementController(Node):
             self.yaw_effort_pub.publish(self.yaw_msg)
             self.speed_effort_pub.publish(self.speed_msg)
             
-            self.publish_docking_status()
+            # self.publish_docking_status()
 
             # if int(time() * 2) % 10 == 0:  # Every 5 seconds
             #     state_name = self.recording_state.name
