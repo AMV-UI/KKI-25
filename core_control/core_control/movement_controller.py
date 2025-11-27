@@ -81,6 +81,7 @@ class MovementController(Node):
 
         self.rc5 = float()
         self.rc6 = float()
+        self.dt = time()
         self.yaw_msg = Float64()
         self.speed_msg = Float64()
         
@@ -92,26 +93,14 @@ class MovementController(Node):
     def _setup_communication(self):
         """Initialize all ROS2 subscribers and publishers"""
         
-        # Subscribers
         self.pixhawk_sub = Topic.pixhawk.createSubscriber(self, self._pixhawk_callback)
         self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
         self.rc5_sub = Topic.rc5.createSubscriber(self, self._rc5_callback)
         self.rc6_sub = Topic.rc6.createSubscriber(self, self._rc6_callback)
-
-    
-        # self.docking_target_sub = self.create_subscription(
-        #     Pixhawk, '/docking_target', self._docking_target_callback, 10
-        # )
-        # self.docking_enable_sub = self.create_subscription(
-        #     Bool, '/docking_enable', self._docking_enable_callback, 10
-        # )
-        self.manual_yaw_sub = Topic.manual_yaw.createSubscriber(self, self._manual_yaw_callback)
-        self.manual_speed_sub = Topic.manual_speed.createSubscriber(self, self._manual_speed_callback)
-        
-        # Publishers
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self)
-        
+        self.manual_yaw_sub = Topic.manual_yaw.createSubscriber(self, self._manual_yaw_callback)
+        self.manual_speed_sub = Topic.manual_speed.createSubscriber(self, self._manual_speed_callback)
         
         self.get_logger().info("Communication setup complete")
     
@@ -121,18 +110,7 @@ class MovementController(Node):
 
     def _rc6_callback(self, msg: Float64):
         self.rc6 = msg.data
-        self._process_channel_controls()
 
-    def _pxmode_callback(self, msg: String):
-        self.pxmode = msg.data
-
-    def _manual_yaw_callback(self, msg: Float64):
-        """Store manual yaw effort for recording"""
-        self.manual_yaw_effort = msg.data
-    
-    def _manual_speed_callback(self, msg: Float64):
-        """Store manual speed effort for recording"""
-        self.manual_speed_effort = msg.data
     
     def _pixhawk_callback(self, msg: Pixhawk):
         """Update current position and heading from Pixhawk"""
@@ -147,6 +125,14 @@ class MovementController(Node):
     def _pwm_callback(self, msg: Pwm):
         """Update RC channel values from PWM message"""
         self.pwm_chan = msg.channels
+
+    def _manual_yaw_callback(self, msg: Float64):
+        """Store manual yaw effort for recording"""
+        self.manual_yaw_effort = msg.data
+    
+    def _manual_speed_callback(self, msg: Float64):
+        """Store manual speed effort for recording"""
+        self.manual_speed_effort = msg.data
     
     def _docking_target_callback(self, msg: Pixhawk):
         """Set docking target position"""
@@ -203,114 +189,56 @@ class MovementController(Node):
         - HIGH: Stop recording and playback from start
         """
         chan5_state = self._get_channel_state(self.rc5)
-        chan6_state = self._get_channel_state(self.rc6)
         
         if chan5_state != self.prev_chan5_state:
             if chan5_state == 'MID':
-                # Set docking init point at current position
                 self.docking_controller.set_target(self.current_lat, self.current_lon)
                 self.docking_target_set = True
                 self.docking_enabled = False
-                self.get_logger().info(
-                    f"[CH5-MID] Docking init point set: Lat={self.current_lat:.6f}, Lon={self.current_lon:.6f}"
+
+                self.recording_state = RecordingState.RECORDING
+                self.docking_controller.start_lat_lon_recording(
+                    self.current_lat,
+                    self.current_lon,
+                    self.current_heading
                 )
-            
+                
+                self.get_logger().info(
+                    f"[CH5-MID] Docking point set & recording started: "
+                    f"Lat={self.current_lat:.6f}, Lon={self.current_lon:.6f}"
+                )
+
             elif chan5_state == 'HIGH':
-                # Go to docking point
-                if self.docking_target_set:
+                if self.docking_target_set and self.recording_state == RecordingState.RECORDING:
+                    num_points = self.docking_controller.stop_lat_lon_recording()
+                    self.recording_state = RecordingState.IDLE
+                    
                     self.docking_enabled = True
                     self.docking_controller.reset_controller()
-                    self.get_logger().info("[CH5-HIGH] Autonomous docking ENABLED - Going to docking point")
+                    
+                    self.get_logger().info(
+                        f"[CH5-HIGH] Recording stopped ({num_points} waypoints). "
+                        f"Returning to dock point..."
+                        f"Starting Playback..."
+                    )
+                elif self.docking_target_set:
+                    self.docking_enabled = True
+                    self.docking_controller.reset_controller()
+                    self.get_logger().info("[CH5-HIGH] Autonomous docking ENABLED")
                 else:
                     self.get_logger().warn("[CH5-HIGH] Cannot enable docking: No target set!")
             
             elif chan5_state == 'LOW':
-                # Neutral - disable docking
                 if self.docking_enabled:
                     self.docking_enabled = False
                     self.get_logger().info("[CH5-LOW] Docking DISABLED - Manual control")
+                if self.recording_state != RecordingState.IDLE:
+                    self.recording_state = RecordingState.IDLE
+                    self.get_logger().info("[CH5-LOW] Recording/Playback cancelled")
             
             self.prev_chan5_state = chan5_state
         
-        if chan6_state != self.prev_chan6_state:
-            if chan6_state == 'MID':
-                # Set docking point (home) and start recording
-                if self.recording_state == RecordingState.IDLE:
-                    if self.docking_target_set:
-                        self.docking_enabled = True
-                        self.docking_controller.reset_controller()
-                        self.get_logger().info("[CH6-MID] Navigating back to home point...")
-                    else:
-                        self.docking_controller.set_target(self.current_lat, self.current_lon)
-                        self.docking_target_set = True
-                        self.docking_enabled = False
-                        
-                        self.docking_controller.start_lat_lon_recording(
-                            self.current_lat,
-                            self.current_lon,
-                            self.current_heading
-                        )
-                        self.recording_state = RecordingState.RECORDING
-                        self.initial_vehicle_lat = self.current_lat
-                        self.initial_vehicle_lon = self.current_lon
-                        self.initial_vehicle_heading = self.current_heading
-                        self.has_left_dock = False
-                        
-                        self.get_logger().info(
-                            f"[CH6-MID] Home point set and recording started at: Lat={self.current_lat:.6f}, Lon={self.current_lon:.6f}"
-                        )
-                        self.get_logger().info("Recording will automatically stop when you return to the home point.")
-            
-            elif chan6_state == 'HIGH':
-                if self.recording_state == RecordingState.RECORDING:
-                    self.get_logger().info("[CH6-HIGH] Recording in progress... Return to home point to auto-stop and playback.")
-            
-            elif chan6_state == 'LOW':
-                if self.recording_state == RecordingState.PLAYING_BACK:
-                    self.recording_state = RecordingState.IDLE
-                    self.playback_index = 0
-                    self.get_logger().info("[CH6-LOW] Playback STOPPED. Set CH6 to MID to navigate back to home.")
-                elif self.recording_state == RecordingState.RECORDING:
-                    num_frames = self.docking_controller.stop_lat_lon_recording()
-                    self.recording_state = RecordingState.IDLE
-                    self.get_logger().info(f"[CH6-LOW] Recording manually stopped ({num_frames} frames)")
-            
-            self.prev_chan6_state = chan6_state
     
-    def update_recording_with_auto_stop(self, dt):
-        """Update recording with automatic stop detection when returning to home"""
-        if self.recording_state != RecordingState.RECORDING:
-            return
-        
-        # Record current lat/lon
-        self.docking_controller.record_lat_lon(self.current_lat, self.current_lon, dt)
-        
-        # Check if vehicle has reached the home point
-        if self.docking_target_set:
-            distance_to_home = self.docking_controller.get_distance_to_target(self.current_lat, self.current_lon)
-            
-            # Track if vehicle has left the docking area (moved at least 3m away)
-            if not self.has_left_dock and distance_to_home > self.distance_threshold:
-                self.has_left_dock = True
-                self.get_logger().info("Left docking area - recording path...")
-            
-            # Only check for return to home after vehicle has left the area
-            if self.has_left_dock and distance_to_home < self.docking_controller.docking_distance_threshold:
-                num_frames = self.docking_controller.stop_lat_lon_recording()
-                duration = self.docking_controller.get_lat_lon_duration()
-                self.get_logger().info(f"Reached home point! Recording stopped. Recorded {num_frames} frames ({duration:.1f}s)")
-                
-                if num_frames > 0:
-                    # Navigate back to home point (already set when recording started)
-                    self.playback_lat_lon = self.docking_controller.get_recorded_lat_lon()
-                    
-                    # Start return navigation phase
-                    self.playback_index = 0
-                    self.recording_state = RecordingState.RETURNING_TO_START
-                    self.get_logger().info(f"Navigating back to home point: Lat={self.initial_vehicle_lat:.6f}, Lon={self.initial_vehicle_lon:.6f}")
-                else:
-                    self.get_logger().warn("No movements recorded!")
-                    self.recording_state = RecordingState.IDLE
     
     def calculate_control_efforts(self):
         """
@@ -334,7 +262,6 @@ class MovementController(Node):
             )
             
             if is_docked:
-                # Reached initial point, transition to playback
                 distance = self.docking_controller.get_distance_to_target(self.current_lat, self.current_lon)
                 self.get_logger().info(f"Reached initial point! Distance: {distance:.2f}m")
                 self.get_logger().info("Starting playback...")
@@ -382,7 +309,18 @@ class MovementController(Node):
             
             if is_docked:
                 self.docking_enabled = False
-                self.get_logger().info("Docking complete! Switching to manual mode.")
+                self.get_logger().info("Docking complete!")
+                
+                # Check if we have a recorded path to playback
+                if self.docking_controller.has_lat_lon():
+                    self.playback_lat_lon = self.docking_controller.get_recorded_lat_lon()
+                    self.recording_state = RecordingState.PLAYING_BACK
+                    self.playback_index = 0
+                    self.get_logger().info(
+                        f"Starting playback with {len(self.playback_lat_lon)} waypoints..."
+                    )
+                else:
+                    self.get_logger().info("No recorded path available for playback")
             
             return yaw_effort, speed_effort
         
@@ -397,10 +335,10 @@ class MovementController(Node):
         try:
             current_time = time()
             dt = current_time - self.last_update_time
+            # self._process_channel_controls()
             
             yaw_effort, speed_effort = self.calculate_control_efforts()
             
-            # Update recording with auto-stop detection
             if self.recording_state == RecordingState.RECORDING:
                 self.update_recording_with_auto_stop(dt)
                 yaw_effort = self.manual_yaw_effort
@@ -409,20 +347,12 @@ class MovementController(Node):
             yaw_effort = max(self.MIN_PWM, min(self.MAX_PWM, yaw_effort))
             speed_effort = max(self.MIN_PWM, min(self.MAX_PWM, speed_effort))
             
-            self.yaw_msg = yaw_effort
-            self.speed_msg = speed_effort
+            self.yaw_msg.data = yaw_effort
+            self.speed_msg.data = speed_effort
 
             self.yaw_effort_pub.publish(self.yaw_msg)
             self.speed_effort_pub.publish(self.speed_msg)
-            
-
-            # if int(time() * 2) % 10 == 0:  # Every 5 seconds
-            #     state_name = self.recording_state.name
-            #     mode = state_name if self.recording_state != RecordingState.IDLE else ("DOCKING" if self.docking_enabled else "MANUAL")
-            #     status = f"Mode: {mode} | Pos: ({self.current_lat:.6f}, {self.current_lon:.6f}) | Heading: {self.current_heading:.1f}° | "
-            #     status += f"Yaw: {yaw_effort:.1f}, Speed: {speed_effort:.1f} | "
-            #     status += f"CH5: {self.rc5} ({self.prev_chan5_state}), CH6: {self.rc6} ({self.prev_chan6_state})"
-            #     self.get_logger().info(status)
+        
         
         except Exception as e:
             self.get_logger().error(f"Error in control loop: {traceback.format_exc()}")
@@ -442,6 +372,25 @@ class MovementController(Node):
             f"Docking target set to current position: "
             f"Lat={self.current_lat:.6f}, Lon={self.current_lon:.6f}"
         )
+    
+    def update_recording_with_auto_stop(self, dt):
+        """
+        Update recording with current position during manual control.
+        Records lat/lon waypoints as the vehicle moves.
+        
+        Parameters:
+        dt (float): Time delta since last update
+        """
+        if self.recording_state == RecordingState.RECORDING:
+            recorded = self.docking_controller.record_lat_lon(
+                self.current_lat,
+                self.current_lon,
+                dt
+            )
+            if recorded:
+                self.get_logger().info(
+                    f"Recorded waypoint: Lat={self.current_lat:.6f}, Lon={self.current_lon:.6f}"
+                )
 
 
 def main(args=None):

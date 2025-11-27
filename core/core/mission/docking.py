@@ -258,21 +258,6 @@ class DockingController:
         """
         return math.degrees(self.yaw_error)
     
-    def start_recording(self, current_lat, current_lon, current_heading):
-        """
-        Start recording manual movements.
-        
-        Parameters:
-        current_lat (float): Starting latitude
-        current_lon (float): Starting longitude
-        current_heading (float): Starting heading in degrees (Pixhawk: 0=North, clockwise)
-        """
-        self.is_recording = True
-        self.recorded_movements = []
-        self.initial_position = (current_lat, current_lon, current_heading)
-        self.recording_start_time = 0.0
-        return True
-
     def start_lat_lon_recording(self, current_lat, current_lon, current_heading):
         """
         Start recording latitude and longitude.
@@ -459,3 +444,5 @@ class DockingController:
         float: Total duration in seconds
         """
         return sum(frame[2] for frame in self.recorded_lat_lon)
+
+    
