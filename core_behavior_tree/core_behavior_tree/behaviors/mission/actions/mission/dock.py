@@ -1,4 +1,3 @@
-from build.core.core.mission.gps_stuff import haversine
 from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from std_msgs.msg import Bool, Float64, UInt8, String
@@ -6,7 +5,7 @@ from core.utils.config import Topic
 from core.mission.frame_counter import FrameCounter
 from core_msgs.msg import Pixhawk
 from core.mission.docking import DockingController
-from core.mission.gps_stuff import turner
+from core.mission.gps_stuff import turner, haversine
 
 import time
 class Docking_Execution(BaseExecution):
