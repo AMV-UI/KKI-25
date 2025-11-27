@@ -13,11 +13,11 @@ class DockingController:
         self.target_lat = target_lat
         self.target_lon = target_lon
         
-        self.Kp_yaw = 300.0    # Proportional gain for yaw (increased for ±300 range)
-        self.Ki_yaw = 10.0      # Integral gain for yaw
-        self.Kd_yaw = 100.0     # Derivative gain for yaw
+        self.Kp_yaw = 100.0    # Proportional gain for yaw (increased for ±300 range)
+        self.Ki_yaw = 0.0      # Integral gain for yaw
+        self.Kd_yaw = 0.0     # Derivative gain for yaw
         
-        self.Kp_speed = 200.0  # Proportional gain for speed (distance-based)
+        self.Kp_speed = 100.0  # Proportional gain for speed (distance-based)
         self.min_speed = 50.0  # Minimum speed effort when moving
         self.max_speed = 300.0 # Maximum speed effort
         
@@ -28,7 +28,7 @@ class DockingController:
         self.MAX_EFFORT = 300.0
         self.MIN_EFFORT = -300.0
         
-        self.docking_distance_threshold = 1.5  # meters - consider docked when closer
+        self.docking_distance_threshold = 30.0  # meters - consider docked when closer
         self.alignment_threshold = 0.3         # radians (~17 degrees) - move forward when aligned
         
         self.is_docked = False
@@ -40,8 +40,7 @@ class DockingController:
         self.initial_position = None  # (lat, lon, heading) when recording starts
         self.recording_start_time = 0.0
 
-
-        self.error_coordinate_threshold = 0.5  # meters - minimum distance between recorded points
+        self.waypoint_threshold = 0.01  # meters - minimum distance between recorded points
         self.accumulated_dt = 0.0
         
     def calculate_bearing_rad(self, lat1, lon1, lat2, lon2):
@@ -132,6 +131,93 @@ class DockingController:
         self.prev_yaw_error = 0.0
         self.is_docked = False
     
+    def start_recording(self):
+        """
+        Start recording movements (yaw and speed efforts).
+        
+        Returns:
+        bool: True if recording started successfully
+        """
+        self.is_recording = True
+        self.recorded_movements = []
+        self.recording_start_time = 0.0
+        return True
+    
+    def start_docking(self):
+        """
+        Start autonomous docking mode.
+        Resets the controller state for a fresh docking approach.
+        
+        Returns:
+        bool: True if docking started (target is set)
+        """
+        if self.target_lat is None or self.target_lon is None:
+            return False
+        
+        self.reset_controller()
+        return True
+
+    def stop_recording(self):
+        """
+        Stop recording movements.
+        
+        Returns:
+        bool: True if recording stopped successfully
+        """
+        self.is_recording = False
+        return True
+    
+    def stop_and_save_playback(self):
+        """
+        Stop docking and save the current state.
+        Can be used to pause docking or prepare for playback.
+        
+        Returns:
+        dict: Current state information
+        """
+        state = {
+            'is_docked': self.is_docked,
+            'recorded_movements': len(self.recorded_movements),
+            'recorded_lat_lon': len(self.recorded_lat_lon),
+            'target': (self.target_lat, self.target_lon)
+        }
+        return state
+
+    def execute_playback_latlon(self, current_lat, current_lon, current_heading_deg, dt):
+
+        if not self.has_lat_lon():
+            return 0.0, 0.0, True
+
+        if not hasattr(self, "playback_latlon_index"):
+            self.playback_latlon_index = 0
+
+        target_lat, target_lon, _ = self.recorded_lat_lon[self.playback_latlon_index]
+
+        self.target_lat = target_lat
+        self.target_lon = target_lon
+
+        dist = self.calculate_distance(current_lat, current_lon, target_lat, target_lon)
+
+        if dist < self.waypoint_threshold:
+            self.playback_latlon_index += 1
+
+            if self.playback_latlon_index >= len(self.recorded_lat_lon):
+                return 0.0, 0.0, True
+
+            target_lat, target_lon, _ = self.recorded_lat_lon[self.playback_latlon_index]
+            self.target_lat = target_lat
+            self.target_lon = target_lon
+
+        yaw_effort, speed_effort, _ = self.calculate_control_efforts(
+            current_lat,
+            current_lon,
+            current_heading_deg,
+            dt
+        )
+
+        return yaw_effort, speed_effort, False
+
+    
     def calculate_control_efforts(self, current_lat, current_lon, current_heading_deg, dt):
         """
         Calculate yaw and speed efforts for autonomous docking.
@@ -193,10 +279,6 @@ class DockingController:
                           self.Kd_yaw * derivative)
         
         # Convert to yaw effort (clamp to ±300)
-        # In Pixhawk convention with clockwise positive:
-        # Positive error = need to turn RIGHT (clockwise) = positive yaw effort
-        # Negative error = need to turn LEFT (counter-clockwise) = negative yaw effort
-        # So NO inversion needed - signs match!
         yaw_effort = max(self.MIN_EFFORT, min(self.MAX_EFFORT, yaw_pid_output))
         
         # Calculate speed effort based on distance and alignment
@@ -208,6 +290,13 @@ class DockingController:
             speed_effort = 0.0
         
         self.prev_yaw_error = self.yaw_error
+        
+        # Record if in recording mode
+        if self.is_recording:
+            self.record_movement(yaw_effort, speed_effort, dt)
+        
+        if self.is_recording_lat_lon:
+            self.record_lat_lon(current_lat, current_lon, dt)
         
         return yaw_effort, speed_effort, False
     
@@ -309,9 +398,7 @@ class DockingController:
         if not self.is_recording:
             return False
         
-        if yaw_effort or speed_effort < self.error_coordinate_threshold:
-            pass
-        
+        # Fixed logic: Record all movements, don't skip based on threshold
         self.recorded_movements.append((yaw_effort, speed_effort, dt))
         self.recording_start_time += dt
         return True
@@ -343,7 +430,7 @@ class DockingController:
     def record_lat_lon(self, lat, lon, dt):
         """
         Record a single latitude and longitude during recording.
-        Ignores points closer than 5 meters to the last recorded point.
+        Ignores points closer than error_coordinate_threshold meters to the last recorded point.
         
         Parameters:
         lat (float): Current latitude
@@ -364,7 +451,7 @@ class DockingController:
         if self.recorded_lat_lon:
             last_lat, last_lon, _ = self.recorded_lat_lon[-1]
             distance = self.calculate_distance(lat, lon, last_lat, last_lon)
-            if distance < self.error_coordinate_threshold:
+            if distance < self.waypoint_threshold:
                 return False
         
         self.recorded_lat_lon.append((lat, lon, self.accumulated_dt))
@@ -444,5 +531,3 @@ class DockingController:
         float: Total duration in seconds
         """
         return sum(frame[2] for frame in self.recorded_lat_lon)
-
-    
