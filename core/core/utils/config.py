@@ -68,6 +68,8 @@ class Topic:
 
     heading_deg = TopicFactory("/core/heading_deg", Float64)
 
+    recorded_path = TopicFactory("/core/recorded_path", String)
+
     manual_yaw = TopicFactory("/core/manual_yaw", Float64)
     manual_speed = TopicFactory("/core/manual_speed", Float64)
     
@@ -85,6 +87,7 @@ class Topic:
 
     rc5 = TopicFactory("/core/motor/rc5", Float64)
     rc6 = TopicFactory("/core/motor/rc6", Float64)
+    rc7 = TopicFactory("/core/motor/rc7", Float64)
 
     # Mission
     mission = TopicFactory("/core/mission/current", UInt8)

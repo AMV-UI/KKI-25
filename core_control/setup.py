@@ -28,6 +28,7 @@ setup(
             'pwm_controller = core_control.pwm_controller:main',
             'movement_controller = core_control.movement_controller:main',
             'channel_simulator = core_control.channel_simulator:main',
+            'movement_simulator = core_control.movement_simulator:main',
         ],
     },
 )

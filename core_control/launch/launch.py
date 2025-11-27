@@ -56,14 +56,20 @@ def generate_launch_description():
         # ),
         Node(
             package="core_control",
-            executable="movement_controller",
-            name="movement_controller",
+            executable="movement_simulator",
+            name="movement_simulator",
             output="screen",
         ),
         Node(
             package="core_control",
             executable="channel_simulator",
             name="channel_simulator",
+            output="screen",
+        ),
+        Node(
+            package="core_control",
+            executable="movement_controller",
+            name="movement_controller",
             output="screen",
         ),
     ])
