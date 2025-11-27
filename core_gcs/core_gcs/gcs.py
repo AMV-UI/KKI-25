@@ -81,8 +81,7 @@ class Gcs(Node):
         self._handle_incoming_data("image_green_box", msg.data)
 
     def mission_callback(self, msg: UInt8):
-        self.mission += 1
-        self.get_logger().info(f"[mission_callback] Mission updated to {self.mission}")
+        self.mission = msg.data
         self._handle_incoming_data("mission", self.mission)
 
     def pixhawk_callback(self, msg: Pixhawk):

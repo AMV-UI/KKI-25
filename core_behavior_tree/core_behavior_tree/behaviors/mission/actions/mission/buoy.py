@@ -15,7 +15,7 @@ class Buoy_Execution(BaseExecution):
     - If target not detected -> FAILURE (triggers fallback to search)
     - Store Pixhawk coordinate to docking station after to use in the last mission
     """
-    def __init__(self, name: str = "Mission1_Execution", node=None):
+    def __init__(self, name: str = "Mission1_Execution", node=None, mission=None):
         super().__init__(name, node=node)
         self.node = node
         self.frame_counter = None
@@ -26,6 +26,7 @@ class Buoy_Execution(BaseExecution):
         self.arena = "B"
         self.gps_ready = False
         self.time_threshold = 1    
+        self.mission = mission
         
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
@@ -33,7 +34,6 @@ class Buoy_Execution(BaseExecution):
         self.pixhawk = Pixhawk()
 
         self.mission_pub = Topic.mission.createPublisher(self.node)
-        self.mission_pub.publish(UInt8(data=1))
 
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
@@ -74,7 +74,7 @@ class Buoy_Execution(BaseExecution):
             if self.frame_counter.is_enough():
                 self.frame_counter.reset()
                 self.node.get_logger().info(f"[{self.name}] Condition Succeeded from EXECUTION -> Mission COMPLETE")
-                self.mission_pub.publish(UInt8(data=1))
+                self.mission_pub.publish(UInt8(data=self.mission))
                 return Status.SUCCESS
 
             self.node.get_logger().info(f"[{self.name}] Condition Failed -> Switching to FALLBACK", throttle_duration_sec=2.0)

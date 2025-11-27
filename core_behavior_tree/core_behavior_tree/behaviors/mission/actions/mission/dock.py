@@ -1,4 +1,4 @@
-from build.core.core.mission.gps_stuff import haversine
+from core.mission.gps_stuff import haversine
 from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from std_msgs.msg import Bool, Float64, UInt8, String
@@ -14,10 +14,11 @@ class Docking_Execution(BaseExecution):
     Main execution: Set inital heading and finding the buoy
     - Fallback: if pxmode is still on hold
     """
-    def __init__(self, name, node=None):
+    def __init__(self, name, node=None, mission=None):
         super().__init__(name, node=node)
         self.node = node
 
+        self.mission = mission
         self.arena = "B"
         self.detected = False
         self.time_threshold = 0.2
@@ -68,6 +69,7 @@ class Docking_Execution(BaseExecution):
             self.node.get_logger().info(f"[{self.name}] Arrived at docking station", throttle_duration_sec=5.0)
             self.speed_effort_pub.publish(Float64(data=0.0))
             self.yaw_effort_pub.publish(Float64(data=0.0))
+            self.mission_pub.publish(UInt8(data=self.mission))
             return Status.SUCCESS
         
         theta = turner((self.lon, self.lat), self.heading, (self.docking_lon, self.docking_lat))       

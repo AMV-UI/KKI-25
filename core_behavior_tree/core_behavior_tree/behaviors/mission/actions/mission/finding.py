@@ -16,15 +16,16 @@ class Finding_Execution(BaseExecution):
     - Phase "finding": search with find_mode range(1), wait until detected for N frames
     - Phase "approach": navigate to target, when lost for N frames -> SUCCESS (ready for docking)
     """
-    def __init__(self, name: str = "Mission2_Execution", node=None):
+    def __init__(self, name: str = "Mission2_Execution", node=None, mission = None):
         super().__init__(name, node=node)
         self.node = node
         self.find_mode = None
         self.frame_counter = None
         self.detected = False
         self.arena = "B"
-        self.effort = 150;
+        self.effort = 150
         self.dsc = self.effort * (-1 if self.arena == "A" else 1)  #Reverse effort untuk mission 2
+        self.mission = mission
 
         self.px_heading = 0.0
         self.phase = "finding"        
@@ -56,8 +57,6 @@ class Finding_Execution(BaseExecution):
             self._speed_cb
         )
         
-        self.mission_pub.publish(UInt8(data=1))
-
     def _speed_cb(self, msg: Float64):
         self.speed_effort = float(msg.data)
 
@@ -85,7 +84,7 @@ class Finding_Execution(BaseExecution):
                 self.node.get_logger().info(
                     f"[{self.name}] Finding Complete"
                 )
-                self.mission_pub.publish(UInt8(data=1))
+                self.mission_pub.publish(UInt8(data=self.mission))
                 return Status.SUCCESS
         else:
             self.frame_counter.reset()
