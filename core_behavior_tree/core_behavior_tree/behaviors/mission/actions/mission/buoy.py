@@ -24,9 +24,8 @@ class Buoy_Execution(BaseExecution):
         self.speed_effort = 100.0
         self.pixhawk = None
         self.arena = "B"
-        self.initial_heading = -361  # (Max -360 until 360) So means is not setup yet
         self.gps_ready = False
-        self.time_threshold = 2 # in Seconds    
+        self.time_threshold = 1    
         
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
@@ -67,7 +66,7 @@ class Buoy_Execution(BaseExecution):
         self.dsc = float(msg.data)
 
     def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}]")
+        self.node.get_logger().info(f"[{self.name}] track {self.arena}", throttle_duration_sec=1.0)
 
         if not self.detected:
             self.frame_counter.is_started() 
@@ -78,12 +77,12 @@ class Buoy_Execution(BaseExecution):
                 self.mission_pub.publish(UInt8(data=1))
                 return Status.SUCCESS
 
-            self.node.get_logger().info(f"[{self.name}] Condition Failed -> Switching to FALLBACK")
+            self.node.get_logger().info(f"[{self.name}] Condition Failed -> Switching to FALLBACK", throttle_duration_sec=2.0)
             return Status.RUNNING
 
         self.frame_counter.reset()
 
-        self.yaw_effort_pub.publish(Float64(data=-self.dsc))
+        self.yaw_effort_pub.publish(Float64(data=self.dsc))
         self.speed_effort_pub.publish(Float64(data=self.speed_effort))
             
         self.node.get_logger().info(
@@ -136,24 +135,4 @@ class Buoy_Fallback(BaseFallback):
         self.px_heading = float(msg.data)
 
     def fallback(self) -> Status:
-
-        self.node.get_logger().info(f"[{self.name}] We are in FALLBACK mode for Mission 1...")
-
-        self.yaw_effort_pub.publish(Float64(data=self.dsc))
-        self.speed_effort_pub.publish(Float64(data=self.speed_effort))
-        
-        if self.detected:
-            self.frame_counter.is_started()
-            if self.frame_counter.is_enough():
-                self.frame_counter.reset()
-                self.node.get_logger().info(f"[{self.name}] Target found -> switching to execution")
-                return Status.FAILURE
-        else:
-            self.frame_counter.reset()
-        
-        self.node.get_logger().info(
-            f"[{self.name}] Searching for target (detected: {self.detected})",
-            throttle_duration_sec=5.0
-        )
-        
-        return Status.RUNNING
+        return Status.Failure

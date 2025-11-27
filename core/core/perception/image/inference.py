@@ -18,14 +18,14 @@ from core.utils.motor import Motor
 
 class ObjectDetector:
     def __init__(
-        self, model_path, node, arena, class_names, camera_index, width=640, height=480, fps=30
+        self, model_path, node, class_names, camera_index, width=640, height=480, fps=30
     ):
 
         self.model = YOLO(model_path)
         self.class_names = class_names
         self.conf_threshold = 0.2
         self.node = node
-        self.arena = arena
+        self.arena = "B"
 
         self.cap = cv2.VideoCapture(camera_index)
         self.cap.set(1, fps)  # Set FPS
@@ -79,7 +79,7 @@ class ObjectDetector:
                 )
                 return img
 
-    def process_frame(self, mission):
+    def process_frame(self, mission, arena):
         success, img = self.cap.read()
         # print("In your mom")
         if not success:
@@ -96,10 +96,7 @@ class ObjectDetector:
 
         detected = False
 
-        # results = self.model(img, stream=True, task="detect", verbose=False)
-
         results = self.model(img, conf=self.conf_threshold, verbose=False)
-        # results = self.model(img, stream=True, task='detect')
 
         # red / green buoy
         self.max_red = -1
@@ -181,50 +178,17 @@ class ObjectDetector:
         # Full Motor
         if self.max_red != -1 and self.max_green != -1:
             mid_x = (self.mid_green + self.mid_red) // 2
-
-            mid_y = (
-                max(self.red["y1"], self.green["y1"])
-                + min(self.red["y2"], self.green["y2"])
-            ) // 2
-
             dsc_x = mid_x - width
-
-            # self.motor.full_detected()
             yaw_state = dsc_x
-        else:
-            # Only Green Buoy
-            if self.max_green != -1:
-                # self.motor.half_detected()
-                yaw_state = self.pid_adjust * (-1 if self.arena == "A" else 1)
-            # Only Red Buoy
-            elif self.max_red != -1:
-                # self.motor.half_detected()
-                yaw_state = self.pid_adjust * (1 if self.arena == "A" else -1)
-            else:
-                # self.motor.not_detected()
-                yaw_state = 0
+        elif self.max_green != -1:
+            # Only green detected
+            yaw_state = self.pid_adjust * (-1 if arena == "A" else 1)
+        elif self.max_red != -1:
+            # Only red detected
+            yaw_state = self.pid_adjust * (1 if arena == "A" else -1)
 
         if self.max_green != -1 or self.max_red != -1:
             detected = True
-
-        if mission == "find_dock":
-            if self.green_box["x1"] != -1 and self.blue_box["x1"] != -1:
-                mid_x = (
-                    (self.green_box["x1"] + self.green_box["x2"]) // 2
-                    + (self.blue_box["x1"] + self.blue_box["x2"]) // 2
-                ) // 2
-                yaw_state = mid_x - width
-                detected = True
-                # self.motor.full_detected()
-            elif self.green_box["x1"] != -1:
-                # lintasan B = A, A = B
-                # self.motor.half_detected()
-                yaw_state = self.pid_adjust * (-1 if self.arena == "A" else 1)
-                detected = True
-            else:
-                # self.motor.half_detected()
-                yaw_state = self.pid_adjust * (1 if self.arena == "A" else 1)
-                detected = True
 
         color = (0, 0, 0)
         cv2.rectangle(img, (width, height), (width, height), color, 3)
@@ -312,55 +276,6 @@ class ObjectDetector:
             # )
             #
             status = True
-        return img, status
-
-    def find_dock_detected(self, cls, img, x1, y1, x2, y2, confidence, area):
-        if self.class_names[cls] == "greenBox":
-            color = (0, 0, 255)
-            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-            cv2.putText(
-                img,
-                self.class_names[cls] + " " + str(confidence),
-                (x1, y1),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                color,
-                2,
-            )
-            self.green_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
-
-        if self.class_names[cls] == "blueBox":
-            color = (0, 0, 255)
-            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-            cv2.putText(
-                img,
-                self.class_names[cls] + " " + str(confidence),
-                (x1, y1),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                color,
-                2,
-            )
-            self.blue_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
-
-        return img
-
-    def docking_detected(self, cls, img, x1, y1, x2, y2, confidence):
-        status = False
-        if self.class_names[cls] == "docking":
-            color = (0, 0, 255)
-            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-            cv2.putText(
-                img,
-                self.class_names[cls] + " " + str(confidence),
-                (x1, y1),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                color,
-                2,
-            )
-            status = True
-
         return img, status
 
     def release(self):

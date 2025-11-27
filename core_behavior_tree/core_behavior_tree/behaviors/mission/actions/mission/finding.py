@@ -23,7 +23,7 @@ class Finding_Execution(BaseExecution):
         self.frame_counter = None
         self.detected = False
         self.arena = "B"
-        self.effort = 100;
+        self.effort = 150;
         self.dsc = self.effort * (-1 if self.arena == "A" else 1)  #Reverse effort untuk mission 2
 
         self.px_heading = 0.0
@@ -83,14 +83,14 @@ class Finding_Execution(BaseExecution):
             if self.frame_counter.is_enough():
                 self.frame_counter.reset()
                 self.node.get_logger().info(
-                    f"[{self.name}] Lost tower -> STEP_TWO complete, ready for docking"
+                    f"[{self.name}] Finding Complete"
                 )
                 self.mission_pub.publish(UInt8(data=1))
                 return Status.SUCCESS
         else:
             self.frame_counter.reset()
 
-        self.yaw_effort_pub.publish(Float64(data=self.speed_effort))
+        self.yaw_effort_pub.publish(Float64(data=self.speed_effort * (1 if self.arena == "B" else -1)))
         self.speed_effort_pub.publish(Float64(data=70.0))
         return Status.RUNNING
 

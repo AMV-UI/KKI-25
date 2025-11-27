@@ -24,10 +24,11 @@ class CameraController(Node):
     def __init__(self):
         super().__init__("front_camera")
 
+        self.arena = "B"
+
         self.detector = ObjectDetector(
             "/home/amv/models/v12/best_v12.engine",
             self,
-            "A", # Default track value
             [
                 "blueBox",
                 "docking",
@@ -39,7 +40,7 @@ class CameraController(Node):
             ],
             "/dev/video0",  # udev for real camera
             # "/home/amv/Videos/asv.mp4",  # path to video for sim
-        )
+    )
         
         self.result = ""
         self.dsc = -9999
@@ -51,6 +52,7 @@ class CameraController(Node):
         self.mission_received = AutoControl()
         self.show_result = False
         self.detected = False
+        self.fps = 30
 
         # Setup communication
         self._setup_communication()
@@ -65,6 +67,10 @@ class CameraController(Node):
         self.camera_processed_pub = Topic.camera_processed.createPublisher(self)
         # Subscribers (if needed)
         # self.current_mission_sub = Topic.mission.createSubscriber(self, self.mission_callback)
+        self.arena_sub = Topic.arena.createSubscriber(self, self._arena_cb)
+
+    def _arena_cb(self, msg: String):
+        self.arena = str(msg.data)
 
     def get_data(self):
         return self.result, self.dsc, self.state
@@ -87,7 +93,8 @@ class CameraController(Node):
     def process_frame(self):
         """Process a single frame - called by timer"""
         try:
-            self.img, self.dsc, self.detected = self.detector.process_frame("buoy")
+            # self.get_logger().info(f"Processing frame...{self.arena}", throttle_duration_sec=2.0)
+            self.img, self.dsc, self.detected = self.detector.process_frame("buoy", self.arena)
             
             if self.img is None:
                 self.get_logger().warn("Failed to get frame", throttle_duration_sec=5.0)
@@ -123,7 +130,7 @@ class CameraController(Node):
                 img_msg.data = base64_image
                 self.camera_processed_pub.publish(img_msg)
             else:
-                rospy.logerr("Failed to encode frame to JPG")
+                self.get_logger().error("Failed to encode frame to JPG")
             
         except Exception as e:
             self.get_logger().error(f"Error in process_frame: {traceback.format_exc()}")
@@ -136,7 +143,7 @@ class CameraController(Node):
     def run(self):
         """Start the main execution loop"""
         # timer for frame processing (30 FPS = 0.033s)
-        self.timer = self.create_timer(0.033, self.process_frame)
+        self.timer = self.create_timer(1/self.fps, self.process_frame)
         self.get_logger().info("Front camera processing started at 30 FPS")
 
 

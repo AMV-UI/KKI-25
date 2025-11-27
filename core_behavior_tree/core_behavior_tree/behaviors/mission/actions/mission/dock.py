@@ -1,3 +1,4 @@
+from build.core.core.mission.gps_stuff import haversine
 from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from std_msgs.msg import Bool, Float64, UInt8, String
@@ -63,6 +64,12 @@ class Docking_Execution(BaseExecution):
     def execute(self) -> Status:
         self.node.get_logger().info(f"[{self.name}] Initial Dock mode", throttle_duration_sec=1.0)
 
+        if haversine(self.lon, self.lat, self.docking_lon, self.docking_lat) < 2.0:
+            self.node.get_logger().info(f"[{self.name}] Arrived at docking station", throttle_duration_sec=5.0)
+            self.speed_effort_pub.publish(Float64(data=0.0))
+            self.yaw_effort_pub.publish(Float64(data=0.0))
+            return Status.SUCCESS
+        
         theta = turner((self.lon, self.lat), self.heading, (self.docking_lon, self.docking_lat))       
         self.speed_effort_pub.publish(Float64(data=self.speed_effort))
         self.yaw_effort_pub.publish(Float64(data=theta))

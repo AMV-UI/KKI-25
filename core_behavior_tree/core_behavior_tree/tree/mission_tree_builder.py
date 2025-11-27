@@ -1,12 +1,6 @@
 import py_trees
 from typing import List, Tuple, Type, Callable
 
-# from ..behaviors.mission.actions.mission0 import Mission0_Execution, Mission0_Fallback
-from ..behaviors.mission.actions.mission1 import Mission1_Execution, Mission1_Fallback
-from ..behaviors.mission.actions.mission2 import Mission2_Execution, Mission2_Fallback
-from ..behaviors.mission.actions.mission3 import Mission3_Execution, Mission3_Fallback
-# from ..behaviors.mission.actions.docking import DockingMission_Execution, DockingMission_Fallback
-
 from ..behaviors.mission.actions.tuning.straight import Straight_Execution, Straight_Fallback
 from ..behaviors.mission.actions.tuning.turn import Turn_Execution, Turn_Fallback
 from ..behaviors.mission.actions.tuning.go import Go_Execution, Go_Fallback
@@ -56,12 +50,12 @@ class MissionTreeBuilder:
 
     # Perception
     MISSIONS_CONFIG = [
-        (Initial_Execution, Initial_Fallback, "Initial"),
-        (Buoy_Execution, Buoy_Fallback, "Buoy"),
+        # (Initial_Execution, Initial_Fallback, "Initial"),
+        # (Buoy_Execution, Buoy_Fallback, "Buoy"),
         (Finding_Execution, Finding_Fallback, "Finding"), 
-        (Buoy_Execution, Buoy_Fallback, "Buoy"),
+        # (Buoy_Execution, Buoy_Fallback, "Buoy"),
         #(Docking_Execution, Docking_Fallback, "Docking"),
-        (Done_Execution, Done_Fallback, "Done"),
+        # (Done_Execution, Done_Fallback, "Done"),
     ]
 
     def __init__(self, ros_node):
