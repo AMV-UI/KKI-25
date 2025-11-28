@@ -136,7 +136,7 @@ class MissionTreeBuilder:
             memory=True
         )
         
-        mission = mission_class(f"{name} Execution", node=self.ros_node)
+        mission = mission_class(f"{name} Execution", node=self.ros_node, mission=mission_number)
         fallback = fallback_class(f"{name} Fallback", node=self.ros_node)
 
         selector.add_children([mission, fallback])

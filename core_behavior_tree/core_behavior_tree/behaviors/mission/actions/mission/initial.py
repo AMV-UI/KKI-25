@@ -13,7 +13,7 @@ class Initial_Execution(BaseExecution):
     Main execution: Set inital heading and finding the buoy
     - Fallback: if pxmode is still on hold
     """
-    def __init__(self, name, node=None):
+    def __init__(self, name, node=None, mission=None):
         super().__init__(name, node=node)
         self.node = node
 
@@ -23,6 +23,7 @@ class Initial_Execution(BaseExecution):
         self.target = 126
         self.hold = False
 
+        self.mission = mission
         self.frame_counter = FrameCounter(self.time_threshold)
         self.effort = 120.0 
         self.heading = 0
