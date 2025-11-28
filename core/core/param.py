@@ -12,7 +12,7 @@ class ParameterBlackboard(Node):
 
         self.node = node
 
-        self.arena = "B"
+        self.arena = "A"
         self.st_speed = 1.0
         self.tn_speed = 1.0
         self.dock_lat = 0.0

@@ -47,6 +47,11 @@ class NodeConfig:
     gcs = "GCS"
     movement_controller = "movement_controller"
 
+class MissionStatus(Enum):
+    BUOY = 1
+    DOCKING = 2
+    FIND_GREEN_BOX = 3
+    FIND_BLUE_BOX = 4
 
 class Topic:
 

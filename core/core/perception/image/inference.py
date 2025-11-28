@@ -11,7 +11,7 @@ from std_msgs.msg import String
 from core.utils.config import Topic
 from io import BytesIO
 from core_msgs.msg import ObjectCount
-from core.utils.config import Param, SPEED
+from core.utils.config import Param, SPEED, MissionStatus
 from core.utils.motor import Motor
 # from core.perception.image.camera_bottom import BottomCamera
 
@@ -26,6 +26,8 @@ class ObjectDetector:
         self.conf_threshold = 0.2
         self.node = node
         self.arena = "B"
+        self.max_green_box_area = 1000
+        self.max_blue_box_area = 1000
 
         self.cap = cv2.VideoCapture(camera_index)
         self.cap.set(1, fps)  # Set FPS
@@ -79,7 +81,7 @@ class ObjectDetector:
                 )
                 return img
 
-    def process_frame(self, mission, arena):
+    def process_frame(self, mission: MissionStatus, arena, node):
         success, img = self.cap.read()
         # print("In your mom")
         if not success:
@@ -107,6 +109,7 @@ class ObjectDetector:
         self.green_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
         self.blue_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
 
+        
         # threshold boxes
         # self.minimum_blue_box_area = 200
         # self.minimum_green_box_area = 200
@@ -115,6 +118,7 @@ class ObjectDetector:
             for box in boxes:
                 # Get bounding box coordinates
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
+                
 
                 confidence = float(box.conf[0])
                 cls = int(box.cls[0])
@@ -128,42 +132,34 @@ class ObjectDetector:
                 # Get area of the box experimentation with actual area instead of x only
                 # area = abs(x1 - x2)
                 area = abs((x2 - x1) * (y2 - y1))
-                if mission == "buoy":
+                if mission == MissionStatus.BUOY:
                     img, self.red, self.green = self.buoy_detected(
                         cls, img, x1, y1, x2, y2, confidence, area
                     )
 
-                elif mission == "green_box":
+                elif mission == MissionStatus.FIND_GREEN_BOX:
+
                     img, status = self.green_box_detected(
-                        img, x1, y1, x2, y2, confidence, area
-                    )
-                    yaw_state = 0
-                    detected = status
-
-                    return img, yaw_state, detected
-
-                elif mission == "blue_box":
-                    img_64, status = self.blue_box_detected(
-                        img, x1, y1, x2, y2, confidence, area
-                    )
-                    yaw_state = 0
-                    detected = status
-
-                    return img_64, yaw_state, detected
-
-                elif mission == "find_dock":
-                    img = self.find_dock_detected(cls, img, x1, y1, x2, y2, confidence)
-
-                elif mission == "docking":
-                    img, status = self.docking_detected(
                         cls, img, x1, y1, x2, y2, confidence
                     )
-                    detected = status
 
-                    # if detected:
-                    #     self.motor.full_detected()
-
+                    # Stop if area big enough
+                    if area > self.max_green_box_area:
+                        yaw_state = 0
+                        status = False # Assume mission starts as detected, this being termination condition
+                        return img, yaw_state, status
+                    
+                    mid = (x1 + x2) // 2
+                    yaw_state = mid - width
                     return img, yaw_state, detected
+
+                elif mission == MissionStatus.FIND_BLUE_BOX:
+                    img_64, status = self.blue_box_detected(
+                        img, x1, y1, x2, y2, confidence
+                    )
+                    yaw_state = 0
+                    detected = status
+                    return img_64, yaw_state, detected
 
         if self.max_red < self.max_green * self.treshold:
             # self.motor.one_is_closer_detected()

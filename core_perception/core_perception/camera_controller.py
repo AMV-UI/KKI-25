@@ -8,7 +8,7 @@ import base64
 import time
 from core.perception.image.inference import ObjectDetector
 from core_msgs.msg import StateObject, AutoControl
-from core.utils.config import NodeConfig, Topic
+from core.utils.config import NodeConfig, Topic, MissionStatus
 from rclpy.node import Node
 from std_msgs.msg import Float64, Bool, String
 
@@ -40,7 +40,7 @@ class CameraController(Node):
             ],
             "/dev/video0",  # udev for real camera
             # "/home/amv/Videos/asv.mp4",  # path to video for sim
-    )
+        )
         
         self.result = ""
         self.dsc = -9999
@@ -48,7 +48,7 @@ class CameraController(Node):
         self.img = None
         self.img_64 = ""
         self.current_state = StateObject()
-        self.current_mission = 1
+        self.current_mission = MissionStatus.BUOY
         self.mission_received = AutoControl()
         self.show_result = False
         self.detected = False
@@ -66,7 +66,7 @@ class CameraController(Node):
         self.detected_pub = Topic.detected.createPublisher(self)
         self.camera_processed_pub = Topic.camera_processed.createPublisher(self)
         # Subscribers (if needed)
-        # self.current_mission_sub = Topic.mission.createSubscriber(self, self.mission_callback)
+        self.current_mission_sub = Topic.mission.createSubscriber(self, self.mission_callback)
         self.arena_sub = Topic.arena.createSubscriber(self, self._arena_cb)
 
     def _arena_cb(self, msg: String):
@@ -94,8 +94,9 @@ class CameraController(Node):
         """Process a single frame - called by timer"""
         try:
             # self.get_logger().info(f"Processing frame...{self.arena}", throttle_duration_sec=2.0)
-            self.img, self.dsc, self.detected = self.detector.process_frame("buoy", self.arena)
-            
+            self.img, self.dsc, self.detected = self.detector.process_frame(self.current_mission, self.arena, self)
+            # self.img, self.dsc, self.detected = self.img, self.dsc, self.detected
+
             if self.img is None:
                 self.get_logger().warn("Failed to get frame", throttle_duration_sec=5.0)
                 return
@@ -137,8 +138,8 @@ class CameraController(Node):
 
     def mission_callback(self, msg):
         """Update current mission"""
-        self.current_mission = msg.data
-        self.get_logger().info(f"Mission changed to: {self.current_mission}")
+        self.current_mission = MissionStatus(msg.data)
+        self.get_logger().info(f"Mission changed to: {self.current_mission}", throttle_duration_sec=3.0)
 
     def run(self):
         """Start the main execution loop"""

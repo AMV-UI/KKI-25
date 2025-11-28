@@ -1,6 +1,7 @@
 import py_trees
 from typing import List, Tuple, Type, Callable
 
+
 from ..behaviors.mission.actions.tuning.straight import Straight_Execution, Straight_Fallback
 from ..behaviors.mission.actions.tuning.turn import Turn_Execution, Turn_Fallback
 from ..behaviors.mission.actions.tuning.go import Go_Execution, Go_Fallback
@@ -11,8 +12,9 @@ from ..behaviors.mission.actions.mission.initial import Initial_Execution, Initi
 from ..behaviors.mission.actions.mission.buoy  import Buoy_Execution, Buoy_Fallback
 from ..behaviors.mission.actions.mission.finding import Finding_Execution, Finding_Fallback
 from ..behaviors.mission.actions.mission.dock import Docking_Execution, Docking_Fallback
-
-from core.utils.config import Topic, BT
+from ..behaviors.mission.actions.mission.reverse import Reverse_Execution, Reverse_Fallback
+from ..behaviors.mission.actions.mission.reverse import Reverse_Execution, Reverse_Fallback
+from ..behaviors.mission.actions.mission.find_green_box import FindGreenBox_Execution, FindGreenBox_Fallback
 
 from ..behaviors.base_behavior import BaseBehavior
 
@@ -55,10 +57,11 @@ class MissionTreeBuilder:
         # (Finding_Execution, Finding_Fallback, "Finding"), 
         # (Buoy_Execution, Buoy_Fallback, "Buoy"),
         # (Finding_Execution, Finding_Fallback, "Finding"), 
-        # (ArenaSwitch_Execution, ArenaSwitch_Fallback, "ArenaSwitch"),
-        (Buoy_Execution, Buoy_Fallback, "Buoy"),
+        # (Reverse_Execution, Reverse_Fallback, "Reverse"),
+        # (Buoy_Execution, Buoy_Fallback, "Buoy"),
 
-        # (FindGreenBox_Execution, FindGreenBox_Fallback, "FindGreenBox"),
+
+        (FindGreenBox_Execution, FindGreenBox_Fallback, "FindGreenBox"),
         # (PhotoGreenBox_Execution, PhotoGreenBox_Fallback, "PhotoGreenBox"),
         # (FindBlueAvoidGreen_Execution, FindBlueAvoidGreen_Fallback, "FindBlueAvoidGreen"),
         # (PhotoBlueBox_Execution, PhotoBlueBox_Fallback, "PhotoBlueBox"),
