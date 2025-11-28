@@ -52,9 +52,20 @@ class MissionTreeBuilder:
     MISSIONS_CONFIG = [
         # (Initial_Execution, Initial_Fallback, "Initial"),
         # (Buoy_Execution, Buoy_Fallback, "Buoy"),
-        (Finding_Execution, Finding_Fallback, "Finding"), 
+        # (Finding_Execution, Finding_Fallback, "Finding"), 
         # (Buoy_Execution, Buoy_Fallback, "Buoy"),
-        #(Docking_Execution, Docking_Fallback, "Docking"),
+        # (Finding_Execution, Finding_Fallback, "Finding"), 
+        # (ArenaSwitch_Execution, ArenaSwitch_Fallback, "ArenaSwitch"),
+        (Buoy_Execution, Buoy_Fallback, "Buoy"),
+
+        # (FindGreenBox_Execution, FindGreenBox_Fallback, "FindGreenBox"),
+        # (PhotoGreenBox_Execution, PhotoGreenBox_Fallback, "PhotoGreenBox"),
+        # (FindBlueAvoidGreen_Execution, FindBlueAvoidGreen_Fallback, "FindBlueAvoidGreen"),
+        # (PhotoBlueBox_Execution, PhotoBlueBox_Fallback, "PhotoBlueBox"),
+        
+        # (BypassBlueBox_Execution, BypassBlueBox_Fallback, "BypassBlueBox"),
+
+        # (Docking_Execution, Docking_Fallback, "Docking"),
         # (Done_Execution, Done_Fallback, "Done"),
     ]
 

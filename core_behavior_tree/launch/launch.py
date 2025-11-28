@@ -15,5 +15,11 @@ def generate_launch_description():
             # parameters=[{
             #     'track': LaunchConfiguration('track'),
             # }]
+        ),
+        Node(
+            package="core_behavior_tree",
+            executable="simul",
+            name="simul_node",
+            output="screen",
         )
     ])
