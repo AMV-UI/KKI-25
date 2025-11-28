@@ -26,8 +26,8 @@ class ObjectDetector:
         self.conf_threshold = 0.2
         self.node = node
         self.arena = "B"
-        self.max_green_box_area = 1000
-        self.max_blue_box_area = 1000
+        self.max_green_box_area = 30000
+        self.max_blue_box_area = 30000
 
         self.cap = cv2.VideoCapture(camera_index)
         self.cap.set(1, fps)  # Set FPS
@@ -138,10 +138,14 @@ class ObjectDetector:
                     )
 
                 elif mission == MissionStatus.FIND_GREEN_BOX:
-
                     img, status = self.green_box_detected(
                         cls, img, x1, y1, x2, y2, confidence
                     )
+
+                    color = (0, 0, 0)
+                    cv2.rectangle(img, (width, height), (width, height), color, 3)
+
+                    node.get_logger().info(f"Area: {area}", throttle_duration_sec=1.0)
 
                     # Stop if area big enough
                     if area > self.max_green_box_area:
@@ -151,7 +155,7 @@ class ObjectDetector:
                     
                     mid = (x1 + x2) // 2
                     yaw_state = mid - width
-                    return img, yaw_state, detected
+                    return img, yaw_state, status
 
                 elif mission == MissionStatus.FIND_BLUE_BOX:
                     img_64, status = self.blue_box_detected(
@@ -237,7 +241,8 @@ class ObjectDetector:
 
     def green_box_detected(self, cls, img, x1, y1, x2, y2, confidence):
         status = False
-        if self.class_names[cls] == "greenBox":
+        # WARNING: Temporary use buoy, green box model still bad
+        if self.class_names[cls] == "greenBuoy" or self.class_names[cls] == "green_buoy":
             color = (0, 69, 0)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             cv2.putText(
@@ -250,7 +255,6 @@ class ObjectDetector:
                 2,
             )
             status = True
-
         return img, status
 
     def blue_box_detected(self, cls, img, x1, y1, x2, y2, confidence):

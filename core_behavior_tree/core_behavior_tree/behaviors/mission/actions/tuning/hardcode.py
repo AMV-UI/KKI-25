@@ -45,6 +45,7 @@ class RecordGPSExecution(BaseExecution):
         self.playback = False
         self.blackboard_client = py_trees.blackboard.Client(name="RecordGPSExecutionBBClient")
         self.blackboard_client.register_key(key="tuning_coordinate_file_position", access=py_trees.common.Access.READ)
+        return super().initialise()
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)

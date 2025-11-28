@@ -15,13 +15,13 @@ from ..behaviors.mission.actions.mission.dock import Docking_Execution, Docking_
 from ..behaviors.mission.actions.mission.reverse import Reverse_Execution, Reverse_Fallback
 from ..behaviors.mission.actions.mission.reverse import Reverse_Execution, Reverse_Fallback
 from ..behaviors.mission.actions.mission.find_green_box import FindGreenBox_Execution, FindGreenBox_Fallback
+from ..behaviors.mission.actions.mission.take_greenbox_photo import *
+from ..behaviors.mission.actions.mission.take_bluebox_photo import *
 
 from ..behaviors.base_behavior import BaseBehavior
 
 class MissionTreeBuilder:
     """Builder class responsible for constructing the behavior tree"""
-
-
     # Hard Code Config
     # MISSIONS_CONFIG = [
     #     (RecordGPSExecution, RecordGPSFallback, "Hardcode"),
@@ -61,10 +61,10 @@ class MissionTreeBuilder:
         # (Buoy_Execution, Buoy_Fallback, "Buoy"),
 
 
-        (FindGreenBox_Execution, FindGreenBox_Fallback, "FindGreenBox"),
-        # (PhotoGreenBox_Execution, PhotoGreenBox_Fallback, "PhotoGreenBox"),
+        # (FindGreenBox_Execution, FindGreenBox_Fallback, "FindGreenBox"),
+        # (TakeGreenBoxPhoto_Execution, TakeGreenBoxPhoto_Fallback, "PhotoGreenBox"),
         # (FindBlueAvoidGreen_Execution, FindBlueAvoidGreen_Fallback, "FindBlueAvoidGreen"),
-        # (PhotoBlueBox_Execution, PhotoBlueBox_Fallback, "PhotoBlueBox"),
+        (TakeBlueBoxPhoto_Execution, TakeBlueBoxPhoto_Fallback, "PhotoBlueBox"),
         
         # (BypassBlueBox_Execution, BypassBlueBox_Fallback, "BypassBlueBox"),
 

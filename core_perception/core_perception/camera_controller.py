@@ -6,9 +6,11 @@ import rclpy
 import numpy as np
 import base64
 import time
+from datetime import datetime
 from core.perception.image.inference import ObjectDetector
 from core_msgs.msg import StateObject, AutoControl
 from core.utils.config import NodeConfig, Topic, MissionStatus
+from core.utils.device_fetching import *
 from rclpy.node import Node
 from std_msgs.msg import Float64, Bool, String
 
@@ -26,6 +28,9 @@ class CameraController(Node):
 
         self.arena = "B"
 
+        self.up_camera_serial_idx = get_webcam_device_idx('046d_C270_HD_WEBCAM_E0198440')
+        self.down_camera_serial_idx = get_webcam_device_idx('Generic_HD_camera_20201212000000')
+
         self.detector = ObjectDetector(
             "/home/amv/models/v12/best_v12.engine",
             self,
@@ -38,10 +43,16 @@ class CameraController(Node):
                 "redBuoy",
                 "red_buoy",
             ],
-            "/dev/video0",  # udev for real camera
+            f"/dev/video{self.up_camera_serial_idx}",  # udev for real camera
             # "/home/amv/Videos/asv.mp4",  # path to video for sim
         )
         
+        # Configure down camera
+        self.down_cap = cv2.VideoCapture(self.down_camera_serial_idx)
+        self.down_cap.set(1, 30)  # Set FPS
+        self.down_cap.set(3, 640)  # Set width
+        self.down_cap.set(4, 480)  # Set height
+
         self.result = ""
         self.dsc = -9999
         self.state = [0, 0, 0, 0]
@@ -50,7 +61,7 @@ class CameraController(Node):
         self.current_state = StateObject()
         self.current_mission = MissionStatus.BUOY
         self.mission_received = AutoControl()
-        self.show_result = False
+        self.show_result = True
         self.detected = False
         self.fps = 30
 
@@ -121,6 +132,20 @@ class CameraController(Node):
                 throttle_duration_sec=2.0
             )
 
+            # Save green/blue box photos if in respective missions
+            if self.current_mission == MissionStatus.TAKE_GREEN_BOX_PHOTO:
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+                photo_filename = f"/home/amv/KKI-25/core_perception/photos/{timestamp}_greenBox.jpg"
+                cv2.imwrite(photo_filename, self.img)
+                self.get_logger().info(f"Photo taken and saved to {photo_filename}", throttle_duration_sec=5.0)
+                self.current_mission = MissionStatus.IDLE 
+            elif self.current_mission == MissionStatus.TAKE_BLUE_BOX_PHOTO:
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+                photo_filename = f"/home/amv/KKI-25/core_perception/photos/{timestamp}_blueBox.jpg"
+                cv2.imwrite(photo_filename, self.down_cap.read()[1]) # read return tuple (ret, frame)
+                self.get_logger().info(f"Photo taken and saved to {photo_filename}", throttle_duration_sec=5.0)
+                self.current_mission = MissionStatus.IDLE
+
             # Passing image data
             result, encoded_image = cv2.imencode(
                 ".jpg", self.img, [int(cv2.IMWRITE_JPEG_QUALITY), 20]
@@ -163,6 +188,7 @@ def main():
     finally:
         # Cleanup
         front_cam.detector.release()
+        front_cam.down_cap.release()
         cv2.destroyAllWindows()
         front_cam.destroy_node()
         rclpy.shutdown()

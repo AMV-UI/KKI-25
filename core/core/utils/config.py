@@ -52,6 +52,9 @@ class MissionStatus(Enum):
     DOCKING = 2
     FIND_GREEN_BOX = 3
     FIND_BLUE_BOX = 4
+    TAKE_GREEN_BOX_PHOTO = 5
+    TAKE_BLUE_BOX_PHOTO = 6
+    IDLE = 7
 
 class Topic:
 
