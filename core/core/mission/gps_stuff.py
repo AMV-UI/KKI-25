@@ -1,4 +1,4 @@
-from math import radians, cos, sin, asin, sqrt
+from math import radians, cos, sin, asin, sqrt, atan
 
 # Anggap black box :0
 # https://stackoverflow.com/questions/4913349/haversine-formula-in-python-bearing-and-distance-between-two-gps-points
@@ -34,3 +34,29 @@ def turner(ship_coor, heading, goal):
     sign_dot_product = ship_v_x * right_v_x + ship_v_y * right_v_y
     sign = 1 if sign_dot_product >= 0 else -1
     return magnitude * sign * -1.0 
+
+def calc_dsc(target, heading):
+    dsc = target - heading
+    dsc = dsc if abs(dsc) <= 180 else (360 - abs(dsc)) * (-1 if dsc > 0 else 1)
+    
+    return dsc
+
+def find_deg(cur_lat, cur_lon, tar_lat, tar_lon, cur_head):
+    delta_x = tar_lat - cur_lat
+    delta_y = tar_lon - cur_lon
+
+    theta = degrees(atan(abs(delta_y) / abs(delta_x)))
+
+    deg = 0
+    if(delta_x > 0):
+        if(delta_y > 0):
+            deg = 90 - theta
+        else:
+            deg = 90 + theta
+    else:
+        if(delta_x > 0):
+            deg = (90 - theta) + 180
+        else:
+            deg = theta + 270
+
+    return calc_dsc(int(deg), cur_head), deg, theta

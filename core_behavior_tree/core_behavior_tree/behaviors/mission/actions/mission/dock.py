@@ -63,18 +63,18 @@ class Docking_Execution(BaseExecution):
         self.docking_lon = float(msg.data)
 
     def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}] Initial Dock mode", throttle_duration_sec=1.0)
+        self.node.get_logger().info(f"[{self.name}] Initial Dock mode Lat: {self.dock_lat} Lon: {self.dock_lon}", throttle_duration_sec=1.0)
 
-        if haversine(self.lon, self.lat, self.docking_lon, self.docking_lat) < 2.0:
+        if haversine(self.lon, self.lat, self.docking_lon, self.docking_lat) < 1.0:
             self.node.get_logger().info(f"[{self.name}] Arrived at docking station", throttle_duration_sec=5.0)
             self.speed_effort_pub.publish(Float64(data=0.0))
             self.yaw_effort_pub.publish(Float64(data=0.0))
             self.mission_pub.publish(UInt8(data=self.mission))
             return Status.SUCCESS
         
-        theta = turner((self.lon, self.lat), self.heading, (self.docking_lon, self.docking_lat))       
+        theta = find_deg(self.lat, self.lon, self.dock_lat, self.dock_lon, self.heading) 
         self.speed_effort_pub.publish(Float64(data=self.speed_effort))
-        self.yaw_effort_pub.publish(Float64(data=theta))
+        self.yaw_effort_pub.publish(Float64(data=float(theta)))
 
         return Status.RUNNING
 

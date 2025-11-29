@@ -39,10 +39,10 @@ class MissionTreeBuilder:
     # ]
 
     MISSIONS_CONFIG = [
-        (Initial_Execution, Initial_Fallback, "Initial"),
-        (Straight_Execution, Done_Execution, "Straight"),
+        # (Initial_Execution, Initial_Fallback, "Initial"),
+        # (Straight_Execution, Done_Execution, "Straight"),
         (Docking_Execution, Docking_Fallback, "Docking"),
-        (Done_Execution, Done_Fallback, "Done"),
+        # (Done_Execution, Done_Fallback, "Done"),
     ]
 
     # Perception
