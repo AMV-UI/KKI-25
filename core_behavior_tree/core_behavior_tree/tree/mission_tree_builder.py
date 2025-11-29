@@ -38,22 +38,22 @@ class MissionTreeBuilder:
     #      (Done_Execution, Done_Fallback, "Done"),
     # ]
 
-    # MISSIONS_CONFIG = [
-    #     (Initial_Execution, Initial_Fallback, "Initial"),
-    #     (Straight_Execution, Done_Execution, "Straight"),
-    #     (Docking_Execution, Docking_Fallback, "Docking"),
-    #     (Done_Execution, Done_Fallback, "Done"),
-    # ]
+    MISSIONS_CONFIG = [
+        (Initial_Execution, Initial_Fallback, "Initial"),
+        (Straight_Execution, Done_Execution, "Straight"),
+        (Docking_Execution, Docking_Fallback, "Docking"),
+        (Done_Execution, Done_Fallback, "Done"),
+    ]
 
     # Perception
-    MISSIONS_CONFIG = [
+    #MISSIONS_CONFIG = [
         #(Initial_Execution, Initial_Fallback, "Initial"),
         #(Buoy_Execution, Buoy_Fallback, "Buoy"),
         #(Finding_Execution, Finding_Fallback, "Finding"), 
-        (Buoy_Execution, Buoy_Fallback, "Buoy"),
-        (Finding_Execution, Finding_Fallback, "Finding"), 
-        (Reverse_Execution, Reverse_Fallback, "Reverse"),
-        (Buoy_Execution, Buoy_Fallback, "Buoy"),
+        #(Buoy_Execution, Buoy_Fallback, "Buoy"),
+        #(Finding_Execution, Finding_Fallback, "Finding"), 
+        #(Reverse_Execution, Reverse_Fallback, "Reverse"),
+        #(Buoy_Execution, Buoy_Fallback, "Buoy"),
         # (Reverse_Execution, Reverse_Fallback, "Reverse"),
         # (Box_Execution, Box_Fallback, "Change Mission to Green Box"),
         # (Finding_Execution, Finding_Fallback, "Finding Green Box"), 
@@ -64,9 +64,9 @@ class MissionTreeBuilder:
         # (Photo_Execution, Photo_Fallback, "Photo Blue Box"), 
         # (Box_Execution, Box_Fallback, "Change Mission to Docking"),
         # (Pass_Execution, Pass_Fallback, "Pass Box"),
-        (Docking_Execution, Docking_Fallback, "Docking"),
-        (Done_Execution, Done_Fallback, "Done"),
-    ]
+        #(Docking_Execution, Docking_Fallback, "Docking"),
+        #(Done_Execution, Done_Fallback, "Done"),
+    #]
 
     def __init__(self, ros_node):
         self.ros_node = ros_node
