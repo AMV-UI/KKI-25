@@ -20,7 +20,7 @@ class Straight_Execution(BaseExecution):
         self.success = False
         self.effort = 120.0
         self.first_run: float
-        self.time_threshold = 13
+        self.time_threshold = 8
 
     def initialise(self):
         self.effort = 120.0
@@ -29,7 +29,6 @@ class Straight_Execution(BaseExecution):
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
         self.frame_counter = FrameCounter(self.time_threshold)
-
 
         self.mission_sub = Topic.tuning_mission.createSubscriber(
             self.node,
@@ -57,7 +56,6 @@ class Straight_Execution(BaseExecution):
             self.frame_counter.reset()
             self.node.get_logger().info(f"[{self.name}] Condition Succeeded from EXECUTION -> Mission COMPLETE")
             return Status.SUCCESS
-
 
         return Status.RUNNING
 
