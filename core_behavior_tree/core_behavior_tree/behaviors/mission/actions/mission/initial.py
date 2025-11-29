@@ -69,7 +69,7 @@ class Initial_Execution(BaseExecution):
         if self.hold:
             return Status.FAILURE
         
-        if self.detected:
+        if not self.detected:
             self.initial_heading_pub.publish(Float64(data=float(self.heading)))
             self.frame_counter.is_started()
             if self.frame_counter.is_enough():

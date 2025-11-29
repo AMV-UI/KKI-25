@@ -26,7 +26,7 @@ class Docking_Execution(BaseExecution):
         self.hold = False
 
         self.frame_counter = FrameCounter(self.time_threshold)
-        self.effort = 120.0 
+        self.effort = 120.0
         self.heading = 0
         self.docking_lat = 0.0
         self.docking_lon = 0.0
@@ -63,7 +63,7 @@ class Docking_Execution(BaseExecution):
         self.docking_lon = float(msg.data)
 
     def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}] Initial Dock mode Lat: {self.dock_lat} Lon: {self.dock_lon}", throttle_duration_sec=1.0)
+        self.node.get_logger().info(f"[{self.name}] Initial Dock mode Lat: {self.docking_lat} Lon: {self.docking_lon}", throttle_duration_sec=1.0)
 
         if haversine(self.lon, self.lat, self.docking_lon, self.docking_lat) < 1.0:
             self.node.get_logger().info(f"[{self.name}] Arrived at docking station", throttle_duration_sec=5.0)

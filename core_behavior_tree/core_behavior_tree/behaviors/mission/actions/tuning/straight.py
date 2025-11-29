@@ -18,12 +18,12 @@ class Straight_Execution(BaseExecution):
         super().__init__(name, node=node)
         self.node = node
         self.success = False
-        self.effort = 10.0
+        self.effort = 120.0
         self.first_run: float
-        self.time_threshold = 10
+        self.time_threshold = 13
 
     def initialise(self):
-        self.effort = 100.0
+        self.effort = 120.0
         self.success = False
 
     def setup(self, **kwargs) -> None:
@@ -34,10 +34,6 @@ class Straight_Execution(BaseExecution):
         self.mission_sub = Topic.tuning_mission.createSubscriber(
             self.node,
             self._mission_cb
-        )        
-        self.effort_sub = Topic.tuning_effort_st.createSubscriber(
-            self.node,
-            self._effort_cb
         )        
 
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
