@@ -14,9 +14,8 @@ from ..behaviors.mission.actions.mission.finding import Finding_Execution, Findi
 from ..behaviors.mission.actions.mission.dock import Docking_Execution, Docking_Fallback
 from ..behaviors.mission.actions.mission.reverse import Reverse_Execution, Reverse_Fallback
 from ..behaviors.mission.actions.mission.reverse import Reverse_Execution, Reverse_Fallback
-from ..behaviors.mission.actions.mission.find_green_box import FindGreenBox_Execution, FindGreenBox_Fallback
-from ..behaviors.mission.actions.mission.take_greenbox_photo import *
-from ..behaviors.mission.actions.mission.take_bluebox_photo import *
+from ..behaviors.mission.actions.mission.reverse import Reverse_Execution, Reverse_Fallback
+from ..behaviors.mission.actions.mission.* import *
 
 from ..behaviors.base_behavior import BaseBehavior
 
@@ -27,18 +26,6 @@ class MissionTreeBuilder:
     #     (RecordGPSExecution, RecordGPSFallback, "Hardcode"),
     #     (Done_Execution, Done_Fallback, "Stall"),   
     # ]
-
-    # Record Straight Config
-    # MISSIONS_CONFIG = [
-    #     (RecordStraightExecution, Straight_Fallback, "Straight"),
-    # ]
-
-    #MISSIONS_CONFIG = [
-        
-       #(Mission1_Execution, Mission1_Fallback, "Mission 1"),
-       #(Mission2_Execution, Mission2_Fallback, "Mission 2"),
-       #(Mission3_Execution, Mission3_Fallback, "Mission 3"),
-    #]
 
     # Tuning Config
     # MISSIONS_CONFIG = [
@@ -59,17 +46,16 @@ class MissionTreeBuilder:
         # (Finding_Execution, Finding_Fallback, "Finding"), 
         # (Reverse_Execution, Reverse_Fallback, "Reverse"),
         # (Buoy_Execution, Buoy_Fallback, "Buoy"),
-
-
-        # (FindGreenBox_Execution, FindGreenBox_Fallback, "FindGreenBox"),
-        # (TakeGreenBoxPhoto_Execution, TakeGreenBoxPhoto_Fallback, "PhotoGreenBox"),
-        # (FindBlueAvoidGreen_Execution, FindBlueAvoidGreen_Fallback, "FindBlueAvoidGreen"),
-        (TakeBlueBoxPhoto_Execution, TakeBlueBoxPhoto_Fallback, "PhotoBlueBox"),
-        
-        # (BypassBlueBox_Execution, BypassBlueBox_Fallback, "BypassBlueBox"),
-
-        # (Docking_Execution, Docking_Fallback, "Docking"),
-        # (Done_Execution, Done_Fallback, "Done"),
+        # (Box_Execution, Box_Fallback, "Change Mission to Green Box"),
+        # (Finding_Execution, Finding_Fallback, "Finding Green Box"), 
+        # (Photo_Execution, Photo_Fallback, "Photo Green Box"), 
+        # (Unfinding_Execution, Unfinding_Fallback, "Unfinding GreenBox"), 
+        # (Box_Execution, Box_Fallback, "Change Mission to Blue Box"),
+        # (Finding_Execution, Finding_Fallback, "Finding Blue Box"), 
+        # (Photo_Execution, Photo_Fallback, "Photo Blue Box"), 
+        # (Box_Execution, Box_Fallback, "Change Mission to Docking"),
+        # (Pass_Execution, Pass_Fallback, "Pass Box"),
+        # (Docking_Execution, Docking_Fallback, "Docking")
     ]
 
     def __init__(self, ros_node):

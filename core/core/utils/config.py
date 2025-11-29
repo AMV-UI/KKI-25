@@ -47,15 +47,12 @@ class NodeConfig:
     gcs = "GCS"
     movement_controller = "movement_controller"
 
-class MissionStatus(Enum):
-    BUOY = 1
-    DOCKING = 2
-    FIND_GREEN_BOX = 3
-    FIND_BLUE_BOX = 4
-    TAKE_GREEN_BOX_PHOTO = 5
-    TAKE_BLUE_BOX_PHOTO = 6
-    IDLE = 7
-
+class MissionStatus:
+    BUOY = "buoy"
+    GREEN_BOX = "greenbox" 
+    BLUE_BOX = "bluebox"
+    DOCKING = "docking"
+    
 class Topic:
 
     # Migrate From Param
@@ -69,6 +66,8 @@ class Topic:
     camera_processed = TopicFactory("/asv/vision/camera/processed", String)
     image_green_box = TopicFactory("/asv/vision/image/show_green", String)
     image_blue_box = TopicFactory("/asv/vision/image/show_blue", String)
+    green_box_encoded = TopicFactory("/asv/vision/image/green", String) 
+    blue_box_encoded = TopicFactory("/asv/vision/image/blue", String) 
 
     # Inference
     dsc = TopicFactory("/core/vision/image/dsc", Float64)
@@ -97,6 +96,7 @@ class Topic:
 
     # Mission
     mission = TopicFactory("/core/mission/current", UInt8)
+    mission_type = TopicFactory("/core/mission/type", String) 
 
     # PWM
     pwm = TopicFactory("/core/pwm", Pwm)

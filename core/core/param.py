@@ -2,7 +2,7 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String, Float64
-from core.utils.config import Topic
+from core.utils.config import Topic, MissionStatus
 
 class ParameterBlackboard(Node):    
     def __init__(self, node = Node):
@@ -17,6 +17,7 @@ class ParameterBlackboard(Node):
         self.tn_speed = 1.0
         self.dock_lat = 0.0
         self.dock_lon = 0.0
+        self.mission_type = MissionStatus.BUOY
 
         self.setup()
 
@@ -26,6 +27,7 @@ class ParameterBlackboard(Node):
         self.tn_speed_pub = Topic.tn_speed.createPublisher(self.node).publish(Float64(data=self.tn_speed))
         self.dock_lat_pub = Topic.dock_lat.createPublisher(self.node).publish(Float64(data=self.dock_lat))
         self.dock_lon_pub = Topic.dock_lon.createPublisher(self.node).publish(Float64(data=self.dock_lon))
+        self.mission_type_pub = Topic.mission_type.createPublisher(self.node).publish(String(data=self.mission_type))
 
         self.arena_sub = Topic.arena.createSubscriber(
             self,
@@ -47,6 +49,14 @@ class ParameterBlackboard(Node):
             self,
             self._dock_lon_cb
         )
+
+        self.mission_type_sub = Topic.mission_type.createSubscriber(
+            self,
+            self._mission_type_cb
+        )
+    
+    def _mission_type_cb(self, msg: String):
+        self.mission_type = msg.data
 
     def _arena_cb(self, msg: String):
         self.arena = msg.data

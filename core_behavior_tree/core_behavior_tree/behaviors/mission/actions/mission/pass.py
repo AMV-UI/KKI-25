@@ -7,7 +7,7 @@ from core_msgs.msg import Pixhawk
 
 
 import time
-class Buoy_Execution(BaseExecution):
+class Pass_Execution(BaseExecution):
     """
     Main execution: APPROACH to 2 Buoys (Different color, Green and Red) phase only
     - Navigate toward detected target using DSC from vision
@@ -23,7 +23,7 @@ class Buoy_Execution(BaseExecution):
         self.dsc = 0.0
         self.speed_effort = 120.0
         self.arena = "B"
-        self.time_threshold = 0.2    
+        self.time_threshold = 2
         self.mission = mission
         
     def setup(self, **kwargs) -> None:
@@ -91,7 +91,7 @@ class Buoy_Execution(BaseExecution):
         return Status.RUNNING
 
 
-class Buoy_Fallback(BaseFallback):
+class Pass_Fallback(BaseFallback):
     """
     """
     def __init__(self, name, node=None):

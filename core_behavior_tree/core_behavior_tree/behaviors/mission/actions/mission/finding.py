@@ -16,7 +16,7 @@ class Finding_Execution(BaseExecution):
     - Phase "finding": search with find_mode range(1), wait until detected for N frames
     - Phase "approach": navigate to target, when lost for N frames -> SUCCESS (ready for docking)
     """
-    def __init__(self, name: str = "Mission2_Execution", node=None, mission = None):
+    def __init__(self, name, node=None, mission = None):
         super().__init__(name, node=node)
         self.node = node
         self.find_mode = None
@@ -26,16 +26,17 @@ class Finding_Execution(BaseExecution):
         self.effort = 150
         self.dsc = self.effort * (-1 if self.arena == "A" else 1)  #Reverse effort untuk mission 2
         self.mission = mission
+        self.time_threshold = 0.2
 
         self.px_heading = 0.0
         self.phase = "finding"        
 
-        self.speed_effort = 100.0
+        self.speed_effort = 70.0
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
         self.find_mode = FindMode(self.node, self.arena)
-        self.frame_counter = FrameCounter(1)
+        self.frame_counter = FrameCounter(self.time_threshold)
 
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
@@ -89,23 +90,15 @@ class Finding_Execution(BaseExecution):
         else:
             self.frame_counter.reset()
 
-        self.yaw_effort_pub.publish(Float64(data=self.speed_effort * (1 if self.arena == "B" else -1)))
-        self.speed_effort_pub.publish(Float64(data=70.0))
+        self.yaw_effort_pub.publish(Float64(data=self.effort * (1 if self.arena == "B" else -1)))
+        self.speed_effort_pub.publish(Float64(data=self.speed_effort))
         return Status.RUNNING
 
 class Finding_Fallback(BaseFallback):
     """
-    Fallback for Mission 2: search pattern with range(1)
     """
     def __init__(self, name: str = "Mission2_Fallback", node=None):
         super().__init__(name, node=node)
     
-
     def fallback(self) -> Status:
-
         return Status.FAILURE
-        # self.node.get_logger().info(f"[{self.name}] We are in FALLBACK mode for Mission 2...")
-        # self.node.get_logger().info(f"[{self.name}] Entering FALLBACK mode, doing search...")
-        # time.sleep(2)  # Simulate search time
-        # self.node.get_logger().info(f"[{self.name}] Condition Satisfied -> Switching to EXECUTION")
-        # Param.FLAG.setParam(self.node, True)

@@ -7,7 +7,7 @@ from core_msgs.msg import Pixhawk
 
 
 import time
-class Buoy_Execution(BaseExecution):
+class Unfinding_Execution(BaseExecution):
     """
     Main execution: APPROACH to 2 Buoys (Different color, Green and Red) phase only
     - Navigate toward detected target using DSC from vision
@@ -20,8 +20,8 @@ class Buoy_Execution(BaseExecution):
         self.node = node
         self.frame_counter = None
         self.detected = True
-        self.dsc = 0.0
-        self.speed_effort = 120.0
+        self.yaw_effort = 150.0
+        self.speed_effort = 70.0
         self.arena = "B"
         self.time_threshold = 0.2    
         self.mission = mission
@@ -42,10 +42,6 @@ class Buoy_Execution(BaseExecution):
             self.node, 
             self._detected_cb
         )
-        self.dsc_sub = Topic.dsc.createSubscriber(
-            self.node, 
-            self._dsc_cb
-        )
         self.speed_sub = Topic.tuning_effort_st.createSubscriber(
             self.node,
             self._speed_cb
@@ -59,9 +55,6 @@ class Buoy_Execution(BaseExecution):
 
     def _detected_cb(self, msg: Bool):
         self.detected = bool(msg.data)
-
-    def _dsc_cb(self, msg: Float64):
-        self.dsc = float(msg.data)
 
     def execute(self) -> Status:
         self.node.get_logger().info(f"[{self.name}] track {self.arena}", throttle_duration_sec=1.0)
@@ -80,21 +73,21 @@ class Buoy_Execution(BaseExecution):
 
         self.frame_counter.reset()
 
-        self.yaw_effort_pub.publish(Float64(data=self.dsc))
+        self.yaw_effort_pub.publish(Float64(data=self.yaw_effort * (-1 if self.arena == "B" else 1)))
         self.speed_effort_pub.publish(Float64(data=self.speed_effort))
             
         self.node.get_logger().info(
-            f"[{self.name}] Approaching target - DSC: {self.dsc}",
+            f"[{self.name}] Approaching target - Effort: {self.yaw_effort}",
             throttle_duration_sec=2.0
             )
-        
+
         return Status.RUNNING
 
 
-class Buoy_Fallback(BaseFallback):
+class Unfinding_Fallback(BaseFallback):
     """
     """
-    def __init__(self, name, node=None):
+    def __init__(self, name: str = "Mission1_Fallback", node=None):
         super().__init__(name, node=node)
 
     def fallback(self) -> Status:

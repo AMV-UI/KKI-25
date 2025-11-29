@@ -106,6 +106,8 @@ class ObjectDetector:
         self.red = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
         self.green = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
 
+        self.max_green_box = -1
+        self.max_blue_box = -1 
         self.green_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
         self.blue_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
 
@@ -116,82 +118,96 @@ class ObjectDetector:
         for r in results:
             boxes = r.boxes
             for box in boxes:
-                # Get bounding box coordinates
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
-                
-
                 confidence = float(box.conf[0])
                 cls = int(box.cls[0])
-
                 if confidence < 0.4:
                     continue
 
-                # put box in cam
                 color = (0, 0, 0)
-
-                # Get area of the box experimentation with actual area instead of x only
-                # area = abs(x1 - x2)
                 area = abs((x2 - x1) * (y2 - y1))
                 if mission == MissionStatus.BUOY:
                     img, self.red, self.green = self.buoy_detected(
                         cls, img, x1, y1, x2, y2, confidence, area
                     )
+                
+                elif mission == MissionStatus.DOCKING:
+                    img, self.green_box, self.blue_box = self.buoy_detected(
+                        cls, img, x1, y1, x2, y2, confidence, area
+                    )                    
 
-                elif mission == MissionStatus.FIND_GREEN_BOX:
+                elif mission == MissionStatus.GREEN_BOX:
                     img, status = self.green_box_detected(
                         cls, img, x1, y1, x2, y2, confidence
                     )
-
                     color = (0, 0, 0)
                     cv2.rectangle(img, (width, height), (width, height), color, 3)
 
-                    node.get_logger().info(f"Area: {area}", throttle_duration_sec=1.0)
-
-                    # Stop if area big enough
                     if area > self.max_green_box_area:
-                        yaw_state = 0
-                        status = False # Assume mission starts as detected, this being termination condition
-                        return img, yaw_state, status
+                        return img, 0, False
                     
-                    mid = (x1 + x2) // 2
-                    yaw_state = mid - width
-                    return img, yaw_state, status
+                    return img, 0, True
 
-                elif mission == MissionStatus.FIND_BLUE_BOX:
+                elif mission == MissionStatus.BLUE_BOX:
                     img_64, status = self.blue_box_detected(
                         img, x1, y1, x2, y2, confidence
                     )
-                    yaw_state = 0
-                    detected = status
-                    return img_64, yaw_state, detected
+                    color = (0, 0, 0)
+                    cv2.rectangle(img, (width, height), (width, height), color, 3)
 
-        if self.max_red < self.max_green * self.treshold:
-            # self.motor.one_is_closer_detected()
-            self.max_red = -1
-        elif self.max_green < self.max_red * self.treshold:
-            # self.motor.one_is_closer_detected()
-            self.max_green = -1
+                    if area > self.max_blue_box_area:
+                        return img, 0, False
+                    
+                    return img, 0, True
 
-        self.mid_red = (self.red["x1"] + self.red["x2"]) // 2
-        self.mid_green = (self.green["x1"] + self.green["x2"]) // 2
+        if mission == MissionStatus.BUOY: 
+            if self.max_red < self.max_green * self.treshold:
+                self.max_red = -1
+            elif self.max_green < self.max_red * self.treshold:
+                self.max_green = -1
 
-        # Full Motor
-        if self.max_red != -1 and self.max_green != -1:
-            mid_x = (self.mid_green + self.mid_red) // 2
-            dsc_x = mid_x - width
-            yaw_state = dsc_x
-        elif self.max_green != -1:
-            # Only green detected
-            yaw_state = self.pid_adjust * (-1 if arena == "A" else 1)
-        elif self.max_red != -1:
-            # Only red detected
-            yaw_state = self.pid_adjust * (1 if arena == "A" else -1)
+            self.mid_red = (self.red["x1"] + self.red["x2"]) // 2
+            self.mid_green = (self.green["x1"] + self.green["x2"]) // 2
 
-        if self.max_green != -1 or self.max_red != -1:
-            detected = True
+            if self.max_red != -1 and self.max_green != -1:
+                mid_x = (self.mid_green + self.mid_red) // 2
+                dsc_x = mid_x - width
+                yaw_state = dsc_x
+            elif self.max_green != -1:
+                yaw_state = self.pid_adjust * (-1 if arena == "A" else 1)
+            elif self.max_red != -1:
+                yaw_state = self.pid_adjust * (1 if arena == "A" else -1)
 
-        color = (0, 0, 0)
-        cv2.rectangle(img, (width, height), (width, height), color, 3)
+            if self.max_green != -1 or self.max_red != -1:
+                detected = True
+
+            color = (0, 0, 0)
+            cv2.rectangle(img, (width, height), (width, height), color, 3)
+        elif mission == MissionStatus.DOCKING 
+            if self.max_green_box < self.max_blue_box * self.treshold:
+                self.max_green_box = -1
+            elif self.max_blue_box < self.max_green_box * self.treshold:
+                self.max_blue_box = -1
+
+            self.mid_green_box = (self.green_box["x1"] + self.green_box["x2"]) // 2
+            self.mid_blue_box = (self.blue_box["x1"] + self.blue_box["x2"]) // 2
+
+            if self.max_green_box != -1 and self.max_blue_box != -1:
+                mid_x = (self.mid_green_box + self.mid_blue_box) // 2
+                dsc_x = mid_x - width
+                yaw_state = dsc_x
+            elif self.max_green_box != -1:
+                yaw_state = self.pid_adjust * (-1 if arena == "B" else 1)
+            elif self.max_blue_box != -1:
+                yaw_state = self.pid_adjust * (1 if arena == "B" else -1)
+            else:
+                yaw_state = 0
+
+            if self.max_blue_box != -1 or self.max_green_box != -1:
+                detected = True
+
+            color = (0, 0, 0)
+            cv2.rectangle(img, (width, height), (width, height), color, 3)
 
         return img, yaw_state, detected
 
@@ -238,6 +254,49 @@ class ObjectDetector:
                 green = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
 
         return img, red, green
+    
+    def dock_detected(self, cls, img, x1, y1, x2, y2, confidence, area):
+        if (
+            self.class_names[cls] == "greenBox" 
+            or self.class_names[cls] == "green_box"):
+            color = (0, 0, 255)
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+            cv2.putText(
+                img,
+                self.class_names[cls] + " " + str(confidence),
+                (x1, y1),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                color,
+                2,
+            )
+
+            if self.max_green_box < area:
+                self.max_green_box = area
+                green_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+
+        elif (
+            self.class_names[cls] == "blueBox"
+            or self.class_names[cls] == "blue_box"
+        ):
+            # self.obj_count.red += 1
+            color = (0, 255, 0)
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+            cv2.putText(
+                img,
+                self.class_names[cls] + " " + str(confidence),
+                (x1, y1),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                color,
+                2,
+            )
+
+            if self.blue_box < area:
+                self.blue_box = area
+                blue_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+
+        return img, green_box, blue_box 
 
     def green_box_detected(self, cls, img, x1, y1, x2, y2, confidence):
         status = False
@@ -260,21 +319,18 @@ class ObjectDetector:
     def blue_box_detected(self, cls, img, x1, y1, x2, y2, confidence):
         status = False
         img = ""
-        if self.class_names[cls] == "blueBox":
-            color = (0, 0, 255)
-            # img = self.camera_bottom.do_capture()
-
-            # cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-            # cv2.putText(
-            #     img,
-            #     self.class_names[cls] + " " + str(confidence),
-            #     (x1, y1),
-            #     cv2.FONT_HERSHEY_SIMPLEX,
-            #     1,
-            #     color,
-            #     2,
-            # )
-            #
+        if self.class_names[cls] == "greenBuoy" or self.class_names[cls] == "green_buoy":
+            color = (0, 69, 0)
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+            cv2.putText(
+                img,
+                self.class_names[cls] + " " + str(confidence),
+                (x1, y1),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                color,
+                2,
+            )
             status = True
         return img, status
 
