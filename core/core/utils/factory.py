@@ -17,22 +17,42 @@ class TopicFactory:
         self.qos_profile = 10
 
     def createPublisher(self, node):
-        qos = rclpy.qos.QoSProfile(
-            depth=self.qos_profile,
-            durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL if self.latch else rclpy.qos.DurabilityPolicy.VOLATILE,
-            reliability=rclpy.qos.ReliabilityPolicy.RELIABLE
-        )
+        if(self.topic_name == "/core/arena" or self.topic_name == "/core/mission/type"):
+            qos = rclpy.qos.QoSProfile(
+                depth=self.qos_profile,
+                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+                reliability=rclpy.qos.ReliabilityPolicy.RELIABLE
+            )
+        else:            
+            qos = rclpy.qos.QoSProfile(
+                depth=self.qos_profile,
+                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL if self.latch else rclpy.qos.DurabilityPolicy.VOLATILE,
+                reliability=rclpy.qos.ReliabilityPolicy.RELIABLE
+            )
         return node.create_publisher(self.msg_type, self.topic_name, qos)
         
     
     def createSubscriber(self, node, callback):
-        qos = rclpy.qos.QoSProfile(depth=self.qos_profile)
-        return node.create_subscription(
-            self.msg_type,
-            self.topic_name,
-            callback,
-            qos
-        )
+        if(self.topic_name == "/core/arena" or self.topic_name == "/core/mission/type"):
+            qos = rclpy.qos.QoSProfile(
+                depth=self.qos_profile,
+                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+                reliability=rclpy.qos.ReliabilityPolicy.RELIABLE
+            )
+            return node.create_subscription(
+                self.msg_type,
+                self.topic_name,
+                callback,
+                qos
+            )  
+        else:
+            qos = rclpy.qos.QoSProfile(depth=self.qos_profile)
+            return node.create_subscription(
+                self.msg_type,
+                self.topic_name,
+                callback,
+                qos
+            )
     
 class ParamFactory:
     """Simplified parameter factory using native ROS 2 parameters"""

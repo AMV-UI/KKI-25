@@ -14,12 +14,13 @@ class Straight_Execution(BaseExecution):
     Main execution: Set inital heading and finding the buoy
     - Fallback: if pxmode is still on hold
     """
-    def __init__(self, name: str = "Straight_Execution", node=None):
+    def __init__(self, name: str = "Straight_Execution", node=None, mission=None):
         super().__init__(name, node=node)
         self.node = node
         self.success = False
         self.effort = 10.0
         self.first_run: float
+        self.time_threshold = 6
 
     def initialise(self):
         self.effort = 100.0
@@ -27,7 +28,9 @@ class Straight_Execution(BaseExecution):
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
-        
+        self.frame_counter = FrameCounter(self.time_threshold)
+
+
         self.mission_sub = Topic.tuning_mission.createSubscriber(
             self.node,
             self._mission_cb
@@ -49,11 +52,16 @@ class Straight_Execution(BaseExecution):
         
     def execute(self) -> Status:
         self.node.get_logger().info(f"[{self.name}] Tuning",  throttle_duration_sec=1.0)
-        if(self.success):
-            return Status.SUCCESS
 
         self.yaw_effort_pub.publish(Float64(data=0.0))
         self.speed_effort_pub.publish(Float64(data=self.effort))
+
+        self.frame_counter.is_started() 
+        if self.frame_counter.is_enough():
+            self.frame_counter.reset()
+            self.node.get_logger().info(f"[{self.name}] Condition Succeeded from EXECUTION -> Mission COMPLETE")
+            return Status.SUCCESS
+
 
         return Status.RUNNING
 

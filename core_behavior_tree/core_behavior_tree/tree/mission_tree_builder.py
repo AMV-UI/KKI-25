@@ -38,6 +38,13 @@ class MissionTreeBuilder:
     #      (Done_Execution, Done_Fallback, "Done"),
     # ]
 
+    # MISSIONS_CONFIG = [
+    #     (Initial_Execution, Initial_Fallback, "Initial"),
+    #     (Straight_Execution, Done_Execution, "Straight"),
+    #     (Docking_Execution, Docking_Fallback, "Docking"),
+    #     (Done_Execution, Done_Fallback, "Done"),
+    # ]
+
     # Perception
     MISSIONS_CONFIG = [
         (Initial_Execution, Initial_Fallback, "Initial"),
@@ -47,16 +54,18 @@ class MissionTreeBuilder:
         (Finding_Execution, Finding_Fallback, "Finding"), 
         (Reverse_Execution, Reverse_Fallback, "Reverse"),
         (Buoy_Execution, Buoy_Fallback, "Buoy"),
-        (Box_Execution, Box_Fallback, "Change Mission to Green Box"),
-        (Finding_Execution, Finding_Fallback, "Finding Green Box"), 
-        (Photo_Execution, Photo_Fallback, "Photo Green Box"), 
-        (Unfinding_Execution, Unfinding_Fallback, "Unfinding GreenBox"), 
-        (Box_Execution, Box_Fallback, "Change Mission to Blue Box"),
-        (Finding_Execution, Finding_Fallback, "Finding Blue Box"), 
-        (Photo_Execution, Photo_Fallback, "Photo Blue Box"), 
-        (Box_Execution, Box_Fallback, "Change Mission to Docking"),
-        (Pass_Execution, Pass_Fallback, "Pass Box"),
-        (Docking_Execution, Docking_Fallback, "Docking")
+        # (Reverse_Execution, Reverse_Fallback, "Reverse"),
+        # (Box_Execution, Box_Fallback, "Change Mission to Green Box"),
+        # (Finding_Execution, Finding_Fallback, "Finding Green Box"), 
+        # (Photo_Execution, Photo_Fallback, "Photo Green Box"), 
+        # (Unfinding_Execution, Unfinding_Fallback, "Unfinding GreenBox"), 
+        # (Box_Execution, Box_Fallback, "Change Mission to Blue Box"),
+        # (Finding_Execution, Finding_Fallback, "Finding Blue Box"), 
+        # (Photo_Execution, Photo_Fallback, "Photo Blue Box"), 
+        # (Box_Execution, Box_Fallback, "Change Mission to Docking"),
+        # (Pass_Execution, Pass_Fallback, "Pass Box"),
+        (Docking_Execution, Docking_Fallback, "Docking"),
+        (Done_Execution, Done_Fallback, "Done"),
     ]
 
     def __init__(self, ros_node):

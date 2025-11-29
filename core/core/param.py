@@ -3,6 +3,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String, Float64
 from core.utils.config import Topic, MissionStatus
+from time import sleep
 
 class ParameterBlackboard(Node):    
     def __init__(self, node = Node):
@@ -12,7 +13,7 @@ class ParameterBlackboard(Node):
 
         self.node = node
 
-        self.arena = "A"
+        self.arena = "B"
         self.st_speed = 1.0
         self.tn_speed = 1.0
         self.dock_lat = 0.0
@@ -22,12 +23,14 @@ class ParameterBlackboard(Node):
         self.setup()
 
     def setup(self):
+        # Important: delete === gay
+        # sleep(5.0)# Wait for other nodes to be ready
         self.arena_pub = Topic.arena.createPublisher(self.node).publish(String(data=self.arena))
         self.st_speed_pub = Topic.st_speed.createPublisher(self.node).publish(Float64(data=self.st_speed))
         self.tn_speed_pub = Topic.tn_speed.createPublisher(self.node).publish(Float64(data=self.tn_speed))
-        self.dock_lat_pub = Topic.dock_lat.createPublisher(self.node).publish(Float64(data=self.dock_lat))
-        self.dock_lon_pub = Topic.dock_lon.createPublisher(self.node).publish(Float64(data=self.dock_lon))
         self.mission_type_pub = Topic.mission_type.createPublisher(self.node).publish(String(data=self.mission_type))
+        
+        self.node.get_logger().info(f'<> [ParameterBlackboard] Published initial parameters {self.arena}, {self.st_speed}, {self.tn_speed}, {self.dock_lat}, {self.dock_lon}, {self.mission_type}')
 
         self.arena_sub = Topic.arena.createSubscriber(
             self,
@@ -41,15 +44,6 @@ class ParameterBlackboard(Node):
             self,
             self._tn_speed_cb
         )
-        self.dock_lat_sub = Topic.dock_lat.createSubscriber(
-            self,
-            self._dock_lat_cb
-        )
-        self.dock_lon_sub = Topic.dock_lon.createSubscriber(
-            self,
-            self._dock_lon_cb
-        )
-
         self.mission_type_sub = Topic.mission_type.createSubscriber(
             self,
             self._mission_type_cb
@@ -67,18 +61,12 @@ class ParameterBlackboard(Node):
     def _tn_speed_cb(self, msg: Float64):
         self.tn_speed = msg.data
     
-    def _dock_lat_cb(self, msg: Float64):
-        self.dock_lat = msg.data
-
-    def _dock_lon_cb(self, msg: Float64):
-        self.dock_lon = msg.data
-
 def main(args=None):
     rclpy.init(args=args)
     node = ParameterBlackboard(rclpy.create_node('param'))
     
     try:
-        node.get_logger().info('Spinning... Param')
+        node.get_logger().info(f'Spinning... Param')
         rclpy.spin(node)
     except KeyboardInterrupt:
         node.get_logger().info('Shutting down Parameter Blackboard')

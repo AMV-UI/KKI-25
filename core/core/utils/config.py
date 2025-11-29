@@ -56,7 +56,7 @@ class MissionStatus:
 class Topic:
 
     # Migrate From Param
-    arena = TopicFactory("core/arena", String)
+    arena = TopicFactory("/core/arena", String)
     st_speed = TopicFactory("/motor_controller/x_speed", Float64)
     tn_speed = TopicFactory("/motor_controller/motor_speed", Float64)
     dock_lat = TopicFactory("/docking/target_latitude", Float64)

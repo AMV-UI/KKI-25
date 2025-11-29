@@ -68,7 +68,6 @@ class Pass_Execution(BaseExecution):
 
         if not self.detected:
             self.frame_counter.is_started() 
-            self.counter = time.time()
             if self.frame_counter.is_enough():
                 self.frame_counter.reset()
                 self.node.get_logger().info(f"[{self.name}] Condition Succeeded from EXECUTION -> Mission COMPLETE")

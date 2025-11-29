@@ -59,7 +59,7 @@ class CameraController(Node):
         self.img = None
         self.img_64 = ""
         self.mission_type = MissionStatus.BUOY
-        self.show_result = True
+        self.show_result = False
         self.detected = False
         self.fps = 30
 
@@ -83,6 +83,11 @@ class CameraController(Node):
     def _arena_cb(self, msg: String):
         self.arena = str(msg.data)
 
+    def mission_callback(self, msg):
+        """Update current mission"""
+        self.mission_type = str(msg.data)
+        self.get_logger().info(f"Mission changed to: {self.mission_type}", throttle_duration_sec=3.0)
+
     def get_data(self):
         return self.result, self.dsc, self.state
 
@@ -101,7 +106,7 @@ class CameraController(Node):
             return True
         return False
 
-    def encode_base64(self, image):
+    def encode_base64(self, img):
         result, encoded_image = cv2.imencode(
             ".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 20]
         )
@@ -111,14 +116,15 @@ class CameraController(Node):
             img_msg.data = base64_image
             return img_msg
         else:
-            return ""
             self.get_logger().error("Failed to encode frame to JPG")
+            return ""
  
 
     def process_frame(self):
         """Process a single frame - called by timer"""
         try:
             self.img, self.dsc, self.detected = self.detector.process_frame(self.mission_type, self.arena, self)
+            self.get_logger().info(f"Test: {self.mission_type}", throttle_duration_sec=1.0)
 
             if self.img is None:
                 self.get_logger().warn("Failed to get frame", throttle_duration_sec=5.0)
@@ -145,37 +151,33 @@ class CameraController(Node):
             )
 
             # Save green/blue box photos if in respective missions
-            if self.mission_type == MissionStatus.GREEN_BOX:
-                timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-                photo_filename = f"/home/amv/KKI-25/core_perception/photos/{timestamp}_greenBox.jpg"
-                cv2.imwrite(photo_filename, self.img)
-                self.get_logger().info(f"Photo taken and saved to {photo_filename}", throttle_duration_sec=5.0)
+            # if self.mission_type == MissionStatus.GREEN_BOX:
+            #     timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+            #     photo_filename = f"/home/amv/KKI-25/core_perception/photos/{timestamp}_greenBox.jpg"
+            #     cv2.imwrite(photo_filename, self.img)
+            #     self.get_logger().info(f"Photo taken and saved to {photo_filename}", throttle_duration_sec=5.0)
                             
-            elif self.mission_type == MissionStatus.BLUE_BOX:
-                timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-                photo_filename = f"/home/amv/KKI-25/core_perception/photos/{timestamp}_blueBox.jpg"
-                cv2.imwrite(photo_filename, self.down_cap.read()[1]) # read return tuple (ret, frame)
-                self.get_logger().info(f"Photo taken and saved to {photo_filename}", throttle_duration_sec=5.0)
+            # elif self.mission_type == MissionStatus.BLUE_BOX:
+            #     timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+            #     photo_filename = f"/home/amv/KKI-25/core_perception/photos/{timestamp}_blueBox.jpg"
+            #     cv2.imwrite(photo_filename, self.down_cap.read()[1]) # read return tuple (ret, frame)
+            #     self.get_logger().info(f"Photo taken and saved to {photo_filename}", throttle_duration_sec=5.0)
 
             # Passing image data
-            top_camera = encode_base64(self.img)
+            top_camera = self.encode_base64(self.img)
             self.camera_processed_pub.publish(top_camera)
 
             if(self.mission_type == MissionStatus.GREEN_BOX):
                 self.green_box_pub.publish(top_camera)
 
             if(self.mission_type == MissionStatus.BLUE_BOX):
-                self.under = self.down_cap.read()
-                under_camera = encode_base64(self.under)
+                self.under = self.down_cap.read()[1]
+                under_camera = self.encode_base64(self.under)
                 self.blue_box_pub.publish(under_camera)
 
         except Exception as e:
             self.get_logger().error(f"Error in process_frame: {traceback.format_exc()}")
 
-    def mission_callback(self, msg):
-        """Update current mission"""
-        self.mission_type = msg.data
-        self.get_logger().info(f"Mission changed to: {self.mission_type}", throttle_duration_sec=3.0)
 
     def run(self):
         """Start the main execution loop"""
