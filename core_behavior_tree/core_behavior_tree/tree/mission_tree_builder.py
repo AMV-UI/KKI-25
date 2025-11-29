@@ -47,9 +47,9 @@ class MissionTreeBuilder:
 
     # Perception
     MISSIONS_CONFIG = [
-        (Initial_Execution, Initial_Fallback, "Initial"),
-        (Buoy_Execution, Buoy_Fallback, "Buoy"),
-        (Finding_Execution, Finding_Fallback, "Finding"), 
+        #(Initial_Execution, Initial_Fallback, "Initial"),
+        #(Buoy_Execution, Buoy_Fallback, "Buoy"),
+        #(Finding_Execution, Finding_Fallback, "Finding"), 
         (Buoy_Execution, Buoy_Fallback, "Buoy"),
         (Finding_Execution, Finding_Fallback, "Finding"), 
         (Reverse_Execution, Reverse_Fallback, "Reverse"),

@@ -23,7 +23,7 @@ class ObjectDetector:
 
         self.model = YOLO(model_path)
         self.class_names = class_names
-        self.conf_threshold = 0
+        self.conf_threshold = 0.4
         self.node = node
         self.arena = "B"
         self.max_green_box_area = 30000
