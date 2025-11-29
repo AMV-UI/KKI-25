@@ -22,7 +22,7 @@ class Reverse_Execution(BaseExecution):
         self.arena = str(msg.data)
 
     def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}] Reverse arena...{self.arena}", throttle_duration_sec=1.0)
+        self.node.get_logger().info(f"[{self.name}] Reverse arena...{self.arena} into ({'A' if self.arena == 'B' else 'B'})", throttle_duration_sec=1.0)
         self.arena_pub.publish(String(data="A" if self.arena == "B" else "B"))
         return Status.SUCCESS
 

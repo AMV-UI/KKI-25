@@ -1,22 +1,23 @@
 import py_trees
 from typing import List, Tuple, Type, Callable
 
-
 from ..behaviors.mission.actions.tuning.straight import Straight_Execution, Straight_Fallback
 from ..behaviors.mission.actions.tuning.turn import Turn_Execution, Turn_Fallback
 from ..behaviors.mission.actions.tuning.go import Go_Execution, Go_Fallback
 from ..behaviors.mission.actions.tuning.done import Done_Execution, Done_Fallback
 from ..behaviors.mission.actions.tuning.hardcode import *
 
-from ..behaviors.mission.actions.mission.initial import Initial_Execution, Initial_Fallback
-from ..behaviors.mission.actions.mission.buoy  import Buoy_Execution, Buoy_Fallback
-from ..behaviors.mission.actions.mission.finding import Finding_Execution, Finding_Fallback
-from ..behaviors.mission.actions.mission.dock import Docking_Execution, Docking_Fallback
-from ..behaviors.mission.actions.mission.reverse import Reverse_Execution, Reverse_Fallback
+from ..behaviors.mission.actions.mission.initial import *
+from ..behaviors.mission.actions.mission.initial_dock import *
+from ..behaviors.mission.actions.mission.buoy  import *
+from ..behaviors.mission.actions.mission.finding import *
+from ..behaviors.mission.actions.mission.dock import *
+from ..behaviors.mission.actions.mission.reverse import *
 from ..behaviors.mission.actions.mission.box import *
 from ..behaviors.mission.actions.mission.passthrough import *
 from ..behaviors.mission.actions.mission.unfinding import *
 from ..behaviors.mission.actions.mission.photo import *
+from ..behaviors.mission.actions.mission.idle import *
 
 from ..behaviors.base_behavior import BaseBehavior
 
@@ -28,32 +29,22 @@ class MissionTreeBuilder:
     #     (Done_Execution, Done_Fallback, "Stall"),   
     # ]
 
-    # Tuning Config
-    # MISSIONS_CONFIG = [
-    #      (Straight_Execution, Done_Execution, "Straight"),
-    #      (Done_Execution, Done_Fallback, "Stall"),
-    #      (Turn_Execution, Done_Execution, "Turn"),
-    #      (Done_Execution, Done_Fallback, "Stall"),
-    #      (Go_Execution, Go_Fallback, "Go"),
-    #      (Done_Execution, Done_Fallback, "Done"),
-    # ]
-
     MISSIONS_CONFIG = [
-        # (Initial_Execution, Initial_Fallback, "Initial"),
-        (Straight_Execution, Done_Execution, "Straight"),
-        # (Docking_Execution, Docking_Fallback, "Docking"),
+        (InitialDock_Execution, InitialDock_Fallback, "InitialDock"),
+        (Idle_Execution, Idle_Fallback, "Idle"),
+        (Docking_Execution, Docking_Fallback, "Docking"),
         (Done_Execution, Done_Fallback, "Done"),
     ]
 
     # Perception
-    #MISSIONS_CONFIG = [
-        #(Initial_Execution, Initial_Fallback, "Initial"),
-        #(Buoy_Execution, Buoy_Fallback, "Buoy"),
-        #(Finding_Execution, Finding_Fallback, "Finding"), 
-        #(Buoy_Execution, Buoy_Fallback, "Buoy"),
-        #(Finding_Execution, Finding_Fallback, "Finding"), 
-        #(Reverse_Execution, Reverse_Fallback, "Reverse"),
-        #(Buoy_Execution, Buoy_Fallback, "Buoy"),
+    MISSIONS_CONFIG = [
+        # (Initial_Execution, Initial_Fallback, "Initial"),
+        # (Buoy_Execution, Buoy_Fallback, "Buoy"),
+        # (Finding_Execution, Finding_Fallback, "Finding"), 
+        # (Buoy_Execution, Buoy_Fallback, "Buoy"),
+        # (Finding_Execution, Finding_Fallback, "Finding"), 
+        # (Reverse_Execution, Reverse_Fallback, "Reverse"),
+        # (Buoy_Execution, Buoy_Fallback, "Buoy"),
         # (Reverse_Execution, Reverse_Fallback, "Reverse"),
         # (Box_Execution, Box_Fallback, "Change Mission to Green Box"),
         # (Finding_Execution, Finding_Fallback, "Finding Green Box"), 
@@ -64,9 +55,9 @@ class MissionTreeBuilder:
         # (Photo_Execution, Photo_Fallback, "Photo Blue Box"), 
         # (Box_Execution, Box_Fallback, "Change Mission to Docking"),
         # (Pass_Execution, Pass_Fallback, "Pass Box"),
-        #(Docking_Execution, Docking_Fallback, "Docking"),
-        #(Done_Execution, Done_Fallback, "Done"),
-    #]
+        # (Docking_Execution, Docking_Fallback, "Docking"),
+        (Done_Execution, Done_Fallback, "Done"),
+    ]
 
     def __init__(self, ros_node):
         self.ros_node = ros_node

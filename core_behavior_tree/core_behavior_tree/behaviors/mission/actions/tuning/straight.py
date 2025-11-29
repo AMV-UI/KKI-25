@@ -20,7 +20,7 @@ class Straight_Execution(BaseExecution):
         self.success = False
         self.effort = 120.0
         self.first_run: float
-        self.time_threshold = 8
+        self.time_threshold = 12
 
     def initialise(self):
         self.effort = 120.0

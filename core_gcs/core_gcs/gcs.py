@@ -75,10 +75,10 @@ class Gcs(Node):
         self._handle_incoming_data("camera_processed", msg.data)
 
     def blue_box_callback(self, msg: String):
-        self._handle_incoming_data("image_blue_box", msg.data)
+        self._handle_incoming_data("show_blue", msg.data)
 
     def green_box_callback(self, msg: String):
-        self._handle_incoming_data("image_green_box", msg.data)
+        self._handle_incoming_data("show_green", msg.data)
 
     def mission_callback(self, msg: UInt8):
         self.mission = msg.data

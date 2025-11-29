@@ -1,12 +1,10 @@
-from core.mission.gps_stuff import haversine
 from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
-from std_msgs.msg import Bool, Float64, UInt8, String
+from std_msgs.msg import Float64, UInt8
 from core.utils.config import Topic
 from core.mission.frame_counter import FrameCounter
 from core_msgs.msg import Pixhawk
-from core.mission.docking import DockingController
-from core.mission.gps_stuff import turner, haversine
+from core.mission.gps_stuff import haversine, find_deg
 
 import time
 class Docking_Execution(BaseExecution):
@@ -26,7 +24,7 @@ class Docking_Execution(BaseExecution):
         self.hold = False
 
         self.frame_counter = FrameCounter(self.time_threshold)
-        self.effort = 120.0
+        self.effort = 200
         self.heading = 0
         self.docking_lat = 0.0
         self.docking_lon = 0.0
@@ -72,16 +70,16 @@ class Docking_Execution(BaseExecution):
             self.mission_pub.publish(UInt8(data=self.mission))
             return Status.SUCCESS
         
-        theta = find_deg(self.lat, self.lon, self.dock_lat, self.dock_lon, self.heading) 
-        self.speed_effort_pub.publish(Float64(data=self.speed_effort))
-        self.yaw_effort_pub.publish(Float64(data=float(theta)))
+        theta = find_deg(self.lat, self.lon, self.docking_lat, self.docking_lon, self.heading) 
+        
+        self.node.get_logger().info(f"[{self.name}] test: {theta}", throttle_duration_sec=1.0)
+        self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
+        self.yaw_effort_pub.publish(Float64(data=float((self.effort if theta > 10 else self.speed_effort) * (1 if theta > 0 else -1))))
 
         return Status.RUNNING
 
 class Docking_Fallback(BaseFallback):
     """
-    Fallback: Remote still on hold and updating docking position
-    - Execution: if remote change other than hold
     """
     def __init__(self, name, node=None):
         super().__init__(name, node=node)

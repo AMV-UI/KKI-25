@@ -1,4 +1,4 @@
-from math import radians, cos, sin, asin, sqrt, atan
+from math import radians, cos, sin, asin, sqrt, atan, degrees
 
 # Anggap black box :0
 # https://stackoverflow.com/questions/4913349/haversine-formula-in-python-bearing-and-distance-between-two-gps-points
@@ -42,8 +42,11 @@ def calc_dsc(target, heading):
     return dsc
 
 def find_deg(cur_lat, cur_lon, tar_lat, tar_lon, cur_head):
-    delta_x = tar_lat - cur_lat
-    delta_y = tar_lon - cur_lon
+    delta_y = tar_lat - cur_lat
+    delta_x = tar_lon - cur_lon
+
+    if delta_x == 0:
+        return 180 * (delta_y < 0)
 
     theta = degrees(atan(abs(delta_y) / abs(delta_x)))
 
@@ -59,4 +62,5 @@ def find_deg(cur_lat, cur_lon, tar_lat, tar_lon, cur_head):
         else:
             deg = theta + 270
 
-    return calc_dsc(int(deg), cur_head), deg, theta
+    return calc_dsc(int(deg), cur_head)
+

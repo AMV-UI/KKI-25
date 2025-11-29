@@ -34,9 +34,6 @@ class ObjectDetector:
         self.cap.set(3, width)  # Set width
         self.cap.set(4, height)  # Set height
 
-        # self.camera_bottom = BottomCamera()
-        # self.motor = Motor(self.node, offset_horizontal=100, motor_adjust=0)
-
         # PID
         self.pid_adjust = 200
         self.treshold = 0.25
@@ -53,8 +50,6 @@ class ObjectDetector:
         # Publisher
         self.dscPub = Topic.dsc.createPublisher(self.node)
         self.arena_sub = Topic.arena.createSubscriber(self.node, self._arena_cb)
-
-        # self.cameraBottomPub = Topic.image_blue_box.createPublisher()
     
     def _arena_cb(self, msg: String):
         self.arena = str(msg.data)

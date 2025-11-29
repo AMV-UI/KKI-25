@@ -19,6 +19,7 @@ class Photo_Execution(BaseExecution):
 
         self.greenbox = None
         self.bluebox = None
+        self.current = False
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
@@ -50,13 +51,9 @@ class Photo_Execution(BaseExecution):
         self.bluebox = str(msg.data)
 
     def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}] Taking Photo...", throttle_duration_sec=1.0)
-
-        if(self.mission_type == MissionStatus.GREEN_BOX and self.greenbox != None):
-            self.greenbox_pub.publish(self.greenbox)
-        elif (self.mission_type == MissionStatus.BLUE_BOX and self.bluebox != None):
-            self.bluebox_pub.publish(self.bluebox)
-            
+        self.node.get_logger().info(f"[{self.name}] Taking Photo...{self.mission_type}", throttle_duration_sec=1.0)
+        
+        self.current = True            
         self.frame_counter.is_started()            
         if self.frame_counter.is_enough():
             self.frame_counter.reset()
@@ -64,6 +61,14 @@ class Photo_Execution(BaseExecution):
                 f"[{self.name}] Finding Complete"
             )
             self.mission_pub.publish(UInt8(data=self.mission))
+            
+            if(self.mission_type == MissionStatus.GREEN_BOX and self.greenbox != None):
+                self.node.get_logger().info(f"[{self.name}] Publishing Green Box Photo...", throttle_duration_sec=1.0)
+                self.greenbox_pub.publish(String(data=self.greenbox))
+            elif (self.mission_type == MissionStatus.BLUE_BOX and self.bluebox != None):
+                self.node.get_logger().info(f"[{self.name}] Publishing Blue Box Photo...", throttle_duration_sec=1.0)
+                self.bluebox_pub.publish(String(data=self.bluebox))
+
             return Status.SUCCESS
 
         return Status.RUNNING

@@ -15,6 +15,12 @@ class TopicFactory:
         self.msg_type = msg_type
         self.latch = latch
         self.qos_profile = 10
+        self.target = [
+            "/core/arena",
+            "/core/mission/type",
+            "/asv/vision/image/show_green",
+            "/asv/vision/image/show_blue"
+        ]
 
     def createPublisher(self, node):
         if(self.topic_name == "/core/arena" or self.topic_name == "/core/mission/type"):
