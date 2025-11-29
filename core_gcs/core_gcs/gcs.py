@@ -18,15 +18,23 @@ class Gcs(Node):
         self.lat_history = []
         self.pxmode = PxMode.HOLD
 
+        self.speed = 0.0
+        self.yaw = 0.0
+        self.comm = 0.0
+        self.mission = 0
+
         self.arena = "B"
         self.setup()
 
     def setup(self):
+        self.pwm_subscriber = Topic.pwm.createSubscriber(
+            self,
+            self.pwm_callback
+        )
         self.arena_subscriber = Topic.arena.createSubscriber(
             self,
             self.arena_callback
         )
-
         self.image_subscriber = Topic.camera_processed.createSubscriber(
             self,
             self.image_callback
@@ -52,6 +60,11 @@ class Gcs(Node):
             self.pxmode_callback
         )
 
+    def pwm_callback(self, msg: String):
+        self.speed = msg.channels[2]
+        self.yaw = msg.channels[0]
+        self.comm = msg.channels[7]
+
     def arena_callback(self, msg: String):
         self.arena = msg.data
 
@@ -62,13 +75,14 @@ class Gcs(Node):
         self._handle_incoming_data("camera_processed", msg.data)
 
     def blue_box_callback(self, msg: String):
-        self._handle_incoming_data("image_blue_box", msg.data)
+        self._handle_incoming_data("show_blue", msg.data)
 
     def green_box_callback(self, msg: String):
-        self._handle_incoming_data("image_green_box", msg.data)
+        self._handle_incoming_data("show_green", msg.data)
 
     def mission_callback(self, msg: UInt8):
-        self._handle_incoming_data("mission", msg.data)
+        self.mission = msg.data
+        self._handle_incoming_data("mission", self.mission)
 
     def pixhawk_callback(self, msg: Pixhawk):
         if(msg.lat > 1):
@@ -88,6 +102,9 @@ class Gcs(Node):
             "msg_spd": msg.msg_spd,
             "msg_heading": msg.msg_heading,
             "track": self.arena,
+            "speed": int(self.speed),
+            "yaw": int(self.yaw),
+            "comm": int(self.comm)
         }
         self._handle_incoming_data("pixhawk", data)
 

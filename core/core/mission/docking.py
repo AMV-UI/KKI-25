@@ -14,11 +14,12 @@ class DockingController:
         self.target_lat = target_lat
         self.target_lon = target_lon
         
-        self.Kp_yaw = 200.0    # Proportional gain for yaw (increased for ±300 range)
-        self.Ki_yaw = 10.0      # Integral gain for yaw
-        self.Kd_yaw = 1.0     # Derivative gain for yaw
+
+        self.Kp_yaw = 200.0
+        self.Ki_yaw = 20.0
+        self.Kd_yaw = 0.0
         
-        self.Kp_speed = 200.0  # Proportional gain for speed (distance-based)
+        self.Kp_speed = 300.0  # Proportional gain for speed (distance-based)
         self.min_speed = 50.0  # Minimum speed effort when moving
         self.max_speed = 300.0 # Maximum speed effort
         
@@ -193,18 +194,19 @@ class DockingController:
         
         
         while self.playback_latlon_index < len(self.recorded_lat_lon):
-            self.target_lat, self.target_lon, _ = self.recorded_lat_lon[self.playback_latlon_index]
+            self.target_lat, self.target_lon, recorded_dt = self.recorded_lat_lon[self.playback_latlon_index]
             distance = self.get_distance_to_target(current_lat, current_lon)
 
             yaw_effort, speed_effort, is_at_target = self.calculate_control_efforts(
                 current_lat,
                 current_lon,
                 current_heading_deg,
-                dt
+                recorded_dt
             )
 
             if distance < self.waypoint_threshold and is_at_target:
                 self.playback_latlon_index += 1
+                self.reset_controller()
             else:
                 break
 
@@ -255,13 +257,10 @@ class DockingController:
         # Positive error = need to turn clockwise (right)
         # Negative error = need to turn counter-clockwise (left)
         error = desired_heading - current_heading_rad
-        # Normalize to shortest rotation (-π to π)
         self.yaw_error = math.atan2(math.sin(error), math.cos(error))
         
-        # PID calculations for yaw
         self.yaw_integral += self.yaw_error * dt
         
-        # Anti-windup: limit integral term
         max_integral = 30.0
         self.yaw_integral = max(-max_integral, min(max_integral, self.yaw_integral))
         
@@ -271,20 +270,16 @@ class DockingController:
                           self.Ki_yaw * self.yaw_integral + 
                           self.Kd_yaw * derivative)
         
-        # Convert to yaw effort (clamp to ±300)
         yaw_effort = max(self.MIN_EFFORT, min(self.MAX_EFFORT, yaw_pid_output))
         
-        # Calculate speed effort based on distance and alignment
-        if abs(self.yaw_error) < self.alignment_threshold:
-            # Well aligned - use distance-based speed
-            speed_effort = min(self.max_speed, max(self.min_speed, distance * self.Kp_speed))
-        else:
-            # Not aligned - slow down or stop
-            speed_effort = 0.0
+        alignment_factor = 1.0 - min(abs(self.yaw_error) / math.pi, 1.0)  # 1.0 when aligned, 0.0 when 180° off
+        speed_effort = min(self.max_speed, max(self.min_speed, distance * self.Kp_speed)) * alignment_factor
+
+        if speed_effort > 0 and speed_effort < self.min_speed:
+            speed_effort = self.min_speed
         
         self.prev_yaw_error = self.yaw_error
         
-        # Record if in recording mode
         if self.is_recording:
             self.record_movement(yaw_effort, speed_effort, dt)
         

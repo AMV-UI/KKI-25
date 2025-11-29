@@ -17,6 +17,7 @@ import tty
 import select
 import threading
 
+import matplotlib.pyplot as plt
 
 class Waypoint(Enum):
     IDLE = 0
@@ -143,27 +144,22 @@ class MovementController(Node):
     def __init__(self):
         super().__init__(NodeConfig.movement_controller)
 
-        # Docking controller (expects lat/lon-based API)
         self.docking_controller = DockingController()
 
-        # Simulator keyboard input
         self.use_simulator = True
         self.keyboard_input = KeyboardInput(self)
         if self.use_simulator:
             self.keyboard_input.start_keyboard_listener()
 
-        # Pixhawk / current state
         self.init_lat_lon = False
         self.current_lat = 0.0
         self.current_lon = 0.0
         self.current_heading = 0.0  # degrees (Pixhawk convention)
         self.current_speed = 0.0
 
-        # Manual efforts (from keyboard or external topics)
         self.manual_yaw_effort = 0.0
         self.manual_speed_effort = 0.0
 
-        # PWM thresholds
         self.PWM_LOW = 1000
         self.PWM_MID = 1500
         self.PWM_HIGH = 1700
@@ -175,15 +171,16 @@ class MovementController(Node):
         # RC channels and states
         self.rc5 = 0.0
         self.rc6 = 0.0
-        self.rc5_state = 'LOW'
-        self.prev_rc5_state = 'LOW'  # for edge detection
-        self.rc6_state = 'LOW'
 
-        # Waypoint / GCS states
+        self.rc5_state = 'LOW'
+        self.prev_rc5_state = 'LOW'
+
+        self.rc6_state = 'LOW'
+        self.prev_rc6_state = 'LOW'
+
         self.waypoint_state = Waypoint.IDLE
         self.gcs_state = Gcs.IDLE
 
-        # Recording / playback states
         self.recording_state = RecordingState.IDLE
         self.playback_index = 0
         self.playback_waypoint_threshold = 2.0  # meters to advance waypoint during playback
@@ -219,10 +216,11 @@ class MovementController(Node):
         self.manual_yaw_sub = Topic.manual_yaw.createSubscriber(self, self._manual_yaw_callback)
         self.manual_speed_sub = Topic.manual_speed.createSubscriber(self, self._manual_speed_callback)
 
+
         # Publishers
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self)
-        self.recorded_path_pub = Topic.recorded_path.createPublisher(self)
+    
 
         self.get_logger().info("Communication setup complete")
 
@@ -231,7 +229,6 @@ class MovementController(Node):
     # ------------------------
     def _pixhawk_callback(self, msg: Pixhawk):
         """Update current position and heading from Pixhawk"""
-        # assume message fields names as in your original snippet
         self.current_lat = msg.lat
         self.current_lon = msg.lon
         self.current_speed = getattr(msg, "msg_spd", self.current_speed)
@@ -257,49 +254,56 @@ class MovementController(Node):
             return 'MID'
 
     def _rc5_callback(self, msg: Float64):
-        """RC5 handler — used for recording/docking control (we detect edges)"""
         self.rc5 = msg.data
-        new_state = self._get_channel_state(self.rc5)
-        # Edge detection: LOW -> MID transitions used to START recording (like 'T' in simulator)
-        if new_state == 'MID' and self.prev_rc5_state != 'MID':
-            # rising into MID
+        self.rc5_state = self._get_channel_state(self.rc5)
+        
+        if self.rc5_state == 'MID' and self.prev_rc5_state != 'MID':
             self._on_rc5_mid_pressed()
-        # Update waypoint state for docking/high/low
-        self.rc5_state = new_state
-        self.prev_rc5_state = new_state
+
+        self.prev_rc5_state = self.rc5_state
 
     def _rc6_callback(self, msg: Float64):
         self.rc6 = msg.data
         self.rc6_state = self._get_channel_state(self.rc6)
-        # keep GCS handling if needed (not used for recording flow here)
+
+        if self.rc6_state == 'MID' and self.prev_rc6_state != 'MID':
+            self._on_rc6_mid_pressed()
+        
+        if self.rc6_state == 'HIGH' and self.prev_rc6_state != 'HIGH':
+            self._on_rc6_high_pressed()
+        
+        self.prev_rc6_state = self.rc6_state
+        
 
     # ------------------------
     # Recording / playback control
     # ------------------------
     def _on_rc5_mid_pressed(self):
-        """Simulates pressing 'T' in simulator: begin recording if idle"""
-        # If currently idle, start recording (set docking target to current pos)
         if self.recording_state == RecordingState.IDLE:
-            # set docking target to current lat/lon (home/dock)
             self.docking_controller.set_target(self.current_lat, self.current_lon)
-            # start lat/lon recording
             self.docking_controller.start_lat_lon_recording(self.current_lat, self.current_lon, self.current_heading)
-            # save initial record position (lat, lon, heading) to be used when returning
             self.initial_record_position = (self.current_lat, self.current_lon, self.current_heading)
             self.recording_state = RecordingState.RECORDING
             self.has_left_dock = False
             self.playback_index = 0
             self.get_logger().info(f"Recording started at lat={self.current_lat:.8f}, lon={self.current_lon:.8f}")
 
-        # If currently playing back, a 'T' should stop playback and go to IDLE (mimic simulator behavior)
         elif self.recording_state == RecordingState.PLAYING_BACK:
             self.recording_state = RecordingState.IDLE
             self.playback_index = 0
             self.get_logger().info("Playback stopped by RC5 MID press. Returning to IDLE.")
 
         else:
-            # If recording_state == RECORDING or RETURNING_TO_START, do nothing on extra presses — simulator auto-stops on return
             self.get_logger().info(f"RC5 MID pressed while in state {self.recording_state.name}. Ignoring.")
+
+    def _on_rc6_mid_pressed(self):
+        self.get_logger().info("Photo 1 command received (RC6 MID)")
+
+    def _on_rc6_high_pressed(self):
+        self.get_logger().info("Photo 2 command received (RC6 HIGH)")
+
+
+
 
     def update_recording(self, dt):
         """Record current lat/lon frames when in RECORDING state."""
@@ -307,35 +311,28 @@ class MovementController(Node):
             return
 
         # store current lat/lon with dt
-        recorded = self.docking_controller.record_lat_lon(self.current_lat, self.current_lon, dt)
+        self.docking_controller.record_lat_lon(self.current_lat, self.current_lon, dt)
 
         # if no docking target, skip
         if self.docking_controller.target_lat is None or self.docking_controller.target_lon is None:
             return
 
-        # compute distance to the docking target (which was set when recording started)
         distance_to_dock = self.docking_controller.get_distance_to_target(self.current_lat, self.current_lon)
 
-        # detect if we've left the dock area (require leaving > 3.0 m before allowing auto-stop)
-        if not self.has_left_dock and distance_to_dock > 3.0:
+        if not self.has_left_dock and distance_to_dock > self.playback_waypoint_threshold:
             self.has_left_dock = True
             self.get_logger().info("Left docking area — recording path...")
 
-        # only consider stopping recording if we already left the dock area once
         if self.has_left_dock and distance_to_dock < self.docking_controller.docking_distance_threshold:
-            # stop and save recorded lat/lon
             num_frames = self.docking_controller.stop_lat_lon_recording()
             duration = self.docking_controller.get_lat_lon_duration()
             self.get_logger().info(f"Returned to docking point — recording stopped. Frames: {num_frames}, duration: {duration:.2f}s")
 
             if num_frames > 0:
-                # prepare to autonomously navigate back to initial recording position
                 self.recording_state = RecordingState.RETURNING_TO_START
                 self.playback_index = 0
                 self.get_logger().info("Entering RETURNING_TO_START phase.")
-                # keep docking_controller.target as the dock (so return navigation uses that)
             else:
-                # nothing recorded
                 self.recording_state = RecordingState.IDLE
                 self.has_left_dock = False
                 self.get_logger().warn("No lat/lon frames recorded; returning to IDLE.")
@@ -350,9 +347,7 @@ class MovementController(Node):
             self.recording_state = RecordingState.IDLE
             return
 
-        # initial target is the saved initial_record_position (lat, lon)
         init_lat, init_lon, _ = self.initial_record_position
-        # ensure docking target is the initial point we want to return to
         self.docking_controller.set_target(init_lat, init_lon)
 
         yaw_effort, speed_effort, is_docked = self.docking_controller.calculate_control_efforts(
@@ -477,6 +472,7 @@ class MovementController(Node):
             # 2) If returning to start -> navigate back
             # 3) If playing back -> perform playback waypoint control
             # 4) If docking by RC5 HIGH -> do autonomous docking
+
             self.update_recording(self.delta_time)
             self.update_return_navigation(self.delta_time)
             self.update_playback(self.delta_time)
