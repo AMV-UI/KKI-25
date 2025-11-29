@@ -3,7 +3,7 @@ from py_trees.common import Status
 from std_msgs.msg import String
 from core.utils.config import Topic, MissionStatus
 
-class Reverse_Execution(BaseExecution):
+class Box_Execution(BaseExecution):
     """
     Main execution: Set inital heading and finding the buoy
     - Fallback: if pxmode is still on hold
@@ -37,7 +37,7 @@ class Reverse_Execution(BaseExecution):
         return Status.SUCCESS
 
 
-class Reverse_Fallback(BaseFallback):
+class Box_Fallback(BaseFallback):
     """
     Fallback: Remote still on hold and updating docking position
     - Execution: if remote change other than hold

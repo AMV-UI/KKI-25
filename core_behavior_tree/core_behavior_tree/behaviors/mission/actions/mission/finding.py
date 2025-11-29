@@ -90,7 +90,7 @@ class Finding_Execution(BaseExecution):
         else:
             self.frame_counter.reset()
 
-        self.yaw_effort_pub.publish(Float64(data=self.effort * (1 if self.arena == "B" else -1)))
+        self.yaw_effort_pub.publish(Float64(data=float(self.effort * (1 if self.arena == "B" else -1))))
         self.speed_effort_pub.publish(Float64(data=self.speed_effort))
         return Status.RUNNING
 

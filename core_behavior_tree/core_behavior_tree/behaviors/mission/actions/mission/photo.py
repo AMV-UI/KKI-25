@@ -1,7 +1,7 @@
 from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from core.mission.frame_counter import FrameCounter
-from std_msgs.msg import String
+from std_msgs.msg import String, UInt8
 from core.utils.config import Topic, MissionStatus
 
 class Photo_Execution(BaseExecution):
@@ -25,6 +25,7 @@ class Photo_Execution(BaseExecution):
         self.greenbox_pub = Topic.image_green_box.createPublisher(self.node)
         self.bluebox_pub = Topic.image_blue_box.createPublisher(self.node)
         self.frame_counter = FrameCounter(self.time_threshold)
+        self.mission_pub = Topic.mission.createPublisher(self.node)
 
         self.green_box_encoded_sub = Topic.green_box_encoded.createSubscriber(
             self.node,
@@ -51,9 +52,9 @@ class Photo_Execution(BaseExecution):
     def execute(self) -> Status:
         self.node.get_logger().info(f"[{self.name}] Taking Photo...", throttle_duration_sec=1.0)
 
-        if(mission_type == MissionStatus.GREEN_BOX and self.greenbox != None):
+        if(self.mission_type == MissionStatus.GREEN_BOX and self.greenbox != None):
             self.greenbox_pub.publish(self.greenbox)
-        elif (mission_type == MissionStatus.BLUE_BOX and self.bluebox != None):
+        elif (self.mission_type == MissionStatus.BLUE_BOX and self.bluebox != None):
             self.bluebox_pub.publish(self.bluebox)
             
         self.frame_counter.is_started()            
