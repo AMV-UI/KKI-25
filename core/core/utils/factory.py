@@ -15,15 +15,17 @@ class TopicFactory:
         self.msg_type = msg_type
         self.latch = latch
         self.qos_profile = 10
-        self.target = [
+        self.target = {
             "/core/arena",
             "/core/mission/type",
             "/asv/vision/image/show_green",
-            "/asv/vision/image/show_blue"
-        ]
+            "/asv/vision/image/show_blue",
+            "/asv/vision/image/green",
+            "/asv/vision/image/blue"
+        }
 
     def createPublisher(self, node):
-        if(self.topic_name == "/core/arena" or self.topic_name == "/core/mission/type"):
+        if(self.topic_name in self.target):
             qos = rclpy.qos.QoSProfile(
                 depth=self.qos_profile,
                 durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
@@ -39,7 +41,7 @@ class TopicFactory:
         
     
     def createSubscriber(self, node, callback):
-        if(self.topic_name == "/core/arena" or self.topic_name == "/core/mission/type"):
+        if(self.topic_name in self.target):
             qos = rclpy.qos.QoSProfile(
                 depth=self.qos_profile,
                 durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,

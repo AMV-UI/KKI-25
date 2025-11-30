@@ -167,10 +167,10 @@ class CameraController(Node):
             top_camera = self.encode_base64(self.img)
             self.camera_processed_pub.publish(top_camera)
 
-            if(self.mission_type == MissionStatus.GREEN_BOX):
+            if(self.mission_type == MissionStatus.GREEN_BOX and self.detected):
                 self.green_box_pub.publish(top_camera)
 
-            if(self.mission_type == MissionStatus.BLUE_BOX):
+            if(self.mission_type == MissionStatus.BLUE_BOX and self.detected):
                 self.under = self.down_cap.read()[1]
                 under_camera = self.encode_base64(self.under)
                 self.blue_box_pub.publish(under_camera)

@@ -253,8 +253,8 @@ class ObjectDetector:
         green_box = self.green_box
         blue_box = self.blue_box    
         if (
-            self.class_names[cls] == "red_buoy" 
-            or self.class_names[cls] == "redBuoy"):
+            self.class_names[cls] == "greenBox" 
+            or self.class_names[cls] == "green_box"):
             color = (0, 0, 255)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             cv2.putText(
@@ -272,8 +272,8 @@ class ObjectDetector:
                 green_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
 
         elif (
-            self.class_names[cls] == "green_buoy"
-            or self.class_names[cls] == "greenBuoy"
+            self.class_names[cls] == "blueBox"
+            or self.class_names[cls] == "blue_box"
         ):
             # self.obj_count.red += 1
             color = (0, 255, 0)
@@ -296,9 +296,8 @@ class ObjectDetector:
 
     def green_box_detected(self, cls, img, x1, y1, x2, y2, confidence):
         status = False
-        img = ""
         # WARNING: Temporary use buoy, green box model still bad
-        if self.class_names[cls] == "red_buoy" or self.class_names[cls] == "redBuoy":
+        if self.class_names[cls] == "greenBox" or self.class_names[cls] == "green_box":
             color = (0, 69, 0)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             cv2.putText(
@@ -316,7 +315,7 @@ class ObjectDetector:
     def blue_box_detected(self, cls, img, x1, y1, x2, y2, confidence):
         status = False
         img = ""
-        if self.class_names[cls] == "greenBuoy" or self.class_names[cls] == "green_buoy":
+        if self.class_names[cls] == "blueBox" or self.class_names[cls] == "green_buoy":
             color = (0, 69, 0)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             cv2.putText(
