@@ -51,6 +51,11 @@ class NodeConfig:
 class Topic:
 
     # Migrate From Param
+    kp = TopicFactory("/core/pid/kp", Float64)
+    ki = TopicFactory("/core/pid/ki", Float64)
+    kd = TopicFactory("/core/pid/kd", Float64)
+    error = TopicFactory("/core/pid/error", Float64)
+
     arena = TopicFactory("core/arena", String)
     st_speed = TopicFactory("/motor_controller/x_speed", Float64)
     tn_speed = TopicFactory("/motor_controller/motor_speed", Float64)

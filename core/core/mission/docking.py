@@ -14,18 +14,19 @@ class DockingController:
         self.target_lat = target_lat
         self.target_lon = target_lon
         
-
-        self.Kp_yaw = 200.0
-        self.Ki_yaw = 20.0
+        #initialize PID gains
+        self.Kp_yaw = 140.0
+        self.Ki_yaw = 0.0
         self.Kd_yaw = 0.0
         
-        self.Kp_speed = 300.0  # Proportional gain for speed (distance-based)
+        self.Kp_speed = 100.0  # Proportional gain for speed (distance-based)
         self.min_speed = 50.0  # Minimum speed effort when moving
         self.max_speed = 300.0 # Maximum speed effort
         
         self.yaw_error = 0.0
         self.yaw_integral = 0.0
         self.prev_yaw_error = 0.0
+        self.max_integral = 6.0
         
         self.MAX_EFFORT = 300.0
         self.MIN_EFFORT = -300.0
@@ -43,8 +44,30 @@ class DockingController:
         self.initial_position = None  # (lat, lon, heading) when recording starts
         self.recording_start_time = 0.0
 
-        self.waypoint_threshold = 1.0  # meters - minimum distance between recorded points
+        self.waypoint_threshold = 0.6  # meters - minimum distance between recorded points
         self.accumulated_dt = 0.0
+    
+    def update_pid_gains(self, Kp_yaw, Ki_yaw, Kd_yaw):
+        """
+        Update PID gains for yaw control.
+        
+        Parameters:
+        Kp_yaw (float): Proportional gain
+        Ki_yaw (float): Integral gain
+        Kd_yaw (float): Derivative gain
+        """
+        self.Kp_yaw = Kp_yaw
+        self.Ki_yaw = Ki_yaw
+        self.Kd_yaw = Kd_yaw
+    
+    def get_current_error(self):
+        """
+        Get the current yaw error in radians.
+        
+        Returns:
+        float: Current yaw error
+        """
+        return self.yaw_error
         
     def calculate_bearing_rad(self, lat1, lon1, lat2, lon2):
         """
@@ -213,80 +236,91 @@ class DockingController:
         return yaw_effort, speed_effort, False
 
     
+    def get_adaptive_pid_gains(self, error):
+        """
+        Adapt PID gains based on current yaw error magnitude.
+        You can tune the scaling factors as needed.
+        """
+        base_kp = self.Kp_yaw
+        base_ki = self.Ki_yaw
+        base_kd = self.Kd_yaw
+
+        # Example: Increase Kp and Kd with error, keep Ki constant
+        kp = base_kp + 40.0 * abs(error)    # scale as needed
+        ki = base_ki
+        kd = base_kd + 5.0 * abs(error)     # scale as needed
+
+        return kp, ki, kd
+
     def calculate_control_efforts(self, current_lat, current_lon, current_heading_deg, dt):
         """
-        Calculate yaw and speed efforts for autonomous docking.
-        
-        Convention (PIXHAWK SYSTEM):
-        - Yaw: POSITIVE = turn RIGHT (CW), NEGATIVE = turn LEFT (CCW)
-        - Speed: POSITIVE = forward, NEGATIVE = backward
-        - Heading: 0 = North, 90 = East, 180 = South, 270 = West (CLOCKWISE)
-        
-        Parameters:
-        current_lat (float): Current latitude in decimal degrees
-        current_lon (float): Current longitude in decimal degrees
-        current_heading_deg (float): Current heading in DEGREES (Pixhawk: 0=North, clockwise)
-        dt (float): Time step since last calculation in seconds
-        
-        Returns:
-        tuple: (yaw_effort, speed_effort, is_docked)
-            - yaw_effort (float): Yaw control effort in range ±300 (+ = right, - = left)
-            - speed_effort (float): Speed control effort in range ±300 (+ = forward, - = backward)
-            - is_docked (bool): True if within docking threshold
+        Compute yaw + speed efforts for autonomous navigation/docking.
+        - Yaw effort responds only to heading error
+        - Speed effort depends on distance AND heading alignment
         """
+
+        # --- No target → do nothing ---
         if self.target_lat is None or self.target_lon is None:
             return 0.0, 0.0, False
-        
+
+        # --- Compute distance to target ---
         distance = self.get_distance_to_target(current_lat, current_lon)
 
+        # --- Docking threshold check ---
         if distance < self.docking_distance_threshold:
             self.is_docked = True
+            self.yaw_integral = 0.0
             return 0.0, 0.0, True
-        
-        # Convert current heading to radians (Pixhawk convention: 0=N, clockwise)
+
+        # --- Convert heading to radians ---
         current_heading_rad = math.radians(current_heading_deg)
-        
-        # Calculate desired bearing (in radians, Pixhawk convention, range [0, 2π])
+
+        # --- Desired bearing to waypoint (Pixhawk convention) ---
         desired_heading = self.calculate_bearing_rad(
             current_lat, current_lon,
             self.target_lat, self.target_lon
         )
-        
-        # Calculate heading error (normalized to -π to π)
-        # For Pixhawk clockwise convention:
-        # Positive error = need to turn clockwise (right)
-        # Negative error = need to turn counter-clockwise (left)
-        error = desired_heading - current_heading_rad
-        self.yaw_error = math.atan2(math.sin(error), math.cos(error))
-        
-        self.yaw_integral += self.yaw_error * dt
-        
-        max_integral = 30.0
-        self.yaw_integral = max(-max_integral, min(max_integral, self.yaw_integral))
-        
-        derivative = (self.yaw_error - self.prev_yaw_error) / dt if dt > 0 else 0.0
-        
-        yaw_pid_output = (self.Kp_yaw * self.yaw_error + 
-                          self.Ki_yaw * self.yaw_integral + 
-                          self.Kd_yaw * derivative)
-        
-        yaw_effort = max(self.MIN_EFFORT, min(self.MAX_EFFORT, yaw_pid_output))
-        
-        alignment_factor = 1.0 - min(abs(self.yaw_error) / math.pi, 1.0)  # 1.0 when aligned, 0.0 when 180° off
-        speed_effort = min(self.max_speed, max(self.min_speed, distance * self.Kp_speed)) * alignment_factor
 
+        # --- Compute shortest angular error (-π to +π) ---
+        raw_error = desired_heading - current_heading_rad
+        self.yaw_error = math.atan2(math.sin(raw_error), math.cos(raw_error))
+
+        # --- If <2°, treat as aligned ---
+        if abs(self.yaw_error) < math.radians(2):
+            self.yaw_error = 0.0
+
+        # --- Adaptive PID YAW ---
+        kp, ki, kd = self.get_adaptive_pid_gains(self.yaw_error)
+
+        # integral
+        self.yaw_integral += self.yaw_error * dt
+        self.yaw_integral = max(-self.max_integral, min(self.max_integral, self.yaw_integral))
+
+        # derivative
+        derivative = (self.yaw_error - self.prev_yaw_error) / dt if dt > 0 else 0.0
+
+        # PID output
+        yaw_pid = (kp * self.yaw_error +
+                   ki * self.yaw_integral +
+                   kd * derivative)
+
+        yaw_effort = max(self.MIN_EFFORT, min(self.MAX_EFFORT, yaw_pid))
+        self.prev_yaw_error = self.yaw_error
+
+        yaw_align = max(0.0, 1.0 - abs(self.yaw_error) / math.pi)
+        raw_speed = distance * self.Kp_speed
+        raw_speed = max(self.min_speed, min(self.max_speed, raw_speed))
+        speed_effort = raw_speed * yaw_align
         if speed_effort > 0 and speed_effort < self.min_speed:
             speed_effort = self.min_speed
-        
-        self.prev_yaw_error = self.yaw_error
-        
+
         if self.is_recording:
             self.record_movement(yaw_effort, speed_effort, dt)
-        
         if self.is_recording_lat_lon:
             self.record_lat_lon(current_lat, current_lon, dt)
-        
-        return yaw_effort, speed_effort, self.is_docked
+
+        return yaw_effort, speed_effort, False
+
     
     def get_distance_to_target(self, current_lat, current_lon):
         """

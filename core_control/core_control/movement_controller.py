@@ -18,6 +18,7 @@ import select
 import threading
 
 import matplotlib.pyplot as plt
+from core_control.pid_controller import PIDController
 
 class Waypoint(Enum):
     IDLE = 0
@@ -146,6 +147,10 @@ class MovementController(Node):
 
         self.docking_controller = DockingController()
 
+        # --- PIDController integration (optional, for gain management) ---
+        self.pid_controller = PIDController(self.docking_controller.Kp_yaw, self.docking_controller.Ki_yaw, self.docking_controller.Kd_yaw)
+        self.pid_controller._init_comms()
+
         self.use_simulator = True
         self.keyboard_input = KeyboardInput(self)
         if self.use_simulator:
@@ -171,6 +176,10 @@ class MovementController(Node):
         # RC channels and states
         self.rc5 = 0.0
         self.rc6 = 0.0
+
+        self.kp = self.docking_controller.Kp_yaw
+        self.ki = self.docking_controller.Ki_yaw
+        self.kd = self.docking_controller.Kd_yaw
 
         self.rc5_state = 'LOW'
         self.prev_rc5_state = 'LOW'
@@ -216,10 +225,15 @@ class MovementController(Node):
         self.manual_yaw_sub = Topic.manual_yaw.createSubscriber(self, self._manual_yaw_callback)
         self.manual_speed_sub = Topic.manual_speed.createSubscriber(self, self._manual_speed_callback)
 
+        self.kp_sub = Topic.kp.createSubscriber(self, self._kp_callback)
+        self.ki_sub = Topic.ki.createSubscriber(self, self._ki_callback)
+        self.kd_sub = Topic.kd.createSubscriber(self, self._kd_callback)
+
 
         # Publishers
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self)
+        self.error_pub = Topic.error.createPublisher(self)
     
 
         self.get_logger().info("Communication setup complete")
@@ -233,6 +247,24 @@ class MovementController(Node):
         self.current_lon = msg.lon
         self.current_speed = getattr(msg, "msg_spd", self.current_speed)
         self.current_heading = getattr(msg, "msg_heading", self.current_heading)
+
+    def _kp_callback(self, msg: Float64):
+        """Update docking controller PID kp gain"""
+        self.kp = msg.data
+        self.docking_controller.Kp_yaw = self.kp
+        self.pid_controller.set_gains(self.kp, self.ki, self.kd)
+
+    def _ki_callback(self, msg: Float64):
+        """Update docking controller PID ki gain"""
+        self.ki = msg.data
+        self.docking_controller.Ki_yaw = self.ki
+        self.pid_controller.set_gains(self.kp, self.ki, self.kd)
+    
+    def _kd_callback(self, msg: Float64):
+        """Update docking controller PID kd gain"""
+        self.kd = msg.data
+        self.docking_controller.Kd_yaw = self.kd
+        self.pid_controller.set_gains(self.kp, self.ki, self.kd)
 
     def _pwm_callback(self, msg: Pwm):
         """Store pwm channels if needed"""
@@ -504,6 +536,9 @@ class MovementController(Node):
 
             self.yaw_effort_pub.publish(self.yaw_msg)
             self.speed_effort_pub.publish(self.speed_msg)
+            self.error_pub.publish(Float64(data=self.docking_controller.get_current_error()))
+            
+            self
 
         except Exception as e:
             self.get_logger().error(f"Error in control loop: {traceback.format_exc()}")
