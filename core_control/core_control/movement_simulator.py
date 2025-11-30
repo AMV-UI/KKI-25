@@ -21,8 +21,8 @@ import ast
 import os
 
 # Window / rendering
-WINDOW_WIDTH = 1200
-WINDOW_HEIGHT = 800
+WINDOW_WIDTH = 2000
+WINDOW_HEIGHT = 1000
 FPS = 60
 
 # Colors

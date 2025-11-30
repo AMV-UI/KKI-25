@@ -34,8 +34,8 @@ class PIDController(Node):
         base_ki = self.ki
         base_kd = self.kd
 
-        kp = base_kp + 0.01 * abs(error)
-        ki = base_ki
+        kp = base_kp + abs(error) * 0.5
+        ki = base_ki + abs(error) * 0.3
         kd = base_kd
 
         self.set_gains(kp, ki, kd)
@@ -56,26 +56,3 @@ class PIDController(Node):
         self.kp_pub.publish(self.pid.kp)
         self.ki_pub.publish(self.pid.ki)
         self.kd_pub.publish(self.pid.kd)
-
-# def main(args=None):
-#     try:
-#         rclpy.init(args=args)
-
-#         initial_kp = 200.0
-#         initial_ki = 0.0
-#         initial_kd = 0.0
-        
-#         pid_controller = PIDController(initial_kp, initial_ki, initial_kd)
-#         pid_controller._init_comms()
-
-#         rclpy.spin(pid_controller)
-
-#     except Exception as e:
-#         print(f"Error in main: {traceback.format_exc()}")
-#     finally:
-#         if rclpy.ok():
-#             rclpy.shutdown()
-
-
-# if __name__ == '__main__':
-#     main()

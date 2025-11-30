@@ -147,7 +147,6 @@ class MovementController(Node):
 
         self.docking_controller = DockingController()
 
-        # --- PIDController integration (optional, for gain management) ---
         self.pid_controller = PIDController(self.docking_controller.Kp_yaw, self.docking_controller.Ki_yaw, self.docking_controller.Kd_yaw)
         self.pid_controller._init_comms()
 

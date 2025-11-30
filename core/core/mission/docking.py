@@ -15,7 +15,7 @@ class DockingController:
         self.target_lon = target_lon
         
         #initialize PID gains
-        self.Kp_yaw = 140.0
+        self.Kp_yaw = 90.0
         self.Ki_yaw = 0.0
         self.Kd_yaw = 0.0
         
@@ -32,7 +32,7 @@ class DockingController:
         self.MIN_EFFORT = -300.0
         
         # CHANGED: Reduced threshold from 30.0 to 1.0 meter to prevent premature docking completion
-        self.docking_distance_threshold = 1.5  # meters - consider docked when closer
+        self.docking_distance_threshold = 1.0  # meters - consider docked when closer
         self.alignment_threshold = 0.3         # radians (~17 degrees) - move forward when aligned
         
         self.is_docked = False
@@ -44,7 +44,7 @@ class DockingController:
         self.initial_position = None  # (lat, lon, heading) when recording starts
         self.recording_start_time = 0.0
 
-        self.waypoint_threshold = 0.6  # meters - minimum distance between recorded points
+        self.waypoint_threshold = 0.2  # meters - minimum distance between recorded points
         self.accumulated_dt = 0.0
     
     def update_pid_gains(self, Kp_yaw, Ki_yaw, Kd_yaw):
