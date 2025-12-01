@@ -31,22 +31,29 @@ class CameraController(Node):
         self.up_camera_serial_idx = get_webcam_device_idx('046d_C270_HD_WEBCAM_E0198440')
         self.down_camera_serial_idx = get_webcam_device_idx('Generic_HD_camera_20201212000000')
 
-        self.detector = ObjectDetector(
-            "/home/amv/models/v12/best_v12.engine",
+        self.buoy_detector = ObjectDetector(
+            "/home/amv/models/KKI-25/buoy_v1.engine",
+            self,
+            [
+                "green_buoy",
+                "red_buoy",
+            ],
+        )
+
+        self.box_detector = ObjectDetector(
+            "/home/amv/models/KKI-25/box_v1.engine",
             self,
             [
                 "blueBox",
-                "docking",
                 "greenBox",
-                "greenBuoy",
-                "green_buoy",
-                "redBuoy",
-                "red_buoy",
             ],
-            f"/dev/video{self.up_camera_serial_idx}",  # udev for real camera
-            # "/home/amv/Videos/asv.mp4",  # path to video for sim
         )
-        
+
+        self.up_cap = cv2.VideoCapture(self.up_camera_serial_idx)
+        self.up_cap.set(1, 30)  # Set FPS
+        self.up_cap.set(3, 640)  # Set width
+        self.up_cap.set(4, 480)  # Set height
+
         # Configure down camera
         self.down_cap = cv2.VideoCapture(self.down_camera_serial_idx)
         self.down_cap.set(1, 30)  # Set FPS
@@ -59,7 +66,7 @@ class CameraController(Node):
         self.img = None
         self.img_64 = ""
         self.mission_type = MissionStatus.BUOY
-        self.show_result = False
+        self.show_result = True
         self.detected = False
         self.fps = 30
 
@@ -123,7 +130,16 @@ class CameraController(Node):
     def process_frame(self):
         """Process a single frame - called by timer"""
         try:
-            self.img, self.dsc, self.detected = self.detector.process_frame(self.mission_type, self.arena, self)
+            success, img = self.up_cap.read()
+            # print("In your mom")
+            if not success:
+                return
+
+            if self.mission_type == MissionStatus.BUOY:
+                self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
+            else:
+                self.get_logger().info(f"Masuk sini", throttle_duration_sec=1.0)
+                self.img, self.dsc, self.detected = self.box_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
             self.get_logger().info(f"Test: {self.mission_type}", throttle_duration_sec=1.0)
 
             if self.img is None:
@@ -150,19 +166,6 @@ class CameraController(Node):
                 throttle_duration_sec=2.0
             )
 
-            # Save green/blue box photos if in respective missions
-            # if self.mission_type == MissionStatus.GREEN_BOX:
-            #     timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            #     photo_filename = f"/home/amv/KKI-25/core_perception/photos/{timestamp}_greenBox.jpg"
-            #     cv2.imwrite(photo_filename, self.img)
-            #     self.get_logger().info(f"Photo taken and saved to {photo_filename}", throttle_duration_sec=5.0)
-                            
-            # elif self.mission_type == MissionStatus.BLUE_BOX:
-            #     timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            #     photo_filename = f"/home/amv/KKI-25/core_perception/photos/{timestamp}_blueBox.jpg"
-            #     cv2.imwrite(photo_filename, self.down_cap.read()[1]) # read return tuple (ret, frame)
-            #     self.get_logger().info(f"Photo taken and saved to {photo_filename}", throttle_duration_sec=5.0)
-
             # Passing image data
             top_camera = self.encode_base64(self.img)
             self.camera_processed_pub.publish(top_camera)
@@ -171,9 +174,10 @@ class CameraController(Node):
                 self.green_box_pub.publish(top_camera)
 
             if(self.mission_type == MissionStatus.BLUE_BOX and self.detected):
-                self.under = self.down_cap.read()[1]
-                under_camera = self.encode_base64(self.under)
-                self.blue_box_pub.publish(under_camera)
+                # self.under = self.down_cap.read()[1]
+                # under_camera = self.encode_base64(self.under)
+                # self.blue_box_pub.publish(under_camera)
+                self.blue_box_pub.publish(top_camera)
 
         except Exception as e:
             self.get_logger().error(f"Error in process_frame: {traceback.format_exc()}")

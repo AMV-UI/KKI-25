@@ -75,7 +75,7 @@ class Buoy_Execution(BaseExecution):
                 self.mission_pub.publish(UInt8(data=self.mission))
                 return Status.SUCCESS
 
-            self.node.get_logger().info(f"[{self.name}] Condition Failed -> Switching to FALLBACK", throttle_duration_sec=2.0)
+            self.node.get_logger().info(f"[{self.name}] Condition failed through", throttle_duration_sec=2.0)
             return Status.RUNNING
 
         self.frame_counter.reset()
@@ -98,4 +98,4 @@ class Buoy_Fallback(BaseFallback):
         super().__init__(name, node=node)
 
     def fallback(self) -> Status:
-        return Status.Failure
+        return Status.FAILURE

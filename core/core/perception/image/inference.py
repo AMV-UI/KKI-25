@@ -18,21 +18,17 @@ from core.utils.motor import Motor
 
 class ObjectDetector:
     def __init__(
-        self, model_path, node, class_names, camera_index, width=640, height=480, fps=30
+        self, model_path, node, class_names, width=1280, height=960, fps=30
     ):
 
         self.model = YOLO(model_path)
         self.class_names = class_names
-        self.conf_threshold = 0.4
+        self.conf_threshold_buoy = 0.15
+        self.conf_threshold_box = 0.4
         self.node = node
         self.arena = "B"
         self.max_green_box_area = 30000
         self.max_blue_box_area = 30000
-
-        self.cap = cv2.VideoCapture(camera_index)
-        self.cap.set(1, fps)  # Set FPS
-        self.cap.set(3, width)  # Set width
-        self.cap.set(4, height)  # Set height
 
         # PID
         self.pid_adjust = 200
@@ -76,14 +72,9 @@ class ObjectDetector:
                 )
                 return img
 
-    def process_frame(self, mission: MissionStatus, arena, node):
-        success, img = self.cap.read()
-        # print("In your mom")
-        if not success:
-            return None, 0, False
-
-        width = self.cap.get(3) // 2  # float `width`
-        height = self.cap.get(4) // 2  # float `height`
+    def process_frame(self, mission: MissionStatus, arena, img, cap, node):
+        width = cap.get(3) // 2  # float `width`
+        height = cap.get(4) // 2  # float `height`
 
         width = int(width)
         height = int(height)
@@ -93,7 +84,7 @@ class ObjectDetector:
 
         detected = False
 
-        results = self.model(img, conf=self.conf_threshold, verbose=False)
+        results = self.model(img, conf=self.conf_threshold_buoy if mission == MissionStatus.BUOY else self.conf_threshold_box, verbose=False)
 
         # red / green buoy
         self.max_red = -1
@@ -138,18 +129,12 @@ class ObjectDetector:
                         cls, img, x1, y1, x2, y2, confidence
                     )
 
-                    if area > self.max_green_box_area:
-                        return img, 0, False
-                    
                     return img, 0, status
 
                 elif mission == MissionStatus.BLUE_BOX:
                     img, status = self.blue_box_detected(
                         cls, img, x1, y1, x2, y2, confidence
                     )
-
-                    if area > self.max_blue_box_area:
-                        return img, 0, False
                     
                     return img, 0, status
 
@@ -202,7 +187,6 @@ class ObjectDetector:
 
             color = (0, 0, 0)
             cv2.rectangle(img, (width, height), (width, height), color, 3)
-
         return img, yaw_state, detected
 
     def buoy_detected(self, cls, img, x1, y1, x2, y2, confidence, area):
@@ -252,9 +236,7 @@ class ObjectDetector:
     def dock_detected(self, cls, img, x1, y1, x2, y2, confidence, area):
         green_box = self.green_box
         blue_box = self.blue_box    
-        if (
-            self.class_names[cls] == "red_buoy" 
-            or self.class_names[cls] == "redBuoy"):
+        if (self.class_names[cls] == "greenBox"):
             color = (0, 0, 255)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             cv2.putText(
@@ -271,11 +253,7 @@ class ObjectDetector:
                 self.max_green_box = area
                 green_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
 
-        elif (
-            self.class_names[cls] == "green_buoy"
-            or self.class_names[cls] == "greenBuoy"
-        ):
-            # self.obj_count.red += 1
+        elif (self.class_names[cls] == "blueBox"):
             color = (0, 255, 0)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             cv2.putText(
@@ -288,18 +266,16 @@ class ObjectDetector:
                 2,
             )
 
-            if self.blue_box < area:
-                self.blue_box = area
+            if self.max_blue_box < area:
+                self.max_blue_box = area
                 blue_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
 
         return img, green_box, blue_box 
 
     def green_box_detected(self, cls, img, x1, y1, x2, y2, confidence):
         status = False
-        img = ""
-        # WARNING: Temporary use buoy, green box model still bad
-        if self.class_names[cls] == "red_buoy" or self.class_names[cls] == "redBuoy":
-            color = (0, 69, 0)
+        if self.class_names[cls] == "greenBox":
+            color = (0, 0, 255)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             cv2.putText(
                 img,
@@ -310,13 +286,13 @@ class ObjectDetector:
                 color,
                 2,
             )
+
             status = True
         return img, status
 
     def blue_box_detected(self, cls, img, x1, y1, x2, y2, confidence):
         status = False
-        img = ""
-        if self.class_names[cls] == "greenBuoy" or self.class_names[cls] == "green_buoy":
+        if self.class_names[cls] == "blueBox":
             color = (0, 69, 0)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             cv2.putText(
@@ -330,10 +306,6 @@ class ObjectDetector:
             )
             status = True
         return img, status
-
-    def release(self):
-        self.cap.release()
-        cv2.destroyAllWindows()
 
     def run(self):
         while True:
