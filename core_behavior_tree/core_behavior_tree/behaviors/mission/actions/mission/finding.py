@@ -77,7 +77,7 @@ class Finding_Execution(BaseExecution):
         self.px_heading = float(msg.data)
 
     def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}] We are executing Finding... track: {self.arena}")        
+        self.node.get_logger().info(f"[{self.name}] We are executing Finding... track: {self.arena}", throttle_duration_sec=1.0)        
         if self.detected:
             self.frame_counter.is_started()
             if self.frame_counter.is_enough():

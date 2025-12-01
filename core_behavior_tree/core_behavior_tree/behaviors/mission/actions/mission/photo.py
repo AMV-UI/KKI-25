@@ -1,7 +1,7 @@
 from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from core.mission.frame_counter import FrameCounter
-from std_msgs.msg import String, UInt8
+from std_msgs.msg import String, UInt8, Float64
 from core.utils.config import Topic, MissionStatus
 
 class Photo_Execution(BaseExecution):
@@ -27,6 +27,8 @@ class Photo_Execution(BaseExecution):
         self.bluebox_pub = Topic.image_blue_box.createPublisher(self.node)
         self.frame_counter = FrameCounter(self.time_threshold)
         self.mission_pub = Topic.mission.createPublisher(self.node)
+        self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
+        self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
 
         self.green_box_encoded_sub = Topic.green_box_encoded.createSubscriber(
             self.node,
@@ -52,7 +54,17 @@ class Photo_Execution(BaseExecution):
 
     def execute(self) -> Status:
         self.node.get_logger().info(f"[{self.name}] Taking Photo...{self.mission_type}", throttle_duration_sec=1.0)
+
+        if(self.mission_type == MissionStatus.GREEN_BOX and self.greenbox != None):
+            self.node.get_logger().info(f"[{self.name}] Publishing Green Box Photo...", throttle_duration_sec=1.0)
+            self.greenbox_pub.publish(String(data=self.greenbox))
+        elif (self.mission_type == MissionStatus.BLUE_BOX and self.bluebox != None):
+            self.node.get_logger().info(f"[{self.name}] Publishing Blue Box Photo...", throttle_duration_sec=1.0)
+            self.bluebox_pub.publish(String(data=self.bluebox))
         
+        self.yaw_effort_pub.publish(Float64(data=0.0))
+        self.speed_effort_pub.publish(Float64(data=0.0))
+
         self.current = True            
         self.frame_counter.is_started()            
         if self.frame_counter.is_enough():
@@ -61,14 +73,6 @@ class Photo_Execution(BaseExecution):
                 f"[{self.name}] Finding Complete"
             )
             self.mission_pub.publish(UInt8(data=self.mission))
-            
-            if(self.mission_type == MissionStatus.GREEN_BOX and self.greenbox != None):
-                self.node.get_logger().info(f"[{self.name}] Publishing Green Box Photo...", throttle_duration_sec=1.0)
-                self.greenbox_pub.publish(String(data=self.greenbox))
-            elif (self.mission_type == MissionStatus.BLUE_BOX and self.bluebox != None):
-                self.node.get_logger().info(f"[{self.name}] Publishing Blue Box Photo...", throttle_duration_sec=1.0)
-                self.bluebox_pub.publish(String(data=self.bluebox))
-
             return Status.SUCCESS
 
         return Status.RUNNING

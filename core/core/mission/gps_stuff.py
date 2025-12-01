@@ -57,7 +57,7 @@ def find_deg(cur_lat, cur_lon, tar_lat, tar_lon, cur_head):
         else:
             deg = 90 + theta
     else:
-        if(delta_x > 0):
+        if(delta_y > 0):
             deg = (90 - theta) + 180
         else:
             deg = theta + 270

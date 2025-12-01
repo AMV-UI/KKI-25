@@ -73,7 +73,7 @@ class Docking_Execution(BaseExecution):
         theta = find_deg(self.lat, self.lon, self.docking_lat, self.docking_lon, self.heading) 
         
         self.node.get_logger().info(f"[{self.name}] test: {theta}", throttle_duration_sec=1.0)
-        self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
+        self.speed_effort_pub.publish(Float64(data=float(80)))
         self.yaw_effort_pub.publish(Float64(data=float((self.effort if theta > 10 else self.speed_effort) * (1 if theta > 0 else -1))))
 
         return Status.RUNNING
