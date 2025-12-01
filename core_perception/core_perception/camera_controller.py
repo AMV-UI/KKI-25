@@ -161,6 +161,7 @@ class CameraController(Node):
         """Process a single frame - called by timer"""
         try:
             self.img, self.dsc, self.detected = self.detector.process_frame(self)
+            self.dsc_pub.publish(Float64(data=self.dsc))
 
             if self.img is None:
                 self.get_logger().warn("Failed to get frame", throttle_duration_sec=5.0)

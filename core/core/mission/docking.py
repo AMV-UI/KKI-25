@@ -1,4 +1,5 @@
 import math
+from ..utils.config import Topic
 
 class DockingController:
 
@@ -46,7 +47,17 @@ class DockingController:
 
         self.waypoint_threshold = 0.2  # meters - minimum distance between recorded points
         self.accumulated_dt = 0.0
-    
+
+        self.rc6 = 0.0
+        self.dsc = 0.0
+        
+        self.rc6_pub = Topic.rc6.createPublisher()
+        self.dsc_sub = Topic.dsc.createSubscriber(self._dsc_callback)
+
+    def _dsc_callback(self, msg):
+        """Callback to update DSC value from incoming messages."""
+        self.dsc = float(msg.data)
+
     def update_pid_gains(self, Kp_yaw, Ki_yaw, Kd_yaw):
         """
         Update PID gains for yaw control.
@@ -205,10 +216,6 @@ class DockingController:
 
     def execute_playback_latlon(self, current_lat, current_lon, current_heading_deg, dt):
 
-        # if not self.has_lat_lon():
-        #     return 0.0, 0.0, True
-
-        # if not hasattr(self, "playback_latlon_index"):
         if not hasattr(self, "playback_latlon_index"):
             self.playback_latlon_index = 0
 
@@ -217,7 +224,7 @@ class DockingController:
         
         
         while self.playback_latlon_index < len(self.recorded_lat_lon):
-            self.target_lat, self.target_lon, recorded_dt = self.recorded_lat_lon[self.playback_latlon_index]
+            self.target_lat, self.target_lon, recorded_dt, rc6 = self.recorded_lat_lon[self.playback_latlon_index]
             distance = self.get_distance_to_target(current_lat, current_lon)
 
             yaw_effort, speed_effort, is_at_target = self.calculate_control_efforts(
@@ -226,6 +233,11 @@ class DockingController:
                 current_heading_deg,
                 recorded_dt
             )
+
+            if self.dsc != 0.0:
+                return self.dsc, speed_effort, False
+            
+            self.rc6_pub.publish(rc6)
 
             if distance < self.waypoint_threshold and is_at_target:
                 self.playback_latlon_index += 1
@@ -385,6 +397,48 @@ class DockingController:
         self.accumulated_dt = 0.0
         return True
     
+    def record_lat_lon(self, lat, lon, dt, rc6):
+        """
+        Record a single latitude and longitude during recording.
+        Ignores points closer than error_coordinate_threshold meters to the last recorded point.
+        
+        Parameters:
+        lat (float): Current latitude
+        lon (float): Current longitude
+        dt (float): Time delta since last frame
+        rc6 (float): Current RC6 value
+        
+        Returns:
+        bool: True if recorded, False if not recording or ignored
+        """
+        if not self.is_recording_lat_lon:
+            return False
+        
+        if self.target_lat is None or self.target_lon is None:
+            return False
+            
+        self.accumulated_dt += dt
+            
+        if self.recorded_lat_lon:
+            last_lat, last_lon, *_ = self.recorded_lat_lon[-1]
+            distance = self.calculate_distance(lat, lon, last_lat, last_lon)
+            if distance < self.waypoint_threshold:
+                return False
+        
+        self.recorded_lat_lon.append((lat, lon, self.accumulated_dt, rc6))
+        self.recording_start_time += self.accumulated_dt
+        self.accumulated_dt = 0.0
+        return True
+
+    def get_recorded_lat_lon(self):
+        """
+        Get the list of recorded latitude and longitude.
+        
+        Returns:
+        list: List of (lat, lon, dt, rc6) tuples
+        """
+        return self.recorded_lat_lon.copy()
+
     def stop_lat_lon_recording(self):
         """
         Stop recording latitude and longitude.
@@ -441,108 +495,3 @@ class DockingController:
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
         
         return R * c
-
-    def record_lat_lon(self, lat, lon, dt):
-        """
-        Record a single latitude and longitude during recording.
-        Ignores points closer than error_coordinate_threshold meters to the last recorded point.
-        
-        Parameters:
-        lat (float): Current latitude
-        lon (float): Current longitude
-        dt (float): Time delta since last frame
-        
-        Returns:
-        bool: True if recorded, False if not recording or ignored
-        """
-        if not self.is_recording_lat_lon:
-            return False
-        
-        if self.target_lat is None or self.target_lon is None:
-            return False
-            
-        self.accumulated_dt += dt
-            
-        if self.recorded_lat_lon:
-            last_lat, last_lon, _ = self.recorded_lat_lon[-1]
-            distance = self.calculate_distance(lat, lon, last_lat, last_lon)
-            if distance < self.waypoint_threshold:
-                return False
-        
-        self.recorded_lat_lon.append((lat, lon, self.accumulated_dt))
-        self.recording_start_time += self.accumulated_dt
-        self.accumulated_dt = 0.0
-        return True
-    
-    def get_initial_position(self):
-        """
-        Get the initial position when recording started.
-        
-        Returns:
-        tuple: (lat, lon, heading_deg) or None if no recording has been made
-               heading_deg is in Pixhawk convention (0=North, clockwise)
-        """
-        return self.initial_position
-    
-    def get_recorded_movements(self):
-        """
-        Get the list of recorded movements.
-        
-        Returns:
-        list: List of (yaw_effort, speed_effort, dt) tuples
-        """
-        return self.recorded_movements.copy()
-
-    def get_recorded_lat_lon(self):
-        """
-        Get the list of recorded latitude and longitude.
-        
-        Returns:
-        list: List of (lat, lon, dt) tuples
-        """
-        return self.recorded_lat_lon.copy()
-    
-    def has_recording(self):
-        """
-        Check if there is a recorded movement sequence.
-        
-        Returns:
-        bool: True if movements have been recorded
-        """
-        return len(self.recorded_movements) > 0
-    
-    def has_lat_lon(self):
-        """
-        Check if there is a recorded latitude and longitude sequence.
-        
-        Returns:
-        bool: True if latitude and longitude have been recorded
-        """
-        return len(self.recorded_lat_lon) > 0
-    
-    def clear_recording(self):
-        """Clear the recorded movements."""
-        self.recorded_movements = []
-        self.recorded_lat_lon = []
-        self.initial_position = None
-        self.recording_start_time = 0.0
-        self.is_recording = False
-        self.is_recording_lat_lon = False
-    
-    def get_recording_duration(self):
-        """
-        Get the total duration of the recorded movement.
-        
-        Returns:
-        float: Total duration in seconds
-        """
-        return sum(frame[2] for frame in self.recorded_movements)
-
-    def get_lat_lon_duration(self):
-        """
-        Get the total duration of the recorded latitude and longitude.
-        
-        Returns:
-        float: Total duration in seconds
-        """
-        return sum(frame[2] for frame in self.recorded_lat_lon)

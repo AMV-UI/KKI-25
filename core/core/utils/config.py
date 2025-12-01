@@ -93,7 +93,7 @@ class Topic:
     rc5 = TopicFactory("/core/motor/rc5", Float64)
     rc6 = TopicFactory("/core/motor/rc6", Float64)
     rc7 = TopicFactory("/core/motor/rc7", Float64)
-
+    
     # Mission
     mission = TopicFactory("/core/mission/current", UInt8)
 

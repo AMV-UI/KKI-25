@@ -341,8 +341,7 @@ class MovementController(Node):
         if self.recording_state != RecordingState.RECORDING:
             return
 
-        # store current lat/lon with dt
-        self.docking_controller.record_lat_lon(self.current_lat, self.current_lon, dt)
+        self.docking_controller.record_lat_lon(self.current_lat, self.current_lon, dt, self.rc6)
 
         # if no docking target, skip
         if self.docking_controller.target_lat is None or self.docking_controller.target_lon is None:
