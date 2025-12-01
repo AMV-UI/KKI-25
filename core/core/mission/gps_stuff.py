@@ -41,25 +41,13 @@ def calc_dsc(target, heading):
     
     return dsc
 
+def calc_turn(target, heading):
+    diff = (target - heading + 540) % 360 - 180
+    return diff
+
 def find_deg(cur_lat, cur_lon, tar_lat, tar_lon, cur_head):
-    delta_y = tar_lat - cur_lat
-    delta_x = tar_lon - cur_lon
+    dx = tar_lon - cur_lon
+    dy = tar_lat - cur_lat
 
-    if delta_x == 0:
-        return 180 * (delta_y < 0)
-
-    theta = degrees(atan(abs(delta_y) / abs(delta_x)))
-
-    deg = 0
-    if(delta_x > 0):
-        if(delta_y > 0):
-            deg = 90 - theta
-        else:
-            deg = 90 + theta
-    else:
-        if(delta_y > 0):
-            deg = theta + 270
-        else:
-            deg = (90 - theta) + 180
-
-    return calc_dsc(int(deg), cur_head)
+    target_heading = (degrees(atan2(dx, dy)) + 360) % 360
+    return calc_turn(target_heading, cur_head)
