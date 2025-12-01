@@ -1,5 +1,6 @@
 import math
 from ..utils.config import Topic
+from rclpy.node import Node
 
 class DockingController:
 
@@ -51,8 +52,8 @@ class DockingController:
         self.rc6 = 0.0
         self.dsc = 0.0
         
-        self.rc6_pub = Topic.rc6.createPublisher()
-        self.dsc_sub = Topic.dsc.createSubscriber(self._dsc_callback)
+        self.rc6_pub = Topic.rc6.createPublisher(Node("docking_controller_node"))
+        self.dsc_sub = Topic.dsc.createSubscriber(Node("docking_controller_node"), self._dsc_callback)
 
     def _dsc_callback(self, msg):
         """Callback to update DSC value from incoming messages."""

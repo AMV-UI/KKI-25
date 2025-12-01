@@ -29,7 +29,7 @@ setup(
             'movement_controller = core_control.movement_controller:main',
             'channel_simulator = core_control.channel_simulator:main',
             'movement_simulator = core_control.movement_simulator:main',
-            'pid_controller = core_control.pid_controller:main',
+            # 'pid_controller = core_control.pid_controller:main',
         ],
     },
 )

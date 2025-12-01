@@ -9,64 +9,58 @@ import time
 from datetime import datetime
 from core.perception.image.inference import ObjectDetector
 from core_msgs.msg import StateObject, AutoControl
-from core.utils.config import NodeConfig, Topic, MissionStatus
+from core.utils.config import NodeConfig, Topic
 from core.utils.device_fetching import *
 from rclpy.node import Node
 from std_msgs.msg import Float64, Bool, String
+import pyudev
 
 class CameraController(Node):
     """
     Front Camera Node for Object Detection
     
     PUBLISHES TO:
-        - dsc: Float64 - Yaw control effort
-        - detected: Bool - Detection status
     """
 
     def __init__(self):
         super().__init__("front_camera")
 
-        self.arena = "B"
 
         self.up_camera_serial_idx = get_webcam_device_idx('046d_C270_HD_WEBCAM_E0198440')
         self.down_camera_serial_idx = get_webcam_device_idx('Generic_HD_camera_20201212000000')
 
-        self.buoy_detector = ObjectDetector(
-            "/home/amv/models/KKI-25/buoy_v1.engine",
-            self,
-            [
-                "green_buoy",
-                "red_buoy",
-            ],
-        )
-
-        self.box_detector = ObjectDetector(
-            "/home/amv/models/KKI-25/box_v1.engine",
+        self.detector = ObjectDetector(
+            "/home/amv/models/v12/best_v12.engine",
             self,
             [
                 "blueBox",
+                "docking",
                 "greenBox",
+                "greenBuoy",
+                "green_buoy",
+                "redBuoy",
+                "red_buoy",
             ],
+            self.up_camera_serial_idx,  # udev for real camera
+            # "/home/amv/Videos/asv.mp4",  # path to video for sim
         )
-
-        self.up_cap = cv2.VideoCapture(self.up_camera_serial_idx)
-        self.up_cap.set(1, 30)  # Set FPS
-        self.up_cap.set(3, 640)  # Set width
-        self.up_cap.set(4, 480)  # Set height
-
+        
         # Configure down camera
         self.down_cap = cv2.VideoCapture(self.down_camera_serial_idx)
         self.down_cap.set(1, 30)  # Set FPS
         self.down_cap.set(3, 640)  # Set width
         self.down_cap.set(4, 480)  # Set height
 
+        self.upper_cap = self.detector.cap
+        self.upper_cap.set(1, 30)  # Set FPS
+        self.upper_cap.set(3, 640)  # Set width
+        self.upper_cap.set(4, 480)  # Set height
+
         self.result = ""
-        self.dsc = 0
         self.state = [0, 0, 0, 0]
         self.img = None
         self.img_64 = ""
-        self.mission_type = MissionStatus.BUOY
-        self.show_result = True
+        self.show_result = False
         self.detected = False
         self.fps = 30
 
@@ -76,11 +70,21 @@ class CameraController(Node):
         self.PWM_LOW = 1000
         self.PWM_HIGH = 1700
 
-        # Setup communication
         self._setup_communication()
         
         self.get_logger().info(f"<> [{NodeConfig.camera_front}] Successfully initialized node")
 
+    def _setup_communication(self):
+        """Initialize publishers and subscribers"""
+        # Publishers
+        self.dsc_pub = Topic.dsc.createPublisher(self)
+        self.detected_pub = Topic.detected.createPublisher(self)
+        self.camera_processed_pub = Topic.camera_processed.createPublisher(self)
+
+        self.rc6_sub = Topic.rc6.createSubscriber(self, self._rc6_callback)
+
+        self.blue_box_pub = Topic.image_blue_box.createPublisher(self)
+        self.green_box_pub = Topic.image_green_box.createPublisher(self)
 
     def _get_rc6_state(self, rc6_value):
         """Determine RC6 button state based on value"""
@@ -92,7 +96,7 @@ class CameraController(Node):
             return 'HIGH'
         
     def _take_upper_photo(self):
-        ret, frame = self.up_cap.read()
+        ret, frame = self.upper_cap.read()
         if ret:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
             photo_filename = f"/home/amv/KKI-25/core_perception/photos/{timestamp}_upCamera.jpg"
@@ -123,30 +127,6 @@ class CameraController(Node):
             self._take_down_photo()
         self.rc6_state = current_state
 
-    def _setup_communication(self):
-        """Initialize publishers and subscribers"""
-        # Publishers
-        self.dsc_pub = Topic.dsc.createPublisher(self)
-        self.detected_pub = Topic.detected.createPublisher(self)
-        self.camera_processed_pub = Topic.camera_processed.createPublisher(self)
-        self.green_box_pub = Topic.image_green_box.createPublisher(self)
-        self.blue_box_pub = Topic.image_blue_box.createPublisher(self)
-        # Subscribers (if needed)
-        self.mission_type_sub = Topic.mission_type.createSubscriber(self, self.mission_callback)
-        self.arena_sub = Topic.arena.createSubscriber(self, self._arena_cb)
-
-        self.rc6_sub = Topic.rc6.createSubscriber(self, self._rc6_callback)
-
-    def _arena_cb(self, msg: String):
-        self.arena = str(msg.data)
-
-    def mission_callback(self, msg):
-        """Update current mission"""
-        self.mission_type = str(msg.data)
-        self.get_logger().info(f"Mission changed to: {self.mission_type}", throttle_duration_sec=3.0)
-
-    def get_data(self):
-        return self.result, self.dsc, self.state
 
     def visualize(self, scale=0.6):
         """Display annotated frame"""
@@ -180,17 +160,8 @@ class CameraController(Node):
     def process_frame(self):
         """Process a single frame - called by timer"""
         try:
-            success, img = self.up_cap.read()
-            # print("In your mom")
-            if not success:
-                return
-
-            if self.mission_type == MissionStatus.BUOY:
-                self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
-            else:
-                self.get_logger().info(f"Masuk sini", throttle_duration_sec=1.0)
-                self.img, self.dsc, self.detected = self.box_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
-            self.get_logger().info(f"Test: {self.mission_type}", throttle_duration_sec=1.0)
+            self.img, self.dsc, self.detected = self.detector.process_frame(self)
+            self.dsc_pub.publish(Float64(data=self.dsc))
 
             if self.img is None:
                 self.get_logger().warn("Failed to get frame", throttle_duration_sec=5.0)
@@ -202,32 +173,6 @@ class CameraController(Node):
                 if exit_status:
                     rclpy.shutdown()
                     return
-
-            dsc_msg = Float64()
-            dsc_msg.data = float(self.dsc)
-            self.dsc_pub.publish(dsc_msg)
-            
-            detected_msg = Bool()
-            detected_msg.data = self.detected
-            self.detected_pub.publish(detected_msg)
-
-            self.get_logger().info(
-                f"DSC: {self.dsc:.2f}, Detected: {self.detected}",
-                throttle_duration_sec=2.0
-            )
-
-            # Passing image data
-            top_camera = self.encode_base64(self.img)
-            self.camera_processed_pub.publish(top_camera)
-
-            if(self.mission_type == MissionStatus.GREEN_BOX and self.detected):
-                self.green_box_pub.publish(top_camera)
-
-            if(self.mission_type == MissionStatus.BLUE_BOX and self.detected):
-                # self.under = self.down_cap.read()[1]
-                # under_camera = self.encode_base64(self.under)
-                # self.blue_box_pub.publish(under_camera)
-                self.blue_box_pub.publish(top_camera)
 
         except Exception as e:
             self.get_logger().error(f"Error in process_frame: {traceback.format_exc()}")

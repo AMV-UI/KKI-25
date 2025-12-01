@@ -30,6 +30,12 @@ class Param:
     CONF_THRESHOLD = ParamFactory("/mission/confidence_threshold", float)
     FLAG = ParamFactory("/mission/flag", bool)
 
+class MissionStatus:
+    BUOY = "buoy"
+    GREEN_BOX = "greenbox" 
+    BLUE_BOX = "bluebox"
+    DOCKING = "docking"
+
 
 class NodeConfig:
     camera_front = "camera_front"
@@ -55,6 +61,14 @@ class Topic:
     ki = TopicFactory("/core/pid/ki", Float64)
     kd = TopicFactory("/core/pid/kd", Float64)
     error = TopicFactory("/core/pid/error", Float64)
+
+    # Camera
+    camera_processed = TopicFactory("/asv/vision/camera/processed", String)
+    image_green_box = TopicFactory("/asv/vision/image/show_green", String)
+    image_blue_box = TopicFactory("/asv/vision/image/show_blue", String)
+    green_box_encoded = TopicFactory("/asv/vision/image/green", String) 
+    blue_box_encoded = TopicFactory("/asv/vision/image/blue", String) 
+
 
     arena = TopicFactory("core/arena", String)
     st_speed = TopicFactory("/motor_controller/x_speed", Float64)
@@ -96,6 +110,8 @@ class Topic:
     
     # Mission
     mission = TopicFactory("/core/mission/current", UInt8)
+    mission_type = TopicFactory("/core/mission/type", String) 
+
 
     # PWM
     pwm = TopicFactory("/core/pwm", Pwm)
