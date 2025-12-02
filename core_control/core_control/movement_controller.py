@@ -418,7 +418,7 @@ class MovementController(Node):
             return
 
         # use current waypoint as target
-        target_lat, target_lon, _ = recorded[self.playback_index]
+        target_lat, target_lon, _, _ = recorded[self.playback_index]
         # only set docking target if changed (to avoid resetting PID unnecessarily)
         if (self.docking_controller.target_lat != target_lat or
                 self.docking_controller.target_lon != target_lon):

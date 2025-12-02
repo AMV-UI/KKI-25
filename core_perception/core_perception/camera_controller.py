@@ -66,7 +66,7 @@ class CameraController(Node):
         self.img = None
         self.img_64 = ""
         self.mission_type = MissionStatus.BUOY
-        self.show_result = True
+        self.show_result = False
         self.detected = False
         self.fps = 30
 
