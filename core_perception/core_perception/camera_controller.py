@@ -10,7 +10,7 @@ from datetime import datetime
 from core.perception.image.inference import ObjectDetector
 from core_msgs.msg import StateObject, AutoControl
 from core.utils.config import NodeConfig, Topic, MissionStatus
-from core.utils.device_fetching import *
+from core.utils.device_fetching import get_webcam_device_idx
 from rclpy.node import Node
 from std_msgs.msg import Float64, Bool, String
 
@@ -59,6 +59,20 @@ class CameraController(Node):
         self.down_cap.set(1, 30)  # Set FPS
         self.down_cap.set(3, 640)  # Set width
         self.down_cap.set(4, 480)  # Set height
+
+        self.REC_UP_CAMERA = True
+        self.REC_DOWN_CAMERA = True
+
+        if self.REC_UP_CAMERA:
+            fps = int(self.up_cap.get(1))
+            size = int(self.up_cap.get(3)), int(self.up_cap.get(4))
+            file_name = f"{}"
+            self.up_vid_writer = cv2.VideoWriter(cv2.VideoWriter_fourcc(*"mp4v"), fps, size)
+        if self.REC_DOWN_CAMERA:
+            fps = int(self.up_cap.get(1))
+            size = int(self.up_cap.get(3)), int(self.up_cap.get(4))
+            self.down_vid_writer = cv2.VideoWriter(cv2.VideoWriter_fourcc(*"mp4v"), fps, size)
+            file_name = f"{}"
 
         self.result = ""
         self.dsc = 0
@@ -131,6 +145,12 @@ class CameraController(Node):
         """Process a single frame - called by timer"""
         try:
             success, img = self.up_cap.read()
+
+            if self.REC_UP_CAMERA:
+                self.up_vid_writer.write(img)
+            if self.REC_DOWN_CAMERA:
+                self.down_vid_writer.write(self.down_cap.read()[1])
+            
             # print("In your mom")
             if not success:
                 return
@@ -206,6 +226,10 @@ def main():
         # Cleanup
         front_cam.detector.release()
         front_cam.down_cap.release()
+        if front_cam.REC_UP_CAMERA:
+            front_cam.up_vid_writer.release()
+        if front_cam.REC_DOWN_CAMERA:
+            front_cam.down_vid_writer.release()
         cv2.destroyAllWindows()
         front_cam.destroy_node()
         rclpy.shutdown()
