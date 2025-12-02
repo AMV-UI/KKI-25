@@ -61,18 +61,18 @@ class CameraController(Node):
         self.down_cap.set(4, 480)  # Set height
 
         self.REC_UP_CAMERA = True
-        self.REC_DOWN_CAMERA = True
+        self.REC_DOWN_CAMERA = False
 
         if self.REC_UP_CAMERA:
             fps = int(self.up_cap.get(1))
             size = int(self.up_cap.get(3)), int(self.up_cap.get(4))
-            file_name = f"{}"
-            self.up_vid_writer = cv2.VideoWriter(cv2.VideoWriter_fourcc(*"mp4v"), fps, size)
+            file_name = time.strftime("%d-%m-%Y_%H:%M:%S_up_cam.mp4", time.localtime())
+            self.up_vid_writer = cv2.VideoWriter(file_name, cv2.VideoWriter_fourcc(*"mp4v"), fps, size)
         if self.REC_DOWN_CAMERA:
             fps = int(self.up_cap.get(1))
             size = int(self.up_cap.get(3)), int(self.up_cap.get(4))
-            self.down_vid_writer = cv2.VideoWriter(cv2.VideoWriter_fourcc(*"mp4v"), fps, size)
-            file_name = f"{}"
+            file_name = time.strftime("%d-%m-%Y_%H:%M:%S_down_cam.mp4", time.localtime())
+            self.down_vid_writer = cv2.VideoWriter(file_name, cv2.VideoWriter_fourcc(*"mp4v"), fps, size)
 
         self.result = ""
         self.dsc = 0
