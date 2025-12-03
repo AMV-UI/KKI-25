@@ -27,6 +27,9 @@ setup(
             'esp_controller = core_control.esp_controller:main',
             'pwm_controller = core_control.pwm_controller:main',
             'movement_controller = core_control.movement_controller:main',
+            'channel_simulator = core_control.channel_simulator:main',
+            'movement_simulator = core_control.movement_simulator:main',
+            # 'pid_controller = core_control.pid_controller:main',
         ],
     },
 )

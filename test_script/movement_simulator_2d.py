@@ -73,12 +73,12 @@ PIXELS_TO_METERS = 0.1
 METERS_TO_LATLON = 0.00001  # Approximate conversion
 
 # Simulation realism constants
-GPS_UPDATE_RATE = 5  # Hz (5-10 Hz typical)
-GPS_POSITION_NOISE = 2.0  # meters (±2-5m typical)
+GPS_UPDATE_RATE = 500  # Hz (5-10 Hz typical)
+GPS_POSITION_NOISE = 0.5  # meters (±2-5m typical)
 GPS_HEADING_NOISE = 10  # degrees (±5-10° typical)
-CURRENT_STRENGTH = 0.01  # m/s (0.5-2 m/s typical)
+CURRENT_STRENGTH = 0.03  # m/s (0.5-2 m/s typical)
 CURRENT_DIRECTION = 45.0  # degrees (can be changed)
-COMM_DELAY = 0.05  # seconds (50ms typical MAVLink delay)
+COMM_DELAY = 0.01  # seconds (50ms typical MAVLink delay)
 
 
 class DockingState(Enum):
@@ -91,7 +91,8 @@ class DockingState(Enum):
 class RecordingState(Enum):
     IDLE = 0
     RECORDING = 1
-    PLAYING_BACK = 2
+    RETURNING_TO_START = 2  # Navigating back to initial recording point
+    PLAYING_BACK = 3
 
 
 class Vehicle:
@@ -419,6 +420,7 @@ class Simulator:
         self.playback_index = 0
         self.playback_time_accumulator = 0.0
         self.initial_vehicle_state = None  # (x, y, heading) for playback
+        self.has_left_dock = False  # Track if vehicle has moved away from docking point
         
         # Setup U-turn buoy course
         self.buoys = self.create_uturn_course()
@@ -467,7 +469,7 @@ class Simulator:
                 self.keys_pressed.discard(event.key)
         
         # Handle continuous controls (WASD) only if not in autonomous mode
-        if self.docking_state != DockingState.GOING_TO_DOCK and self.recording_state != RecordingState.PLAYING_BACK:
+        if self.docking_state != DockingState.GOING_TO_DOCK and self.recording_state not in [RecordingState.PLAYING_BACK, RecordingState.RETURNING_TO_START]:
             # Speed control (W/S)
             if pygame.K_w in self.keys_pressed:
                 self.vehicle.set_speed_effort(self.vehicle.speed_effort + SPEED_INCREMENT)
@@ -532,41 +534,41 @@ class Simulator:
         return False
     
     def handle_recording_action(self):
-        """Handle R key press for recording/playback actions"""
+        """Handle T key press for combined docking/recording/playback actions"""
         if self.recording_state == RecordingState.IDLE:
-            # Start recording
-            lat, lon = self.vehicle.get_lat_lon()
-            self.docking_controller.start_lat_lon_recording(lat, lon, self.vehicle.get_heading_pixhawk())
-            self.initial_vehicle_state = (self.vehicle.x, self.vehicle.y, self.vehicle.heading)
-            self.recording_state = RecordingState.RECORDING
-            print("Started recording lat/lon...")
+            # Check if there's a docking point set - if yes, navigate to it
+            if self.docking_point is not None and self.docking_state == DockingState.INIT_POINT_SET:
+                # Navigate back to the docking point
+                self.docking_state = DockingState.GOING_TO_DOCK
+                print("Navigating back to docking point...")
+            else:
+                # Set docking point and start recording
+                self.docking_point = DockingPoint(self.vehicle.x, self.vehicle.y)
+                dock_lat, dock_lon = self.docking_point.get_lat_lon()
+                
+                # Configure docking controller with target (for later return)
+                self.docking_controller.set_target(dock_lat, dock_lon)
+                
+                # Start recording
+                lat, lon = self.vehicle.get_lat_lon()
+                self.docking_controller.start_lat_lon_recording(lat, lon, self.vehicle.get_heading_pixhawk())
+                self.initial_vehicle_state = (self.vehicle.x, self.vehicle.y, self.vehicle.heading)
+                self.recording_state = RecordingState.RECORDING
+                self.docking_state = DockingState.INIT_POINT_SET
+                self.has_left_dock = False  # Reset flag when starting new recording
+                print(f"Docking point set and recording started at: Lat={dock_lat:.6f}, Lon={dock_lon:.6f}")
+                print("Recording will automatically stop when you return to the docking point.")
             
         elif self.recording_state == RecordingState.RECORDING:
-            # Stop recording and start playback
-            num_frames = self.docking_controller.stop_lat_lon_recording()
-            duration = self.docking_controller.get_lat_lon_duration()
-            print(f"Recording stopped. Recorded {num_frames} frames ({duration:.1f}s)")
-            
-            if num_frames > 0:
-                # Reset to initial position
-                self.vehicle.x, self.vehicle.y, self.vehicle.heading = self.initial_vehicle_state
-                self.vehicle.stop()
-                self.vehicle.path_history = []
-                
-                # Start playback
-                self.playback_index = 0
-                self.playback_time_accumulator = 0.0
-                self.recording_state = RecordingState.PLAYING_BACK
-                print("Starting playback from initial position...")
-            else:
-                print("No movements recorded!")
-                self.recording_state = RecordingState.IDLE
+            # Inform user that recording stops automatically
+            print("Recording in progress... Return to the docking point to auto-stop and playback.")
                 
         elif self.recording_state == RecordingState.PLAYING_BACK:
-            # Stop playback
+            # Stop playback and keep docking point available
             self.recording_state = RecordingState.IDLE
+            self.docking_state = DockingState.INIT_POINT_SET  # Allow navigating back
             self.vehicle.stop()
-            print("Playback stopped")
+            print("Playback stopped. Press T again to navigate back to docking point.")
     
     def handle_docking_action(self):
         """Handle E key press for docking actions (now reusable)"""
@@ -617,6 +619,65 @@ class Simulator:
             # Record current lat/lon
             lat, lon = self.vehicle.get_lat_lon()
             self.docking_controller.record_lat_lon(lat, lon, dt)
+            
+            # Check if vehicle has reached the docking point
+            if self.docking_point is not None:
+                current_lat, current_lon = self.vehicle.get_lat_lon(use_gps=True)
+                distance_to_dock = self.docking_controller.get_distance_to_target(current_lat, current_lon)
+                
+                # Track if vehicle has left the docking area (moved at least 3m away)
+                if not self.has_left_dock and distance_to_dock > 3.0:
+                    self.has_left_dock = True
+                    print("Left docking area - recording path...")
+                
+                # Only check for return to dock after vehicle has left the area
+                if self.has_left_dock and distance_to_dock < self.docking_controller.docking_distance_threshold:
+                    num_frames = self.docking_controller.stop_lat_lon_recording()
+                    duration = self.docking_controller.get_lat_lon_duration()
+                    print(f"Reached docking point! Recording stopped. Recorded {num_frames} frames ({duration:.1f}s)")
+                    
+                    if num_frames > 0:
+                        # Navigate back to docking point (already set when recording started)
+                        self.vehicle.stop()
+                        
+                        # Start return navigation phase
+                        self.playback_index = 0
+                        self.playback_time_accumulator = 0.0
+                        self.recording_state = RecordingState.RETURNING_TO_START
+                        init_x, init_y, init_heading = self.initial_vehicle_state
+                        init_lat = (WINDOW_HEIGHT / 2 - init_y) * PIXELS_TO_METERS * METERS_TO_LATLON
+                        init_lon = (init_x - WINDOW_WIDTH / 2) * PIXELS_TO_METERS * METERS_TO_LATLON
+                        print(f"Navigating back to docking point: Lat={init_lat:.6f}, Lon={init_lon:.6f}")
+                    else:
+                        print("No movements recorded!")
+                        self.recording_state = RecordingState.IDLE
+    
+    def update_return_navigation(self, dt):
+        """Update autonomous navigation back to initial recording point"""
+        if self.recording_state != RecordingState.RETURNING_TO_START:
+            return
+        
+        current_lat, current_lon = self.vehicle.get_lat_lon(use_gps=True)
+        current_heading_deg = self.vehicle.get_heading_pixhawk(use_gps=True)
+        
+        yaw_effort, speed_effort, is_docked = self.docking_controller.calculate_control_efforts(
+            current_lat, current_lon, current_heading_deg, dt
+        )
+        
+        if is_docked:
+            # Reached the initial recording point, transition to playback
+            self.vehicle.stop()
+            distance = self.docking_controller.get_distance_to_target(current_lat, current_lon)
+            print(f"Reached initial point! Distance: {distance:.2f}m")
+            print("Starting playback...")
+            
+            # Transition to playback
+            self.recording_state = RecordingState.PLAYING_BACK
+            return
+        
+        # Apply control efforts to navigate back
+        self.vehicle.set_yaw_effort(yaw_effort)
+        self.vehicle.set_speed_effort(speed_effort)
     
     def update_playback(self, dt):
         """Update movement playback"""
@@ -776,7 +837,7 @@ class Simulator:
             "W/S - Speed +/-",
             "A/D - Yaw Right(-)/Left(+)",
             "E - Set Dock / Go / Reset Dock",
-            "T - Record / Stop & Playback",
+            "T - Set Home & Record / Auto-Playback (on dock) / Go Home",
             "R - Reset Simulation",
             "B - Toggle Bounding Boxes",
             "N - Toggle Sim Effects Info",
@@ -909,6 +970,7 @@ class Simulator:
             self.vehicle.process_delayed_commands(self.sim_time)
             
             self.update_recording(dt)
+            self.update_return_navigation(dt)
             self.update_playback(dt)
             self.update_docking(dt)
             
@@ -924,7 +986,7 @@ class Simulator:
             
             # Disable decay during autonomous operations
             apply_decay = (self.docking_state != DockingState.GOING_TO_DOCK and 
-                          self.recording_state != RecordingState.PLAYING_BACK)
+                          self.recording_state not in [RecordingState.PLAYING_BACK, RecordingState.RETURNING_TO_START])
             self.vehicle.update(dt, apply_decay=apply_decay)
             
             # Draw everything
