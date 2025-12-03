@@ -61,17 +61,17 @@ class CameraController(Node):
         self.down_cap.set(4, 480)  # Set height
 
         self.REC_UP_CAMERA = True
-        self.REC_DOWN_CAMERA = False
+        self.REC_DOWN_CAMERA = True
 
         if self.REC_UP_CAMERA:
-            fps = int(self.up_cap.get(1))
+            fps = 15
             size = int(self.up_cap.get(3)), int(self.up_cap.get(4))
-            file_name = time.strftime("%d-%m-%Y_%H:%M:%S_up_cam.mp4", time.localtime())
+            file_name = "core_perception/videos/" + time.strftime("%d-%m-%Y_%H:%M:%S_up_cam.mp4", time.localtime())
             self.up_vid_writer = cv2.VideoWriter(file_name, cv2.VideoWriter_fourcc(*"mp4v"), fps, size)
         if self.REC_DOWN_CAMERA:
-            fps = int(self.up_cap.get(1))
-            size = int(self.up_cap.get(3)), int(self.up_cap.get(4))
-            file_name = time.strftime("%d-%m-%Y_%H:%M:%S_down_cam.mp4", time.localtime())
+            fps = 15
+            size = int(self.down_cap.get(3)), int(self.down_cap.get(4))
+            file_name = "core_perception/videos/" + time.strftime("%d-%m-%Y_%H:%M:%S_down_cam.mp4", time.localtime())
             self.down_vid_writer = cv2.VideoWriter(file_name, cv2.VideoWriter_fourcc(*"mp4v"), fps, size)
 
         self.result = ""
@@ -266,7 +266,7 @@ def main():
         front_cam.get_logger().error(f"Error: {traceback.format_exc()}")
     finally:
         # Cleanup
-        front_cam.detector.release()
+        front_cam.up_cap.release()
         front_cam.down_cap.release()
         if front_cam.REC_UP_CAMERA:
             front_cam.up_vid_writer.release()

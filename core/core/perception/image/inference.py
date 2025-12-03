@@ -6,6 +6,7 @@ import datetime
 import time
 import asyncio
 
+import torch
 from ultralytics import YOLO
 from std_msgs.msg import String
 from core.utils.config import Topic
@@ -84,110 +85,111 @@ class ObjectDetector:
 
         detected = False
 
-        results = self.model(img, conf=self.conf_threshold_buoy if mission == MissionStatus.BUOY else self.conf_threshold_box, verbose=False)
+        with torch.no_grad():
+            results = self.model(img, conf=self.conf_threshold_buoy if mission == MissionStatus.BUOY else self.conf_threshold_box, verbose=False, stream=True)
 
-        # red / green buoy
-        self.max_red = -1
-        self.max_green = -1
-        self.red = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
-        self.green = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
+            # red / green buoy
+            self.max_red = -1
+            self.max_green = -1
+            self.red = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
+            self.green = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
 
-        self.max_green_box = -1
-        self.max_blue_box = -1 
-        self.green_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
-        self.blue_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
+            self.max_green_box = -1
+            self.max_blue_box = -1 
+            self.green_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
+            self.blue_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
 
-        
-        # threshold boxes
-        # self.minimum_blue_box_area = 200
-        # self.minimum_green_box_area = 200
-        for r in results:
-            boxes = r.boxes
-            for box in boxes:
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                confidence = float(box.conf[0])
-                cls = int(box.cls[0])
-                if confidence < 0.1:
-                    continue
+            
+            # threshold boxes
+            # self.minimum_blue_box_area = 200
+            # self.minimum_green_box_area = 200
+            for r in results:
+                boxes = r.boxes
+                for box in boxes:
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    confidence = float(box.conf[0])
+                    cls = int(box.cls[0])
+                    if confidence < 0.1:
+                        continue
+
+                    color = (0, 0, 0)
+                    area = abs((x2 - x1) * (y2 - y1))
+
+                    if mission == MissionStatus.BUOY:
+                        img, self.red, self.green = self.buoy_detected(
+                            cls, img, x1, y1, x2, y2, confidence, area
+                        )
+
+
+                    elif mission == MissionStatus.DOCKING:
+                        img, self.green_box, self.blue_box = self.dock_detected(
+                            cls, img, x1, y1, x2, y2, confidence, area
+                        )                    
+
+                    elif mission == MissionStatus.GREEN_BOX:
+                        img, status = self.green_box_detected(
+                            cls, img, x1, y1, x2, y2, confidence
+                        )
+
+                        return img, 0, status
+
+                    elif mission == MissionStatus.BLUE_BOX:
+                        img, status = self.blue_box_detected(
+                            cls, img, x1, y1, x2, y2, confidence
+                        )
+                        
+                        return img, 0, status
+
+            if mission == MissionStatus.BUOY: 
+                if self.max_red < self.max_green * self.treshold:
+                    self.max_red = -1
+                elif self.max_green < self.max_red * self.treshold:
+                    self.max_green = -1
+
+                self.mid_red = (self.red["x1"] + self.red["x2"]) // 2
+                self.mid_green = (self.green["x1"] + self.green["x2"]) // 2
+
+                if self.max_red != -1 and self.max_green != -1:
+                    mid_x = (self.mid_green + self.mid_red) // 2
+                    dsc_x = mid_x - width
+                    yaw_state = dsc_x
+                elif self.max_green != -1:
+                    yaw_state = self.pid_adjust * (-1 if arena == "A" else 1)
+                elif self.max_red != -1:
+                    yaw_state = self.pid_adjust * (1 if arena == "A" else -1)
+                else:
+                    yaw_state = 0
+                if self.max_green != -1 or self.max_red != -1:
+                    detected = True
 
                 color = (0, 0, 0)
-                area = abs((x2 - x1) * (y2 - y1))
+                cv2.rectangle(img, (width, height), (width, height), color, 3)
+            elif mission == MissionStatus.DOCKING:
+                if self.max_green_box < self.max_blue_box * self.treshold:
+                    self.max_green_box = -1
+                elif self.max_blue_box < self.max_green_box * self.treshold:
+                    self.max_blue_box = -1
 
-                if mission == MissionStatus.BUOY:
-                    img, self.red, self.green = self.buoy_detected(
-                        cls, img, x1, y1, x2, y2, confidence, area
-                    )
+                self.mid_green_box = (self.green_box["x1"] + self.green_box["x2"]) // 2
+                self.mid_blue_box = (self.blue_box["x1"] + self.blue_box["x2"]) // 2
 
+                if self.max_green_box != -1 and self.max_blue_box != -1:
+                    mid_x = (self.mid_green_box + self.mid_blue_box) // 2
+                    dsc_x = mid_x - width
+                    yaw_state = dsc_x
+                elif self.max_green_box != -1:
+                    yaw_state = self.pid_adjust * (-1 if arena == "B" else 1)
+                elif self.max_blue_box != -1:
+                    yaw_state = self.pid_adjust * (1 if arena == "B" else -1)
+                else:
+                    yaw_state = 0
 
-                elif mission == MissionStatus.DOCKING:
-                    img, self.green_box, self.blue_box = self.dock_detected(
-                        cls, img, x1, y1, x2, y2, confidence, area
-                    )                    
+                if self.max_blue_box != -1 or self.max_green_box != -1:
+                    detected = True
 
-                elif mission == MissionStatus.GREEN_BOX:
-                    img, status = self.green_box_detected(
-                        cls, img, x1, y1, x2, y2, confidence
-                    )
-
-                    return img, 0, status
-
-                elif mission == MissionStatus.BLUE_BOX:
-                    img, status = self.blue_box_detected(
-                        cls, img, x1, y1, x2, y2, confidence
-                    )
-                    
-                    return img, 0, status
-
-        if mission == MissionStatus.BUOY: 
-            if self.max_red < self.max_green * self.treshold:
-                self.max_red = -1
-            elif self.max_green < self.max_red * self.treshold:
-                self.max_green = -1
-
-            self.mid_red = (self.red["x1"] + self.red["x2"]) // 2
-            self.mid_green = (self.green["x1"] + self.green["x2"]) // 2
-
-            if self.max_red != -1 and self.max_green != -1:
-                mid_x = (self.mid_green + self.mid_red) // 2
-                dsc_x = mid_x - width
-                yaw_state = dsc_x
-            elif self.max_green != -1:
-                yaw_state = self.pid_adjust * (-1 if arena == "A" else 1)
-            elif self.max_red != -1:
-                yaw_state = self.pid_adjust * (1 if arena == "A" else -1)
-            else:
-                yaw_state = 0
-            if self.max_green != -1 or self.max_red != -1:
-                detected = True
-
-            color = (0, 0, 0)
-            cv2.rectangle(img, (width, height), (width, height), color, 3)
-        elif mission == MissionStatus.DOCKING:
-            if self.max_green_box < self.max_blue_box * self.treshold:
-                self.max_green_box = -1
-            elif self.max_blue_box < self.max_green_box * self.treshold:
-                self.max_blue_box = -1
-
-            self.mid_green_box = (self.green_box["x1"] + self.green_box["x2"]) // 2
-            self.mid_blue_box = (self.blue_box["x1"] + self.blue_box["x2"]) // 2
-
-            if self.max_green_box != -1 and self.max_blue_box != -1:
-                mid_x = (self.mid_green_box + self.mid_blue_box) // 2
-                dsc_x = mid_x - width
-                yaw_state = dsc_x
-            elif self.max_green_box != -1:
-                yaw_state = self.pid_adjust * (-1 if arena == "B" else 1)
-            elif self.max_blue_box != -1:
-                yaw_state = self.pid_adjust * (1 if arena == "B" else -1)
-            else:
-                yaw_state = 0
-
-            if self.max_blue_box != -1 or self.max_green_box != -1:
-                detected = True
-
-            color = (0, 0, 0)
-            cv2.rectangle(img, (width, height), (width, height), color, 3)
-        return img, yaw_state, detected
+                color = (0, 0, 0)
+                cv2.rectangle(img, (width, height), (width, height), color, 3)
+            return img, yaw_state, detected
 
     def buoy_detected(self, cls, img, x1, y1, x2, y2, confidence, area):
         red = self.red
