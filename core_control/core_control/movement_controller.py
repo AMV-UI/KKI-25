@@ -17,7 +17,6 @@ import tty
 import select
 import threading
 
-import matplotlib.pyplot as plt
 from core_control.pid_controller import PIDController
 
 class Waypoint(Enum):
@@ -154,6 +153,9 @@ class MovementController(Node):
         self.keyboard_input = KeyboardInput(self)
         if self.use_simulator:
             self.keyboard_input.start_keyboard_listener()
+        
+        if not self.use_simulator:
+            pass  
 
         self.init_lat_lon = False
         self.current_lat = 0.0
@@ -163,6 +165,7 @@ class MovementController(Node):
 
         self.manual_yaw_effort = 0.0
         self.manual_speed_effort = 0.0
+        self.dsc = 0.0
 
         self.PWM_LOW = 1000
         self.PWM_MID = 1500
@@ -217,8 +220,12 @@ class MovementController(Node):
         self.pixhawk_sub = Topic.pixhawk.createSubscriber(self, self._pixhawk_callback)
         self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
 
+        # self.rc1_sub = Topic.rc1.createSubscriber(self, self._rc1_callback) # yaw from pixhawk
+        # self.rc3_sub = Topic.rc3.createSubscriber(self, self._rc3_callback) # speed from pixhawk
+
         self.rc5_sub = Topic.rc5.createSubscriber(self, self._rc5_callback)  # for docking + recording toggle
         self.rc6_sub = Topic.rc6.createSubscriber(self, self._rc6_callback)  # for other GCS actions
+        self.dsc_sub = Topic.dsc.createSubscriber(self, self._dsc_callback)
 
         self.manual_yaw_sub = Topic.manual_yaw.createSubscriber(self, self._manual_yaw_callback)
         self.manual_speed_sub = Topic.manual_speed.createSubscriber(self, self._manual_speed_callback)
@@ -233,6 +240,12 @@ class MovementController(Node):
     # ------------------------
     # Callbacks
     # ------------------------
+
+    def _dsc_callback(self, msg: Float64):
+        """Update DSC value from Pixhawk"""
+        self.dsc = msg.data
+        self.get_logger().info(f"Received DSC: {self.dsc}")
+
     def _pixhawk_callback(self, msg: Pixhawk):
         """Update current position and heading from Pixhawk"""
         self.current_lat = msg.lat
@@ -504,16 +517,12 @@ class MovementController(Node):
             # Decide which efforts to publish. Priority (highest -> lowest):
             # RETURNING_TO_START / PLAYING_BACK / DOCKING override manual keyboard
 
-            if self.rc5_state == 'MID':
-                # Use DSC if available
-                if hasattr(self.docking_controller, "dsc") and self.docking_controller.dsc != 0.0:
-                    yaw_effort = self.docking_controller.dsc
-                    speed_effort = getattr(self, "keyboard_speed_effort", 0.0) + self.manual_speed_effort
-                else:
-                    yaw_effort = getattr(self, "keyboard_yaw_effort", 0.0) + self.manual_yaw_effort
-                    speed_effort = getattr(self, "keyboard_speed_effort", 0.0) + self.manual_speed_effort
-            elif self.recording_state == RecordingState.RETURNING_TO_START or \
-                 self.recording_state == RecordingState.PLAYING_BACK:
+            if self.dsc != 0.0:
+                yaw_effort = self.dsc
+                speed_effort = 150.0  # default speed when using DSC
+            if self.recording_state == RecordingState.RETURNING_TO_START or \
+            self.recording_state == RecordingState.PLAYING_BACK:
+                
                 yaw_effort = self.manual_yaw_effort
                 speed_effort = self.manual_speed_effort
             elif self.rc5_state == 'HIGH':
@@ -535,7 +544,6 @@ class MovementController(Node):
             self.speed_effort_pub.publish(self.speed_msg)
             self.error_pub.publish(Float64(data=self.docking_controller.get_current_error()))
             
-            self
 
         except Exception as e:
             self.get_logger().error(f"Error in control loop: {traceback.format_exc()}")

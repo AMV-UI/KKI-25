@@ -40,7 +40,7 @@ CYAN = (0, 255, 255)
 MAX_SPEED_EFFORT = 300.0
 MAX_YAW_EFFORT = 300.0
 SPEED_TO_VELOCITY = 0.005
-YAW_TO_ANGULAR = 0.0001
+YAW_TO_ANGULAR = 0.00005
 PIXELS_TO_METERS = 1.0 / 30.0  # 30 pixels per meter
 METERS_TO_LATLON = 0.00001
 
@@ -542,25 +542,8 @@ class MovementSimulatorNode(Node):
     def compute_dsc(self):
         """Compute DSC (yaw effort to keep heading between 2 nearest buoys in FOV)."""
         visible_buoys = self.buoys_in_camera_view()
-        if len(visible_buoys) == 0:
-            return 0.0
-
-        # Determine Arena (A is left, B is right)
-        # Split point is roughly the gap between lanes
-        split_x = LANE_MARGIN_X + LANE_WIDTH + GAP_BETWEEN_LANES / 2
-        arena = "A" if self.vehicle.x < split_x else "B"
-        pid_adjust = 200.0
-
-        if len(visible_buoys) == 1:
-            b = visible_buoys[0][0]  # The buoy dict
-            color = b['color']  # 'red' or 'green'
-            
-            if color == 'green':
-                 # Green: A -> Left (-), B -> Right (+)
-                 return -pid_adjust if arena == "A" else pid_adjust
-            elif color == 'red':
-                 # Red: A -> Right (+), B -> Left (-)
-                 return pid_adjust if arena == "A" else -pid_adjust
+        if len(visible_buoys) < 2:
+            return 0.0  # Not enough buoys to compute a corridor
 
         # Find the two buoys closest to the heading direction (smallest |rel_angle|)
         visible_buoys.sort(key=lambda b: abs(b[2]))
@@ -578,7 +561,8 @@ class MovementSimulatorNode(Node):
         err = (desired_heading - self.vehicle.heading + math.pi*3) % (2*math.pi) - math.pi
         # Convert to DSC effort in range [-300, 300]
         dsc = max(-300, min(300, err / math.radians(60) * 300))
-        return dsc
+        dsc = -dsc
+        return 0.0 if abs(dsc) < 1e-8 else dsc
 
     def process_logic(self, dt):
         # check file changes
