@@ -503,19 +503,25 @@ class MovementController(Node):
 
             # Decide which efforts to publish. Priority (highest -> lowest):
             # RETURNING_TO_START / PLAYING_BACK / DOCKING override manual keyboard
-            if self.recording_state == RecordingState.RETURNING_TO_START or \
-               self.recording_state == RecordingState.PLAYING_BACK:
+
+            if self.rc5_state == 'MID':
+                # Use DSC if available
+                if hasattr(self.docking_controller, "dsc") and self.docking_controller.dsc != 0.0:
+                    yaw_effort = self.docking_controller.dsc
+                    speed_effort = getattr(self, "keyboard_speed_effort", 0.0) + self.manual_speed_effort
+                else:
+                    yaw_effort = getattr(self, "keyboard_yaw_effort", 0.0) + self.manual_yaw_effort
+                    speed_effort = getattr(self, "keyboard_speed_effort", 0.0) + self.manual_speed_effort
+            elif self.recording_state == RecordingState.RETURNING_TO_START or \
+                 self.recording_state == RecordingState.PLAYING_BACK:
                 yaw_effort = self.manual_yaw_effort
                 speed_effort = self.manual_speed_effort
             elif self.rc5_state == 'HIGH':
-                # docking mode enforced by update_docking setting manual_* already
                 yaw_effort = self.manual_yaw_effort
                 speed_effort = self.manual_speed_effort
             else:
-                # use keyboard or external manual topics
-                # combine keyboard simulated inputs with external manual inputs
-                yaw_effort = getattr(self, "keyboard_yaw_effort") + self.manual_yaw_effort
-                speed_effort = getattr(self, "keyboard_speed_effort") + self.manual_speed_effort
+                yaw_effort = getattr(self, "keyboard_yaw_effort", 0.0) + self.manual_yaw_effort
+                speed_effort = getattr(self, "keyboard_speed_effort", 0.0) + self.manual_speed_effort
 
             # clamp efforts
             yaw_effort = max(self.MIN_PWM, min(self.MAX_PWM, yaw_effort))
