@@ -12,7 +12,7 @@ def generate_launch_description():
         "core",
         # "core_perception",
         "core_gcs",
-        # "core_control",
+        "core_control",
         # "core_behavior_tree"
     ]
 
