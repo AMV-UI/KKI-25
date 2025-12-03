@@ -53,7 +53,12 @@ class DockingController:
         self.dsc = 0.0
         
         self.rc6_pub = Topic.rc6.createPublisher(Node("docking_controller_node"))
+        self.rc6_sub = Topic.rc6.createSubscriber(Node("docking_controller_node"), self._rc6_callback)
         self.dsc_sub = Topic.dsc.createSubscriber(Node("docking_controller_node"), self._dsc_callback)
+
+    def _rc6_callback(self, msg):
+        """Callback to update RC6 value from incoming messages."""
+        self.rc6 = float(msg.data)
 
     def _dsc_callback(self, msg):
         """Callback to update DSC value from incoming messages."""
@@ -327,10 +332,8 @@ class DockingController:
         if speed_effort > 0 and speed_effort < self.min_speed:
             speed_effort = self.min_speed
 
-        if self.is_recording:
-            self.record_movement(yaw_effort, speed_effort, dt)
         if self.is_recording_lat_lon:
-            self.record_lat_lon(current_lat, current_lon, dt)
+            self.record_lat_lon(current_lat, current_lon, dt, self.rc6)
 
         return yaw_effort, speed_effort, False
 
@@ -362,6 +365,15 @@ class DockingController:
         
         distance = R * c
         return distance
+    
+    def get_lat_lon_duration(self):
+        """
+        Get the duration of latitude and longitude recording.
+        
+        Returns:
+        float: Duration of recording in seconds
+        """
+        return self.accumulated_dt
     
     def get_heading_error(self):
         """

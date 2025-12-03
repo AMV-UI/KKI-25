@@ -7,7 +7,6 @@ import numpy as np
 import base64
 import time
 from datetime import datetime
-from core.perception.image.inference import ObjectDetector
 from core_msgs.msg import StateObject, AutoControl
 from core.utils.config import NodeConfig, Topic, MissionStatus
 from core.utils.device_fetching import *
@@ -27,27 +26,26 @@ class CameraController(Node):
         super().__init__("front_camera")
 
         self.arena = "B"
+        self.simulation = True
 
-        self.up_camera_serial_idx = get_webcam_device_idx('046d_C270_HD_WEBCAM_E0198440')
-        self.down_camera_serial_idx = get_webcam_device_idx('Generic_HD_camera_20201212000000')
+        if self.simulation:
+            self.up_camera_serial_idx = "/mnt/d/playground/KKI-25/test_script/lain.mp4"
+            self.down_camera_serial_idx = "/mnt/d/playground/KKI-25/test_script/lain.mp4"
+        else:
+            from core.perception.image.inference import ObjectDetector
+            self.up_camera_serial_idx = get_webcam_device_idx('046d_C270_HD_WEBCAM_E0198440')
+            self.down_camera_serial_idx = get_webcam_device_idx('Generic_HD_camera_20201212000000')
 
-        self.buoy_detector = ObjectDetector(
-            "/home/amv/models/KKI-25/buoy_v1.engine",
-            self,
-            [
-                "green_buoy",
-                "red_buoy",
-            ],
-        )
 
-        self.box_detector = ObjectDetector(
-            "/home/amv/models/KKI-25/box_v1.engine",
-            self,
-            [
-                "blueBox",
-                "greenBox",
-            ],
-        )
+            self.buoy_detector = ObjectDetector(
+                "/home/amv/models/KKI-25/buoy_v1.engine",
+                self,
+                [
+                    "green_buoy",
+                    "red_buoy",
+                ],
+            )
+
 
         self.up_cap = cv2.VideoCapture(self.up_camera_serial_idx)
         self.up_cap.set(1, 30)  # Set FPS
@@ -65,8 +63,7 @@ class CameraController(Node):
         self.state = [0, 0, 0, 0]
         self.img = None
         self.img_64 = ""
-        self.mission_type = MissionStatus.BUOY
-        self.show_result = True
+        self.show_result = False
         self.detected = False
         self.fps = 30
 
@@ -185,49 +182,39 @@ class CameraController(Node):
             if not success:
                 return
 
-            if self.mission_type == MissionStatus.BUOY:
-                self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
+            if self.simulation:
+                self.img = img
+                self.dsc = 0.0
+                self.detected = False
             else:
-                self.get_logger().info(f"Masuk sini", throttle_duration_sec=1.0)
-                self.img, self.dsc, self.detected = self.box_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
-            self.get_logger().info(f"Test: {self.mission_type}", throttle_duration_sec=1.0)
+                self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
 
             if self.img is None:
                 self.get_logger().warn("Failed to get frame", throttle_duration_sec=5.0)
                 return
 
-            # Visualize if enabled
             if self.show_result:
                 exit_status = self.visualize()
                 if exit_status:
                     rclpy.shutdown()
                     return
-
-            dsc_msg = Float64()
-            dsc_msg.data = float(self.dsc)
-            self.dsc_pub.publish(dsc_msg)
             
-            detected_msg = Bool()
-            detected_msg.data = self.detected
-            self.detected_pub.publish(detected_msg)
+            if not self.simulation:
+                dsc_msg = Float64()
+                dsc_msg.data = float(self.dsc)
+                self.dsc_pub.publish(dsc_msg)
+            
+                detected_msg = Bool()
+                detected_msg.data = self.detected
+                self.detected_pub.publish(detected_msg)
 
-            self.get_logger().info(
-                f"DSC: {self.dsc:.2f}, Detected: {self.detected}",
-                throttle_duration_sec=2.0
-            )
-
-            # Passing image data
-            top_camera = self.encode_base64(self.img)
-            self.camera_processed_pub.publish(top_camera)
-
-            if(self.mission_type == MissionStatus.GREEN_BOX and self.detected):
-                self.green_box_pub.publish(top_camera)
-
-            if(self.mission_type == MissionStatus.BLUE_BOX and self.detected):
-                # self.under = self.down_cap.read()[1]
-                # under_camera = self.encode_base64(self.under)
-                # self.blue_box_pub.publish(under_camera)
-                self.blue_box_pub.publish(top_camera)
+                self.get_logger().info(
+                    f"DSC: {self.dsc:.2f}, Detected: {self.detected}",
+                    throttle_duration_sec=2.0
+                )
+            
+            self.camera_processed_pub.publish(self.encode_base64(self.img))
+            self.get_logger().info("Published processed camera frame", throttle_duration_sec=2.0)
 
         except Exception as e:
             self.get_logger().error(f"Error in process_frame: {traceback.format_exc()}")

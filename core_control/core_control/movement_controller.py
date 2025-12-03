@@ -108,22 +108,22 @@ class KeyboardInput:
             return
 
         if key == 'w':
-            self.manual_speed_effort = 300.0  # Forward
+            self.manual_speed_effort = 200.0  # Forwards
             self.manual_yaw_effort = 0.0
             self.node.get_logger().info("Forward")
 
         elif key == 's':
-            self.manual_speed_effort = -300.0  # Backward
+            self.manual_speed_effort = -200.0  # Backward
             self.manual_yaw_effort = 0.0
             self.node.get_logger().info("Backward")
 
         elif key == 'a':
-            self.manual_yaw_effort = -300.0  # Turn left
+            self.manual_yaw_effort = -200.0  # Turn left
             self.manual_speed_effort = 0.0
             self.node.get_logger().info("Turn Left")
 
         elif key == 'd':
-            self.manual_yaw_effort = 300.0  # Turn right
+            self.manual_yaw_effort = 200.0  # Turn right
             self.manual_speed_effort = 0.0
             self.node.get_logger().info("Turn Right")
 
@@ -214,7 +214,6 @@ class MovementController(Node):
 
     def _setup_communication(self):
         """Initialize ROS2 pubs/subs"""
-        # Subscribers
         self.pixhawk_sub = Topic.pixhawk.createSubscriber(self, self._pixhawk_callback)
         self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
 
@@ -224,12 +223,6 @@ class MovementController(Node):
         self.manual_yaw_sub = Topic.manual_yaw.createSubscriber(self, self._manual_yaw_callback)
         self.manual_speed_sub = Topic.manual_speed.createSubscriber(self, self._manual_speed_callback)
 
-        self.kp_sub = Topic.kp.createSubscriber(self, self._kp_callback)
-        self.ki_sub = Topic.ki.createSubscriber(self, self._ki_callback)
-        self.kd_sub = Topic.kd.createSubscriber(self, self._kd_callback)
-
-
-        # Publishers
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self)
         self.error_pub = Topic.error.createPublisher(self)
@@ -418,7 +411,7 @@ class MovementController(Node):
             return
 
         # use current waypoint as target
-        target_lat, target_lon, _ = recorded[self.playback_index]
+        target_lat, target_lon, _ , _ = recorded[self.playback_index]
         # only set docking target if changed (to avoid resetting PID unnecessarily)
         if (self.docking_controller.target_lat != target_lat or
                 self.docking_controller.target_lon != target_lon):
@@ -520,9 +513,9 @@ class MovementController(Node):
                 speed_effort = self.manual_speed_effort
             else:
                 # use keyboard or external manual topics
-                # prefer keyboard simulated inputs if enabled and not overridden
-                yaw_effort = getattr(self, "keyboard_yaw_effort", self.manual_yaw_effort)
-                speed_effort = getattr(self, "keyboard_speed_effort", self.manual_speed_effort)
+                # combine keyboard simulated inputs with external manual inputs
+                yaw_effort = getattr(self, "keyboard_yaw_effort") + self.manual_yaw_effort
+                speed_effort = getattr(self, "keyboard_speed_effort") + self.manual_speed_effort
 
             # clamp efforts
             yaw_effort = max(self.MIN_PWM, min(self.MAX_PWM, yaw_effort))
