@@ -3,6 +3,5 @@
 tmux new-session -d "ros2 run core_control movement_controller"
 tmux split-window -v "ros2 run core_control movement_simulator"
 tmux split-window -h "ros2 run core_control channel_simulator"
-tmux split-window -h "ros2 run core_perception camera_controller"
 
 tmux -2 attach-session -d
