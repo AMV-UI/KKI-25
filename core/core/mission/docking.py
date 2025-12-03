@@ -508,3 +508,76 @@ class DockingController:
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
         
         return R * c
+
+    def get_initial_position(self):
+        """
+        Get the initial position when recording started.
+        
+        Returns:
+        tuple: (lat, lon, heading_deg) or None if no recording has been made
+               heading_deg is in Pixhawk convention (0=North, clockwise)
+        """
+        return self.initial_position
+    
+    def get_recorded_movements(self):
+        """
+        Get the list of recorded movements.
+        
+        Returns:
+        list: List of (yaw_effort, speed_effort, dt) tuples
+        """
+        return self.recorded_movements.copy()
+
+    def get_recorded_lat_lon(self):
+        """
+        Get the list of recorded latitude and longitude.
+        
+        Returns:
+        list: List of (lat, lon, dt) tuples
+        """
+        return self.recorded_lat_lon.copy()
+    
+    def has_recording(self):
+        """
+        Check if there is a recorded movement sequence.
+        
+        Returns:
+        bool: True if movements have been recorded
+        """
+        return len(self.recorded_movements) > 0
+    
+    def has_lat_lon(self):
+        """
+        Check if there is a recorded latitude and longitude sequence.
+        
+        Returns:
+        bool: True if latitude and longitude have been recorded
+        """
+        return len(self.recorded_lat_lon) > 0
+    
+    def clear_recording(self):
+        """Clear the recorded movements."""
+        self.recorded_movements = []
+        self.recorded_lat_lon = []
+        self.initial_position = None
+        self.recording_start_time = 0.0
+        self.is_recording = False
+        self.is_recording_lat_lon = False
+    
+    def get_recording_duration(self):
+        """
+        Get the total duration of the recorded movement.
+        
+        Returns:
+        float: Total duration in seconds
+        """
+        return sum(frame[2] for frame in self.recorded_movements)
+
+    def get_lat_lon_duration(self):
+        """
+        Get the total duration of the recorded latitude and longitude.
+        
+        Returns:
+        float: Total duration in seconds
+        """
+        return sum(frame[2] for frame in self.recorded_lat_lon)
