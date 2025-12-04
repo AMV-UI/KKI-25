@@ -7,17 +7,12 @@ from std_msgs.msg import String, UInt8
 from core.utils.config import Topic, PxMode, Param
 from core_msgs.msg import Pixhawk
 
-
-
-LAPTOP_URI = "ws://10.26.180.133:8000/ws"
-
 class Gcs(Node):
     def __init__(self, loop, node = Node):
         super().__init__('Gcs')
         self.node = node
         self.loop = loop 
-        self.ws_connection = None   
-        self.loop.create_task(self.connect_to_server())
+        self.websocket_clients = set()
 
         self.lon_history = []
         self.lat_history = []
@@ -64,33 +59,6 @@ class Gcs(Node):
             self,
             self.pxmode_callback
         )
-
-    async def connect_to_server(self):
-        while rclpy.ok():
-            try:
-                self.get_logger().info(f"Trying to Connect {LAPTOP_URI}...")
-                
-                # Tambahkan timeout agar tidak hang jika jaringan putus nyambung
-                async with websockets.connect(LAPTOP_URI, ping_interval=None) as websocket:
-                    self.ws_connection = websocket
-                    self.get_logger().info("Connected to Laptop GCS via Tailscale!")
-                    
-                    # Block disini sampai koneksi putus
-                    await websocket.wait_closed()
-                    
-                self.get_logger().warn("Connection closed by server.")
-                
-            except ConnectionRefusedError:
-                self.get_logger().error(f"Connection Refused: Server at {LAPTOP_URI} is likely DOWN or BLOCKED.")
-            except TimeoutError:
-                self.get_logger().error(f"Connection Timed Out: Check Tailscale connection.")
-            except Exception as e:
-                self.get_logger().error(f"Failed to Connect: {e}")
-            
-            # Reset dan tunggu sebelum reconnect
-            self.ws_connection = None
-            self.get_logger().info("Reconnecting in 3 seconds...")
-            await asyncio.sleep(3)
 
     def pwm_callback(self, msg: String):
         self.speed = msg.channels[2]
@@ -150,11 +118,28 @@ class Gcs(Node):
         )
     
     async def broadcast_message(self, message):
-        if self.ws_connection:
+        if not self.websocket_clients:
+            return
+        dead_clients = set()
+        for ws in self.websocket_clients:
             try:
-                await self.ws_connection.send(json.dumps({"data": message}))
-            except Exception as e:
-                self.get_logger().warn(f"Failed sending data: {e}")
+                await ws.send(json.dumps({"data": message}))
+            except Exception:
+                dead_clients.add(ws)
+        self.websocket_clients -= dead_clients
+
+async def websocket_handler(websocket, path, node):
+    node.websocket_clients.add(websocket)
+    node.get_logger().info("WebSocket client connected")
+    try:
+        # Iterate all websocket connection and keep all client listening
+        async for _ in websocket:
+            pass
+    except websockets.ConnectionClosed:
+        pass
+    finally:
+        node.websocket_clients.remove(websocket)
+        node.get_logger().info("WebSocket client disconnected")
 
 async def main_async():
     rclpy.init()
@@ -163,22 +148,26 @@ async def main_async():
 
     gcs = Gcs(loop, node)
 
-    
+    ws_server = await websockets.serve(
+        lambda ws, path: websocket_handler(ws, path, gcs),
+        host='0.0.0.0',
+        port=8000
+    )
+    gcs.get_logger().info("WebSocket server started at ws://0.0.0.0:8000")
+
     # Vibe coding research later
     executor = rclpy.executors.MultiThreadedExecutor()
     executor.add_node(gcs)
 
-    import threading
-    spin_thread = threading.Thread(target=executor.spin, daemon=True)
-    spin_thread.start()
+    loop.run_in_executor(None, executor.spin)
     try:
-        while rclpy.ok():
-            await asyncio.sleep(1)
+        await asyncio.Future() 
     finally:
         gcs.destroy_node()
         executor.shutdown()
         rclpy.shutdown()
-
+        ws_server.close()
+        await ws_server.wait_closed()
 
 def main():
     asyncio.run(main_async())
