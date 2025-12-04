@@ -1,4 +1,4 @@
-from math import radians, cos, sin, asin, sqrt, atan, degrees
+from math import radians, cos, sin, asin, sqrt, atan2, degrees
 
 # Anggap black box :0
 # https://stackoverflow.com/questions/4913349/haversine-formula-in-python-bearing-and-distance-between-two-gps-points
