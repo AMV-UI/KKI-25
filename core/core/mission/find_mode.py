@@ -1,12 +1,12 @@
 from core.utils.config import Direction, Param
 
 class FindMode:
-    def __init__(self, node, arena):
+    def __init__(self, node, arena, name):
         self.node = node
-        self.initial_heading = -1
+        self.initial_heading = 0
         self.current_heading = -1
 
-        self.threshold = 90
+        self.threshold = 45
 
         self.range_low = -1
         self.range_high = -1
@@ -14,12 +14,21 @@ class FindMode:
         self.arena = arena
         self.find_status = "Left" if self.arena == "A" else "Right"
 
-        self.GO_LEFT = -200  # STATE
-        self.GO_RIGHT = 200
+        self.GO_LEFT = (-1 if self.arena == "B" else 1)  
+        self.GO_RIGHT = (-1 if self.arena == "A" else 1)  
         self.dir_map = {
             "Right": self.GO_RIGHT,
             "Left": self.GO_LEFT,
         }
+
+        if("0" in name):
+            self.set_range(0)
+        elif("1" in name):
+            self.set_range(1)
+        elif("2" in name):
+            self.set_range(2)
+        elif("3" in name):
+            self.set_range(3)
 
     def set_initial_heading(self, heading):
         """Set the initial heading as reference point"""
@@ -61,5 +70,7 @@ class FindMode:
                 self.find_status = "Right"
             else:
                 self.find_status = "Left"
+
+        self.node.get_logger(self.f"range low {self.range_low}, range high {self.range_high}")
 
         return self.dir_map[self.find_status]

@@ -27,6 +27,7 @@ class Finding_Execution(BaseExecution):
         self.dsc = self.effort * (-1 if self.arena == "A" else 1)  #Reverse effort untuk mission 2
         self.mission = mission
         self.time_threshold = 0.2
+        self.initial_heading = 0
 
         self.px_heading = 0.0
         self.phase = "finding"        
@@ -35,7 +36,9 @@ class Finding_Execution(BaseExecution):
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
-        self.find_mode = FindMode(self.node, self.arena)
+        self.find_mode = FindMode(self.node, self.arena, self.name)
+        self.find_mode.set_initial_heading(self.initial_heading)
+
         self.frame_counter = FrameCounter(self.time_threshold)
 
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
@@ -43,6 +46,7 @@ class Finding_Execution(BaseExecution):
         
         self.mission_pub = Topic.mission.createPublisher(self.node)
 
+        self.initial_heading_sub = Topic.initial_heading.createSubscriber(self.node, self._initial_heading_cb)
         self.arena_sub = Topic.arena.createSubscriber(self.node, self._arena_cb)
         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
         self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
@@ -57,7 +61,10 @@ class Finding_Execution(BaseExecution):
             self.node,
             self._speed_cb
         )
-        
+
+    def _initial_heading_cb(self, msg: Float64):
+        self.initial_heading = msg.data
+
     def _speed_cb(self, msg: Float64):
         self.speed_effort = float(msg.data)
 
@@ -90,7 +97,8 @@ class Finding_Execution(BaseExecution):
         else:
             self.frame_counter.reset()
 
-        self.yaw_effort_pub.publish(Float64(data=float(self.effort * (1 if self.arena == "B" else -1))))
+        self.node.get_logger().info(f"[{self.name}] We are executing Finding... track: {self.arena}, {self.find_mode.get_state(self.px_heading), {self.px_heading}}", throttle_duration_sec=1.0)        
+        self.yaw_effort_pub.publish(Float64(data=float(self.effort * (1 if self.arena == "B" else -1) * self.find_mode.get_state(self.px_heading))))
         self.speed_effort_pub.publish(Float64(data=self.speed_effort))
         return Status.RUNNING
 

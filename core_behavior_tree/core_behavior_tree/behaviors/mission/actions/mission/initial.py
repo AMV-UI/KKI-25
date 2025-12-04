@@ -20,7 +20,7 @@ class Initial_Execution(BaseExecution):
         self.arena = "B"
         self.detected = False
         self.time_threshold = 0.2
-        self.target = 126
+        self.target = 0
         self.hold = False
 
         self.mission = mission
