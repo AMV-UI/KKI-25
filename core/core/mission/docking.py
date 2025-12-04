@@ -18,7 +18,7 @@ class DockingController:
         
         #initialize PID gains
         self.Kp_yaw = 250.0
-        self.Ki_yaw = 10.0
+        self.Ki_yaw = 20.0
         self.Kd_yaw = 0.0
         
         self.Kp_speed = 100.0  # Proportional gain for speed (distance-based)

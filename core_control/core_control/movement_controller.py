@@ -149,13 +149,11 @@ class MovementController(Node):
         self.pid_controller = PIDController(self.docking_controller.Kp_yaw, self.docking_controller.Ki_yaw, self.docking_controller.Kd_yaw)
         self.pid_controller._init_comms()
 
-        self.use_simulator = True
+        self.use_simulator = False
         self.keyboard_input = KeyboardInput(self)
         if self.use_simulator:
             self.keyboard_input.start_keyboard_listener()
         
-        if not self.use_simulator:
-            pass  
 
         self.init_lat_lon = False
         self.current_lat = 0.0
@@ -207,6 +205,7 @@ class MovementController(Node):
         # publishers/messages
         self.yaw_msg = Float64()
         self.speed_msg = Float64()
+        self.yaw_threshold = 20.0
 
         # setup communication
         self._setup_communication()
@@ -535,6 +534,14 @@ class MovementController(Node):
             # clamp efforts
             yaw_effort = max(self.MIN_PWM, min(self.MAX_PWM, yaw_effort))
             speed_effort = max(self.MIN_PWM, min(self.MAX_PWM, speed_effort))
+            
+            is_auto = (self.recording_state == RecordingState.RETURNING_TO_START or self.recording_state == RecordingState.PLAYING_BACK or self.rc5_state == 'HIGH')
+
+            if is_auto and speed_effort > 0:
+                if abs(yaw_effort) > self.yaw_threshold*2:
+                    speed_effort *= 6
+                elif abs(yaw_effort) > self.yaw_threshold:
+                    speed_effort *= 3
 
             # publish
             self.yaw_msg.data = float(yaw_effort)
