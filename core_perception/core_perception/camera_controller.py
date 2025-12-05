@@ -230,6 +230,7 @@ class CameraController(Node):
 
             # Passing image data
             top_camera = self.encode_base64(self.img)
+            bot_camera = self.encode_base64(self.down_cap.read()[1])
             self.camera_processed_pub.publish(top_camera)
 
             if(self.mission_type == MissionStatus.GREEN_BOX and self.detected):
@@ -239,7 +240,7 @@ class CameraController(Node):
                 # self.under = self.down_cap.read()[1]
                 # under_camera = self.encode_base64(self.under)
                 # self.blue_box_pub.publish(under_camera)
-                self.blue_box_pub.publish(top_camera)
+                self.blue_box_pub.publish(bot_camera)
 
         except Exception as e:
             self.get_logger().error(f"Error in process_frame: {traceback.format_exc()}")
