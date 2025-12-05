@@ -46,8 +46,7 @@ def calc_turn(target, heading):
     diff = (target - heading + 540) % 360 - 180
     return diff
 
-geodesic = Geod(ellps='WGS84')
-def find_deg(lat1, lon1, lat2, lon2, heading):
-    fwd_azimuth, _, _ = geodesic.inv(radians(lon1), radians(lat1), radians(lon2), radians(lat2))
+def find_deg(lat1, lon1, lat2, lon2, heading, geodesic):
+    fwd_azimuth, _, _ = geodesic.inv(lon1, lat1, lon2, lat2, radians=False)
     fwd_azimuth %= 360
     return (fwd_azimuth - heading + 180 ) % 360 - 180

@@ -1,4 +1,5 @@
 from ...mission_behaviors import BaseExecution, BaseFallback
+from pyproj import Geod
 from py_trees.common import Status
 from std_msgs.msg import Float64, UInt8
 from core.utils.config import Topic
@@ -36,6 +37,7 @@ class Docking_Execution(BaseExecution):
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
         self.pixhawk = Pixhawk()
+        self.geodesic = Geod(ellps='WGS84')
 
         self.docking_lat_sub = Topic.dock_lat.createSubscriber(self.node, self._docking_lat_cb)
         self.docking_lon_sub = Topic.dock_lon.createSubscriber(self.node, self._docking_lon_cb)
@@ -70,7 +72,7 @@ class Docking_Execution(BaseExecution):
             self.mission_pub.publish(UInt8(data=self.mission))
             return Status.SUCCESS
         
-        theta = find_deg(self.lat, self.lon, self.docking_lat, self.docking_lon, self.heading)         
+        theta = find_deg(self.lat, self.lon, self.docking_lat, self.docking_lon, self.heading, self.geodesic)         
         self.node.get_logger().info(f"[{self.name}] test: {theta}", throttle_duration_sec=1.0)
         self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
 
