@@ -13,7 +13,7 @@ class Photo_Execution(BaseExecution):
         super().__init__(name, node=node)
         self.node = node
         self.arena = "B"
-        self.time_threshold = 2.0
+        self.time_threshold = 1.0
         self.mission = mission
         self.mission_type = MissionStatus.BUOY
 

@@ -38,11 +38,11 @@ class MissionTreeBuilder:
 
     # Perception
     MISSIONS_CONFIG = [
-        # (Initial_Execution, Initial_Fallback, "Initial"),
-        # (Buoy_Execution, Buoy_Fallback, "Buoy"),
-        # (Finding_Execution, Finding_Fallback, "Finding"), 
-        # (Buoy_Execution, Buoy_Fallback, "Buoy"),
-        # (Finding_Execution, Finding_Fallback, "Finding"), 
+        (Initial_Execution, Initial_Fallback, "Initial"),
+        (Buoy_Execution, Buoy_Fallback, "Buoy"),
+        (Finding_Execution, Finding_Fallback, "Finding"), 
+        (Buoy_Execution, Buoy_Fallback, "Buoy"),
+        (Finding_Execution, Finding_Fallback, "Finding"), 
         (Reverse_Execution, Reverse_Fallback, "Reverse"),
         (Buoy_Execution, Buoy_Fallback, "Buoy"),
         (Reverse_Execution, Reverse_Fallback, "Reverse"),
@@ -52,11 +52,11 @@ class MissionTreeBuilder:
         (Unfinding_Execution, Unfinding_Fallback, "Unfinding GreenBox"), 
         (Box_Execution, Box_Fallback, "Change Mission to Blue Box"),
         (Finding_Execution, Finding_Fallback, "Finding Blue Box"), 
-        # (Photo_Execution, Photo_Fallback, "Photo Blue Box"), 
-        # (Box_Execution, Box_Fallback, "Change Mission to Docking"),
-        # (Pass_Execution, Pass_Fallback, "Pass Box"),
-        # (Docking_Execution, Docking_Fallback, "Docking"),
-        # (Done_Execution, Done_Fallback, "Done"),
+        (Photo_Execution, Photo_Fallback, "Photo Blue Box"), 
+        (Box_Execution, Box_Fallback, "Change Mission to Docking"),
+        (Pass_Execution, Pass_Fallback, "Pass Box"),
+        (Docking_Execution, Docking_Fallback, "Docking"),
+        (Done_Execution, Done_Fallback, "Done"),
     ]
 
     def __init__(self, ros_node):
