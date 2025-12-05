@@ -70,11 +70,20 @@ class Docking_Execution(BaseExecution):
             self.mission_pub.publish(UInt8(data=self.mission))
             return Status.SUCCESS
         
-        theta = find_deg(self.lat, self.lon, self.docking_lat, self.docking_lon, self.heading) 
-        
+        theta = find_deg(self.lat, self.lon, self.docking_lat, self.docking_lon, self.heading)         
         self.node.get_logger().info(f"[{self.name}] test: {theta}", throttle_duration_sec=1.0)
-        self.speed_effort_pub.publish(Float64(data=float(80 if theta < 10 else 0)))
-        self.yaw_effort_pub.publish(Float64(data=float((self.effort if theta > 10 else self.speed_effort) * (1 if theta > 0 else -1))))
+        self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
+
+        if theta > 90:
+            self.effort = 250
+        elif theta > 45:
+            self.effort = 200
+        elif theta > 10:
+            self.effort = 150
+        else:
+            self.effort = 120
+
+        self.yaw_effort_pub.publish(Float64(data=float((self.effort) * (1 if theta > 0 else -1))))
 
         return Status.RUNNING
 
