@@ -60,8 +60,8 @@ class CameraController(Node):
         self.down_cap.set(3, 640)  # Set width
         self.down_cap.set(4, 480)  # Set height
 
-        self.REC_UP_CAMERA = True
-        self.REC_DOWN_CAMERA = True
+        self.REC_UP_CAMERA = False
+        self.REC_DOWN_CAMERA = False
 
         if self.REC_UP_CAMERA:
             fps = 15
