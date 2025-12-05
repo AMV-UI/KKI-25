@@ -236,10 +236,10 @@ class CameraController(Node):
                 self.green_box_pub.publish(top_camera)
 
             if(self.mission_type == MissionStatus.BLUE_BOX and self.detected):
-                # self.under = self.down_cap.read()[1]
-                # under_camera = self.encode_base64(self.under)
-                # self.blue_box_pub.publish(under_camera)
-                self.blue_box_pub.publish(top_camera)
+                self.under = self.down_cap.read()[1]
+                under_camera = self.encode_base64(self.under)
+                self.blue_box_pub.publish(under_camera)
+                # self.blue_box_pub.publish(top_camera)
 
         except Exception as e:
             self.get_logger().error(f"Error in process_frame: {traceback.format_exc()}")
