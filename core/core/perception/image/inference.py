@@ -51,6 +51,16 @@ class ObjectDetector:
     def _arena_cb(self, msg: String):
         self.arena = str(msg.data)
 
+    def _is_blue_box(self, class_name):
+        """Check if class name represents a blue box"""
+        class_lower = class_name.lower()
+        return any(keyword in class_lower for keyword in ["blue", "biru"])
+
+    def _is_green_box(self, class_name):
+        """Check if class name represents a green box"""
+        class_lower = class_name.lower()
+        return any(keyword in class_lower for keyword in ["green", "hijau"]) and "red" not in class_lower
+
     def draw_detections(self, img, results):
         """Draw detection boxes and labels on frame"""
         for r in results:
@@ -65,7 +75,7 @@ class ObjectDetector:
                 class_name = self.class_names[class_id]
 
                 # Draw box and label
-                color = (0, 255, 0) if class_name == "greenBox" else (0, 0, 255)
+                color = (0, 255, 0) if self._is_green_box(class_name) else (0, 0, 255)
                 cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
                 label = f"{class_name} {conf:.2f}"
                 cv2.putText(
@@ -237,13 +247,15 @@ class ObjectDetector:
     
     def dock_detected(self, cls, img, x1, y1, x2, y2, confidence, area):
         green_box = self.green_box
-        blue_box = self.blue_box    
-        if (self.class_names[cls] == "greenBox"):
-            color = (0, 0, 255)
+        blue_box = self.blue_box
+        class_name = self.class_names[cls]
+        
+        if self._is_green_box(class_name):
+            color = (0, 255, 0)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             cv2.putText(
                 img,
-                self.class_names[cls] + " " + str(confidence),
+                class_name + " " + str(confidence),
                 (x1, y1),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1,
@@ -255,12 +267,12 @@ class ObjectDetector:
                 self.max_green_box = area
                 green_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
 
-        elif (self.class_names[cls] == "blueBox"):
-            color = (0, 255, 0)
+        elif self._is_blue_box(class_name):
+            color = (255, 0, 0)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             cv2.putText(
                 img,
-                self.class_names[cls] + " " + str(confidence),
+                class_name + " " + str(confidence),
                 (x1, y1),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1,
@@ -276,30 +288,34 @@ class ObjectDetector:
 
     def green_box_detected(self, cls, img, x1, y1, x2, y2, confidence):
         status = False
-        if self.class_names[cls] == "greenBox":
-            color = (0, 0, 255)
+        class_name = self.class_names[cls]
+        
+        if self._is_green_box(class_name):
+            color = (0, 255, 0)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             cv2.putText(
                 img,
-                self.class_names[cls] + " " + str(confidence),
+                class_name + " " + str(confidence),
                 (x1, y1),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1,
                 color,
                 2,
             )
-
             status = True
+            
         return img, status
 
     def blue_box_detected(self, cls, img, x1, y1, x2, y2, confidence):
         status = False
-        if self.class_names[cls] == "blueBox":
-            color = (0, 69, 0)
+        class_name = self.class_names[cls]
+        
+        if self._is_blue_box(class_name):
+            color = (255, 0, 0)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             cv2.putText(
                 img,
-                self.class_names[cls] + " " + str(confidence),
+                class_name + " " + str(confidence),
                 (x1, y1),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1,
@@ -307,6 +323,7 @@ class ObjectDetector:
                 2,
             )
             status = True
+            
         return img, status
 
     def run(self):

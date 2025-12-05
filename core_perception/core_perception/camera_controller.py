@@ -40,12 +40,30 @@ class CameraController(Node):
             ],
         )
 
+        # self.box_detector = ObjectDetector(
+        #     "/home/amv/models/KKI-25/box_v1.engine",
+        #     self,
+        #     [
+        #         "blueBox",
+        #         "greenBox",
+        #     ],
+        # )
         self.box_detector = ObjectDetector(
             "/home/amv/models/KKI-25/box_v1.engine",
             self,
             [
-                "blueBox",
-                "greenBox",
+                "Blue-Box",
+                "blue",
+                "blue_box",
+                "bluecube",
+                "box biru",
+                "box hijau",
+                "green",
+                "green cube",
+                "green_box",
+                "kotakbiru",
+                "kotakhijau",
+                "red cube"
             ],
         )
 
