@@ -12,9 +12,9 @@ from core.utils.config import Topic
 from core_msgs.msg import Pixhawk
 
 class ChannelState(Enum):
-    LOW = 983
-    MID = 1495
-    HIGH = 2006
+    LOW = 1
+    MID = 2
+    HIGH = 3
 
 class ChannelSimulator(Node):
     def __init__(self):
@@ -41,18 +41,6 @@ class ChannelSimulator(Node):
         self.get_logger().info('Press 5 to toggle RC5 (Docking), Press 6 to toggle RC6 (Recording)')
         self.get_logger().info('Press 8 to toggle RC8 (GPS Position), Press q to quit')
         self.print_status()
-        # MAGIC FIX, ADDING ANY DELAY CAUSES FIRST PLAYBACK LOOP TO BE SAFE 
-        self.timer = self.create_timer(0.1, self.timer_callback)
-        
-    def timer_callback(self):
-        """
-        This runs every 0.02 seconds (50Hz) to simulate continuous
-        Pixhawk data streaming.
-        """
-        if self.running:
-            # Force publish each frame to simulate actual pixhawk
-            self.rc5_pub.publish(Float64(data=float(self.rc5_state.value)))
-            self.rc6_pub.publish(Float64(data=float(self.rc6_state.value)))
 
     def publish_rc(self, pub, value):
         pub.publish(Float64(value))
@@ -65,7 +53,6 @@ class ChannelSimulator(Node):
             
             while self.running:
                 try:
-
                     # Read one character at a time (non-blocking with timeout)
                     key = sys.stdin.read(1)
                     
@@ -82,7 +69,6 @@ class ChannelSimulator(Node):
                         self.running = False
                         rclpy.shutdown()
                         break
-
                 except Exception as e:
                     if self.running:
                         self.get_logger().error(f'Input error: {e}')

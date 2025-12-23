@@ -26,7 +26,7 @@ class CameraController(Node):
         super().__init__("front_camera")
 
         self.arena = "B"
-        self.simulation = True
+        self.simulation = False
 
         if self.simulation:
             self.up_camera_serial_idx = "/mnt/d/playground/KKI-25/test_script/lain.mp4"

@@ -17,8 +17,8 @@ class DockingController:
         self.target_lon = target_lon
         
         #initialize PID gains
-        self.Kp_yaw = 90.0
-        self.Ki_yaw = 0.0
+        self.Kp_yaw = 250.0
+        self.Ki_yaw = 20.0
         self.Kd_yaw = 0.0
         
         self.Kp_speed = 100.0  # Proportional gain for speed (distance-based)
@@ -46,7 +46,7 @@ class DockingController:
         self.initial_position = None  # (lat, lon, heading) when recording starts
         self.recording_start_time = 0.0
 
-        self.waypoint_threshold = 0.2  # meters - minimum distance between recorded points
+        self.waypoint_threshold = 2.0  # meters - minimum distance between recorded points
         self.accumulated_dt = 0.0
 
         self.rc6 = 0.0
@@ -265,8 +265,8 @@ class DockingController:
 
         # Example: Increase Kp and Kd with error, keep Ki constant
         kp = base_kp + 40.0 * abs(error)    # scale as needed
-        ki = base_ki
-        kd = base_kd + 5.0 * abs(error)     # scale as needed
+        ki = base_ki * abs(error)
+        kd = base_kd
 
         return kp, ki, kd
 

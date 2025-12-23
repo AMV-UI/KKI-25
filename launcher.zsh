@@ -16,4 +16,3 @@ fi
 
 echo "[INFO] Launching core_launcher/launcher.py..."
 exec ros2 launch core_launcher launcher.py
-

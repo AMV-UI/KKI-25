@@ -173,18 +173,7 @@ class PixhawkController(Node):
             *rc_channel_values,
         )
 
-        
-    def timer_callback(self):
-        """
-        This runs every 0.1 seconds (50Hz) to bandaid fix replay loop
-        """
-        self.rc5_pub.publish(Float64(data=float(self.rc5_state.value)))
-        self.rc6_pub.publish(Float64(data=float(self.rc6_state.value)))
-
-
     def main(self):
-        # DELAYS TO MAKE RYAN WAYPOINT CODE WORK
-        self.timer = self.create_timer(0.1, self.timer_callback)
         while rclpy.ok():
             rclpy.spin_once(self, timeout_sec=0.01)
             
