@@ -12,8 +12,8 @@ def generate_launch_description():
         "core",
         "core_perception",
         "core_gcs",
-        "core_control",
-        # "core_behavior_tree"
+        # "core_control",
+        "core_behavior_tree"
     ]
 
     packages_to_launch = []
