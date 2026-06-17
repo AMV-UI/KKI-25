@@ -90,8 +90,13 @@ class Finding_Execution(BaseExecution):
         else:
             self.frame_counter.reset()
 
-        self.yaw_effort_pub.publish(Float64(data=float(self.effort * (1 if self.arena == "B" else -1))))
-        self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+        # Reverse yaw effort to counter Turn_Next_Buoy overshoot
+        # Arena A: Turn Right (Positive), Arena B: Turn Left (Negative)
+        yaw_val = float(self.effort * (-1 if self.arena == "B" else 1))
+        self.yaw_effort_pub.publish(Float64(data=yaw_val))
+        
+        # Zero speed effort during finding phase, just yaw
+        self.speed_effort_pub.publish(Float64(data=0.0))
         return Status.RUNNING
 
 class Finding_Fallback(BaseFallback):

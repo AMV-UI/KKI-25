@@ -13,7 +13,7 @@ class ParameterBlackboard(Node):
 
         self.node = node
 
-        self.arena = "B"
+        self.arena = "A"
         self.st_speed = 1.0
         self.tn_speed = 1.0
         self.dock_lat = 0.0
@@ -25,10 +25,17 @@ class ParameterBlackboard(Node):
     def setup(self):
         # Important: delete === gay
         # sleep(5.0)# Wait for other nodes to be ready
-        self.arena_pub = Topic.arena.createPublisher(self.node).publish(String(data=self.arena))
-        self.st_speed_pub = Topic.st_speed.createPublisher(self.node).publish(Float64(data=self.st_speed))
-        self.tn_speed_pub = Topic.tn_speed.createPublisher(self.node).publish(Float64(data=self.tn_speed))
-        self.mission_type_pub = Topic.mission_type.createPublisher(self.node).publish(String(data=self.mission_type))
+        # Create publishers and retain references so they aren't garbage collected
+        self.arena_pub = Topic.arena.createPublisher(self.node)
+        self.st_speed_pub = Topic.st_speed.createPublisher(self.node)
+        self.tn_speed_pub = Topic.tn_speed.createPublisher(self.node)
+        self.mission_type_pub = Topic.mission_type.createPublisher(self.node)
+        
+        # Now publish
+        self.arena_pub.publish(String(data=self.arena))
+        self.st_speed_pub.publish(Float64(data=self.st_speed))
+        self.tn_speed_pub.publish(Float64(data=self.tn_speed))
+        self.mission_type_pub.publish(String(data=self.mission_type))
         
         self.node.get_logger().info(f'<> [ParameterBlackboard] Published initial parameters {self.arena}, {self.st_speed}, {self.tn_speed}, {self.dock_lat}, {self.dock_lon}, {self.mission_type}')
 

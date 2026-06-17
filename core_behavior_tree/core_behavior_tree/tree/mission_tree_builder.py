@@ -21,6 +21,8 @@ from ..behaviors.mission.actions.mission.idle import *
 
 from ..behaviors.base_behavior import BaseBehavior
 
+from ..behaviors.mission.actions.mission.turn_next_buoy import *
+
 class MissionTreeBuilder:
     """Builder class responsible for constructing the behavior tree"""
     # Hard Code Config
@@ -43,9 +45,8 @@ class MissionTreeBuilder:
         # (Finding_Execution, Finding_Fallback, "Finding"), 
         # (Buoy_Execution, Buoy_Fallback, "Buoy"),
         # (Finding_Execution, Finding_Fallback, "Finding"), 
-        (Reverse_Execution, Reverse_Fallback, "Reverse"),
         (Buoy_Execution, Buoy_Fallback, "Buoy"),
-        (Reverse_Execution, Reverse_Fallback, "Reverse"),
+        (Turn_Next_Buoy_Execution, Turn_Next_Buoy_Fallback, "Turn Next Buoy"),
         (Box_Execution, Box_Fallback, "Change Mission to Green Box"),
         (Finding_Execution, Finding_Fallback, "Finding Green Box"), 
         (Photo_Execution, Photo_Fallback, "Photo Green Box"), 

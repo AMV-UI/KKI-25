@@ -78,6 +78,7 @@ class Topic:
     # Inference
     dsc = TopicFactory("/core/vision/image/dsc", Float64)
     detected = TopicFactory("/core/vision/image/detected", Bool)
+    gate_passed = TopicFactory("/core/vision/gate_passed", Bool)
 
     heading_deg = TopicFactory("/core/heading_deg", Float64)
     initial_heading = TopicFactory("/core/initial/heading", Float64) 

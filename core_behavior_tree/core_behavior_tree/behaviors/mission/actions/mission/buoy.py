@@ -21,10 +21,11 @@ class Buoy_Execution(BaseExecution):
         self.frame_counter = None
         self.detected = True
         self.dsc = 0.0
-        self.speed_effort = 120.0
+        self.speed_effort = 200.0
         self.arena = "B"
-        self.time_threshold = 10.0 
+        self.time_threshold = 5.0  # 5 seconds without seeing buoy = mission complete
         self.mission = mission
+        self.has_seen_buoy = False
         
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
@@ -50,7 +51,13 @@ class Buoy_Execution(BaseExecution):
             self.node,
             self._speed_cb
         )
-    
+
+    def initialise(self) -> None:
+        self.has_seen_buoy = False
+        if self.frame_counter:
+            self.frame_counter.reset()
+        self.node.get_logger().info(f"[{self.name}] Initializing Buoy Execution")
+
     def _speed_cb(self, msg: Float64):
         self.speed_effort = float(msg.data)
 
@@ -67,17 +74,28 @@ class Buoy_Execution(BaseExecution):
         self.node.get_logger().info(f"[{self.name}] track {self.arena}", throttle_duration_sec=1.0)
 
         if not self.detected:
-            self.frame_counter.is_started() 
-            self.counter = time.time()
-            if self.frame_counter.is_enough():
-                self.frame_counter.reset()
-                self.node.get_logger().info(f"[{self.name}] Condition Succeeded from EXECUTION -> Mission COMPLETE")
-                self.mission_pub.publish(UInt8(data=self.mission))
-                return Status.SUCCESS
+            if self.has_seen_buoy:
+                self.frame_counter.is_started() 
+                if self.frame_counter.is_enough():
+                    self.frame_counter.reset()
+                    self.node.get_logger().info(f"[{self.name}] Target lost for {self.time_threshold}s -> Mission COMPLETE")
+                    self.mission_pub.publish(UInt8(data=self.mission))
+                    return Status.SUCCESS
 
-            self.node.get_logger().info(f"[{self.name}] Condition failed through", throttle_duration_sec=2.0)
+                self.node.get_logger().info(f"[{self.name}] Target lost briefly, waiting...", throttle_duration_sec=2.0)
+                # Keep moving forward slowly while temporarily lost
+                self.yaw_effort_pub.publish(Float64(data=0.0))
+                self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+            else:
+                self.node.get_logger().info(f"[{self.name}] Waiting for first buoy detection...", throttle_duration_sec=2.0)
+                # Keep moving forward to find it
+                self.yaw_effort_pub.publish(Float64(data=0.0))
+                self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+            
             return Status.RUNNING
 
+        # If detected
+        self.has_seen_buoy = True
         self.frame_counter.reset()
 
         self.yaw_effort_pub.publish(Float64(data=self.dsc))
