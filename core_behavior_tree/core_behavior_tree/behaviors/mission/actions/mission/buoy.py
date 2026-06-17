@@ -23,7 +23,7 @@ class Buoy_Execution(BaseExecution):
         self.dsc = 0.0
         self.speed_effort = 120.0
         self.arena = "B"
-        self.time_threshold = 0.2    
+        self.time_threshold = 10.0 
         self.mission = mission
         
     def setup(self, **kwargs) -> None:

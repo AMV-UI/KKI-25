@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+
+from launch import LaunchDescription
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch_ros.actions import Node
+import os
+from ament_index_python.packages import get_package_share_directory
+
+def generate_launch_description():
+    target_packages = [
+        "core",
+        "core_perception",
+        "core_gcs",
+        "core_control",
+        "core_behavior_tree"
+    ]
+
+    packages_to_launch = []
+
+    for pkg in target_packages:
+        launch_filename = "launch_sim.py" if pkg in ["core_control", "core_perception"] else "launch.py"
+        launch_file = os.path.join(
+            get_package_share_directory(pkg),
+            "launch",
+            launch_filename
+        )
+        packages_to_launch.append(
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(launch_file)
+            )
+        )
+        
+    # Also launch stonefish simulator
+    stonefish_launch_file = os.path.join(
+        get_package_share_directory("stonefish_bluerov2"),
+        "launch",
+        "blueboat_sim.py"
+    )
+    packages_to_launch.append(
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(stonefish_launch_file)
+        )
+    )
+    
+    return LaunchDescription(packages_to_launch)

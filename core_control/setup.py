@@ -24,8 +24,11 @@ setup(
         'console_scripts': [
             'motor_controller = core_control.motor_controller:main',
             'pixhawk_controller = core_control.pixhawk_controller:main',
+            'pixhawk_controller_sim = core_control.pixhawk_controller_sim:main',
             'esp_controller = core_control.esp_controller:main',
+            'esp_controller_sim = core_control.esp_controller_sim:main',
             'pwm_controller = core_control.pwm_controller:main',
+            'pwm_controller_sim = core_control.pwm_controller_sim:main',
             'movement_controller = core_control.movement_controller:main',
             'channel_simulator = core_control.channel_simulator:main',
             'movement_simulator = core_control.movement_simulator:main',

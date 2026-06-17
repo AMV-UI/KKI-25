@@ -74,8 +74,13 @@ class ObjectDetector:
                 return img
 
     def process_frame(self, mission: MissionStatus, arena, img, cap, node):
-        width = cap.get(3) // 2  # float `width`
-        height = cap.get(4) // 2  # float `height`
+        if cap is not None:
+            width = cap.get(3) // 2  # float `width`
+            height = cap.get(4) // 2  # float `height`
+        else:
+            height, width = img.shape[:2]
+            width = width // 2
+            height = height // 2
 
         width = int(width)
         height = int(height)
@@ -114,6 +119,10 @@ class ObjectDetector:
 
                     color = (0, 0, 0)
                     area = abs((x2 - x1) * (y2 - y1))
+
+                    # Filter out small/far away objects
+                    if area < 600:
+                        continue
 
                     if mission == MissionStatus.BUOY:
                         img, self.red, self.green = self.buoy_detected(
