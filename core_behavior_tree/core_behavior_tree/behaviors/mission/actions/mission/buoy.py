@@ -21,7 +21,7 @@ class Buoy_Execution(BaseExecution):
         self.frame_counter = None
         self.detected = True
         self.dsc = 0.0
-        self.speed_effort = 200.0
+        self.speed_effort = 120.0
         self.arena = "B"
         self.time_threshold = 5.0  # 5 seconds without seeing buoy = mission complete
         self.mission = mission

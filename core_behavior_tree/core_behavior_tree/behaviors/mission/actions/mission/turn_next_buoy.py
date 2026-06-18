@@ -60,7 +60,7 @@ class Turn_Next_Buoy_Execution(BaseExecution):
                 return Status.SUCCESS
 
         # Simultaneous forward and turn
-        speed = 200.0
+        speed = 120.0
         
         # Turn Left for Track A (negative yaw effort), Turn Right for Track B (positive yaw effort)
         yaw = -200.0 if self.arena == "A" else 200.0
