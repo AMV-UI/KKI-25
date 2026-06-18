@@ -190,10 +190,11 @@ class CameraController(Node):
 
             if self.REC_UP_CAMERA:
                 self.up_vid_writer.write(img)
-            if self.REC_DOWN_CAMERA:
-                self.down_vid_writer.write(self.down_cap.read()[1])
             
-            # print("In your mom")
+            # Komen perekaman down camera karena sedang tidak dipakai
+            # if self.REC_DOWN_CAMERA:
+            #     self.down_vid_writer.write(self.down_cap.read()[1])
+            
             if not success:
                 return
 
@@ -230,17 +231,21 @@ class CameraController(Node):
 
             # Passing image data
             top_camera = self.encode_base64(self.img)
-            bot_camera = self.encode_base64(self.down_cap.read()[1])
+            
+            # Komen baris down_cap read di bawah ini karena menyebabkan crash saat kamera dicopot
+            # bot_camera = self.encode_base64(self.down_cap.read()[1])
+            
             self.camera_processed_pub.publish(top_camera)
 
             if(self.mission_type == MissionStatus.GREEN_BOX and self.detected):
                 self.green_box_pub.publish(top_camera)
 
-            if(self.mission_type == MissionStatus.BLUE_BOX and self.detected):
-                # self.under = self.down_cap.read()[1]
-                # under_camera = self.encode_base64(self.under)
-                # self.blue_box_pub.publish(under_camera)
-                self.blue_box_pub.publish(bot_camera)
+            # Komen blok mission BLUE_BOX karena bergantung pada bot_camera yang dinonaktifkan
+            # if(self.mission_type == MissionStatus.BLUE_BOX and self.detected):
+            #     # self.under = self.down_cap.read()[1]
+            #     # under_camera = self.encode_base64(self.under)
+            #     # self.blue_box_pub.publish(under_camera)
+            #     self.blue_box_pub.publish(bot_camera)
 
         except Exception as e:
             self.get_logger().error(f"Error in process_frame: {traceback.format_exc()}")
