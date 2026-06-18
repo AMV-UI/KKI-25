@@ -6,15 +6,31 @@ from core.utils.config import Topic
 class BaseExecution(BaseBehavior):
     """Base class for mission execution behaviors"""
     
-    def __init__(self, name: str, node=None):
+    def __init__(self, name: str, node=None, mission=None):
         super().__init__(name, node=node)
         self.counter_pub = None
+        self.mission = mission
+        self.has_published_mission = False
     
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
+        self.base_mission_pub = Topic.mission.createPublisher(self.node)
+    
+    def initialise(self) -> None:
+        pass
     
     def update(self) -> Status:
+        if self.mission is not None and not self.has_published_mission:
+            self.base_mission_pub.publish(UInt8(data=self.mission))
+            self.node.get_logger().info(f"[{self.name}] Published mission ID: {self.mission}")
+            self.has_published_mission = True
+            
         status = self.execute()
+        
+        # Reset publish flag if we are no longer running (so next time we start we publish again)
+        if status != Status.RUNNING:
+            self.has_published_mission = False
+            
         return status
     
     def execute(self) -> Status:

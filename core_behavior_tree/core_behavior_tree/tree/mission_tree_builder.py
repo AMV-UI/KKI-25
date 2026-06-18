@@ -40,24 +40,20 @@ class MissionTreeBuilder:
 
     # Perception
     MISSIONS_CONFIG = [
-        # (Initial_Execution, Initial_Fallback, "Initial"),
-        # (Buoy_Execution, Buoy_Fallback, "Buoy"),
-        # (Finding_Execution, Finding_Fallback, "Finding"), 
-        # (Buoy_Execution, Buoy_Fallback, "Buoy"),
-        # (Finding_Execution, Finding_Fallback, "Finding"), 
-        (Buoy_Execution, Buoy_Fallback, "Buoy"),
-        (Turn_Next_Buoy_Execution, Turn_Next_Buoy_Fallback, "Turn Next Buoy"),
-        (Box_Execution, Box_Fallback, "Change Mission to Green Box"),
-        (Finding_Execution, Finding_Fallback, "Finding Green Box"), 
-        (Photo_Execution, Photo_Fallback, "Photo Green Box"), 
-        (Unfinding_Execution, Unfinding_Fallback, "Unfinding GreenBox"), 
-        (Box_Execution, Box_Fallback, "Change Mission to Blue Box"),
-        (Finding_Execution, Finding_Fallback, "Finding Blue Box"), 
-        (Photo_Execution, Photo_Fallback, "Photo Blue Box"), 
-        # (Box_Execution, Box_Fallback, "Change Mission to Docking"),
-        # (Pass_Execution, Pass_Fallback, "Pass Box"),
-        # (Docking_Execution, Docking_Fallback, "Docking"),
-        # (Done_Execution, Done_Fallback, "Done"),
+        # (Initial_Execution, Initial_Fallback, "Initial", 0),
+        (Buoy_Execution, Buoy_Fallback, "Buoy", 0),
+        (Turn_Next_Buoy_Execution, Turn_Next_Buoy_Fallback, "Turn Next Buoy", 1),
+        (Box_Execution, Box_Fallback, "Change Mission to Green Box", 6),
+        (Finding_Execution, Finding_Fallback, "Finding Green Box", 6), 
+        (Photo_Execution, Photo_Fallback, "Photo Green Box", 7), 
+        (Unfinding_Execution, Unfinding_Fallback, "Unfinding GreenBox", 7), 
+        (Box_Execution, Box_Fallback, "Change Mission to Blue Box", 8),
+        (Finding_Execution, Finding_Fallback, "Finding Blue Box", 8), 
+        (Photo_Execution, Photo_Fallback, "Photo Blue Box", 9), 
+        # (Box_Execution, Box_Fallback, "Change Mission to Docking", 10),
+        # (Pass_Execution, Pass_Fallback, "Pass Box", 10),
+        # (Docking_Execution, Docking_Fallback, "Docking", 10),
+        # (Done_Execution, Done_Fallback, "Done", 10),
     ]
 
     def __init__(self, ros_node):
@@ -101,12 +97,12 @@ class MissionTreeBuilder:
             memory=True
         )
         
-        for i, (mission_class, fallback_class, name) in enumerate(self.MISSIONS_CONFIG, start=1):
+        for mission_class, fallback_class, name, mission_id in self.MISSIONS_CONFIG:
             mission_selector = self._create_mission_selector(
                 mission_class, 
                 fallback_class,
                 name, 
-                i
+                mission_id
             )
             mission_sequence.add_child(mission_selector)
         

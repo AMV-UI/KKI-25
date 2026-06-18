@@ -85,9 +85,7 @@ class Gcs(Node):
         self._handle_incoming_data("mission", self.mission)
 
     def pixhawk_callback(self, msg: Pixhawk):
-        if(msg.lat > 1):
-            return
-
+        # Allow any coordinate to pass, removing msg.lat > 1 check
         if self.pxmode == PxMode.HOLD:
             self.lon_history = [msg.lon]
             self.lat_history = [msg.lat]
@@ -128,7 +126,7 @@ class Gcs(Node):
                 dead_clients.add(ws)
         self.websocket_clients -= dead_clients
 
-async def websocket_handler(websocket, path, node):
+async def websocket_handler(websocket, node):
     node.websocket_clients.add(websocket)
     node.get_logger().info("WebSocket client connected")
     try:
@@ -148,8 +146,10 @@ async def main_async():
 
     gcs = Gcs(loop, node)
 
+    # Use a try block to handle both old and new websockets signature gracefully, 
+    # but since the error showed it passed only 1 arg, we just use 1 arg in the lambda.
     ws_server = await websockets.serve(
-        lambda ws, path: websocket_handler(ws, path, gcs),
+        lambda ws: websocket_handler(ws, gcs),
         host='0.0.0.0',
         port=8000
     )
