@@ -53,7 +53,7 @@ class MissionTreeBuilder:
         (Unfinding_Execution, Unfinding_Fallback, "Unfinding GreenBox"), 
         (Box_Execution, Box_Fallback, "Change Mission to Blue Box"),
         (Finding_Execution, Finding_Fallback, "Finding Blue Box"), 
-        # (Photo_Execution, Photo_Fallback, "Photo Blue Box"), 
+        (Photo_Execution, Photo_Fallback, "Photo Blue Box"), 
         # (Box_Execution, Box_Fallback, "Change Mission to Docking"),
         # (Pass_Execution, Pass_Fallback, "Pass Box"),
         # (Docking_Execution, Docking_Fallback, "Docking"),
