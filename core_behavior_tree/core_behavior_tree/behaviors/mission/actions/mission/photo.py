@@ -52,15 +52,44 @@ class Photo_Execution(BaseExecution):
     def _blue_box_cb(self, msg: String):
         self.bluebox = str(msg.data)
 
+    def initialise(self) -> None:
+        super().initialise()
+        self.has_saved_photo = False
+
+    def _save_photo_to_disk(self, b64_data, prefix):
+        try:
+            if not getattr(self, "has_saved_photo", False):
+                import base64
+                import os
+                from datetime import datetime
+                
+                save_dir = os.path.expanduser("~/KKI-25/core_perception/photos")
+                if not os.path.exists(save_dir):
+                    os.makedirs(save_dir, exist_ok=True)
+                
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                filename = os.path.join(save_dir, f"{timestamp}_{prefix}_Auto.jpg")
+                
+                img_data = base64.b64decode(b64_data)
+                with open(filename, "wb") as f:
+                    f.write(img_data)
+                
+                self.node.get_logger().info(f"[{self.name}] Auto-saved photo to {filename}")
+                self.has_saved_photo = True
+        except Exception as e:
+            self.node.get_logger().error(f"[{self.name}] Failed to save photo: {str(e)}")
+
     def execute(self) -> Status:
         self.node.get_logger().info(f"[{self.name}] Taking Photo...{self.mission_type}", throttle_duration_sec=1.0)
 
         if(self.mission_type == MissionStatus.GREEN_BOX and self.greenbox != None):
             self.node.get_logger().info(f"[{self.name}] Publishing Green Box Photo...", throttle_duration_sec=1.0)
             self.greenbox_pub.publish(String(data=self.greenbox))
+            self._save_photo_to_disk(self.greenbox, "GreenBox")
         elif (self.mission_type == MissionStatus.BLUE_BOX and self.bluebox != None):
             self.node.get_logger().info(f"[{self.name}] Publishing Blue Box Photo...", throttle_duration_sec=1.0)
             self.bluebox_pub.publish(String(data=self.bluebox))
+            self._save_photo_to_disk(self.bluebox, "BlueBox")
         
         self.yaw_effort_pub.publish(Float64(data=0.0))
         self.speed_effort_pub.publish(Float64(data=0.0))
