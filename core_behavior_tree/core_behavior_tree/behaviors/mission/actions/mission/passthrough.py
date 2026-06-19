@@ -1,7 +1,7 @@
 from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from std_msgs.msg import Bool, Float64, UInt8, String
-from core.utils.config import Topic
+from core.utils.config import Topic, MissionParams
 from core.mission.frame_counter import FrameCounter
 from core_msgs.msg import Pixhawk
 
@@ -21,9 +21,9 @@ class Pass_Execution(BaseExecution):
         self.frame_counter = None
         self.detected = True
         self.dsc = 0.0
-        self.speed_effort = 120.0
+        self.speed_effort = MissionParams.passthrough_speed_effort
         self.arena = "B"
-        self.time_threshold = 4
+        self.time_threshold = MissionParams.passthrough_time_threshold
         self.mission = mission
         
     def setup(self, **kwargs) -> None:
@@ -46,13 +46,6 @@ class Pass_Execution(BaseExecution):
             self.node, 
             self._dsc_cb
         )
-        self.speed_sub = Topic.tuning_effort_st.createSubscriber(
-            self.node,
-            self._speed_cb
-        )
-    
-    def _speed_cb(self, msg: Float64):
-        self.speed_effort = float(msg.data)
 
     def _arena_cb(self, msg: String):
         self.arena = str(msg.data)

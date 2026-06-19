@@ -1,7 +1,7 @@
 from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from std_msgs.msg import Float64, UInt8
-from core.utils.config import Topic
+from core.utils.config import Topic, MissionParams
 from core.mission.frame_counter import FrameCounter
 from core_msgs.msg import Pixhawk
 from core.mission.gps_stuff import haversine, find_deg
@@ -19,18 +19,18 @@ class Docking_Execution(BaseExecution):
         self.mission = mission
         self.arena = "B"
         self.detected = False
-        self.time_threshold = 0.2
+        self.time_threshold = MissionParams.dock_time_threshold
         self.target = 180
         self.hold = False
 
         self.frame_counter = FrameCounter(self.time_threshold)
-        self.effort = 200
+        self.effort = MissionParams.dock_yaw_effort
         self.heading = 0
         self.docking_lat = 0.0
         self.docking_lon = 0.0
         self.lat = 0.0
         self.lon = 0.0
-        self.speed_effort = 100.0
+        self.speed_effort = MissionParams.dock_speed_effort
 
 
     def setup(self, **kwargs) -> None:

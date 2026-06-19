@@ -4,6 +4,7 @@ from std_msgs.msg import Bool, Float64, UInt8, String
 from core.utils.config import Topic
 from core.mission.frame_counter import FrameCounter
 from core_msgs.msg import Pixhawk
+from core.utils.config import MissionParams
 
 
 import time
@@ -21,9 +22,9 @@ class Buoy_Execution(BaseExecution):
         self.frame_counter = None
         self.detected = True
         self.dsc = 0.0
-        self.speed_effort = 120.0
+        self.speed_effort = MissionParams.buoy_speed_effort
         self.arena = "B"
-        self.time_threshold = 5.0  # 5 seconds without seeing buoy = mission complete
+        self.time_threshold = MissionParams.buoy_time_threshold
         self.mission = mission
         self.has_seen_buoy = False
         
@@ -47,19 +48,12 @@ class Buoy_Execution(BaseExecution):
             self.node, 
             self._dsc_cb
         )
-        self.speed_sub = Topic.tuning_effort_st.createSubscriber(
-            self.node,
-            self._speed_cb
-        )
 
     def initialise(self) -> None:
         self.has_seen_buoy = False
         if self.frame_counter:
             self.frame_counter.reset()
         self.node.get_logger().info(f"[{self.name}] Initializing Buoy Execution")
-
-    def _speed_cb(self, msg: Float64):
-        self.speed_effort = float(msg.data)
 
     def _arena_cb(self, msg: String):
         self.arena = str(msg.data)

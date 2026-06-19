@@ -2,7 +2,7 @@ from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from core.mission.frame_counter import FrameCounter
 from std_msgs.msg import String, UInt8, Float64
-from core.utils.config import Topic, MissionStatus
+from core.utils.config import Topic, MissionStatus, MissionParams
 
 class Photo_Execution(BaseExecution):
     """
@@ -13,7 +13,7 @@ class Photo_Execution(BaseExecution):
         super().__init__(name, node=node)
         self.node = node
         self.arena = "B"
-        self.time_threshold = 2.0
+        self.time_threshold = MissionParams.photo_time_threshold
         self.mission = mission
         self.mission_type = MissionStatus.BUOY
 

@@ -37,6 +37,39 @@ class MissionStatus:
     DOCKING = "docking"
 
 
+class MissionParams:
+    # Buoy Mission
+    buoy_speed_effort = 150.0
+    buoy_yaw_effort = 200.0
+    buoy_time_threshold = 2.0
+
+    # Turn Next Buoy Mission
+    turn_next_buoy_speed_effort = 120.0
+    turn_next_buoy_yaw_effort = 200.0
+    turn_next_buoy_duration = 10.0
+
+    # Finding Mission
+    finding_speed_effort = 70.0
+    finding_yaw_effort = 150.0
+    finding_time_threshold = 0.2
+
+    # Unfinding Mission
+    unfinding_speed_effort = 70.0
+    unfinding_yaw_effort = 150.0
+    unfinding_time_threshold = 0.2
+
+    # Photo Mission
+    photo_time_threshold = 2.0
+
+    # Dock Mission
+    dock_speed_effort = 100.0
+    dock_yaw_effort = 200.0
+    dock_time_threshold = 0.2
+	
+    # Passthrough Mission
+    passthrough_speed_effort = 120.0
+    passthrough_time_threshold = 4.0
+
 class NodeConfig:
     camera_front = "camera_front"
     mission_controller = "mission_controller"

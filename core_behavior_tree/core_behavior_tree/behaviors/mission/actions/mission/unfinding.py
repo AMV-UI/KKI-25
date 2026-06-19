@@ -1,7 +1,7 @@
 from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from std_msgs.msg import Bool, Float64, UInt8, String
-from core.utils.config import Topic
+from core.utils.config import Topic, MissionParams
 from core.mission.frame_counter import FrameCounter
 from core_msgs.msg import Pixhawk
 
@@ -20,10 +20,10 @@ class Unfinding_Execution(BaseExecution):
         self.node = node
         self.frame_counter = None
         self.detected = True
-        self.yaw_effort = 150.0
-        self.speed_effort = 70.0
+        self.yaw_effort = MissionParams.unfinding_yaw_effort
+        self.speed_effort = MissionParams.unfinding_speed_effort
         self.arena = "B"
-        self.time_threshold = 0.2    
+        self.time_threshold = MissionParams.unfinding_time_threshold
         self.mission = mission
         
     def setup(self, **kwargs) -> None:
@@ -42,13 +42,6 @@ class Unfinding_Execution(BaseExecution):
             self.node, 
             self._detected_cb
         )
-        self.speed_sub = Topic.tuning_effort_st.createSubscriber(
-            self.node,
-            self._speed_cb
-        )
-    
-    def _speed_cb(self, msg: Float64):
-        self.speed_effort = float(msg.data)
 
     def _arena_cb(self, msg: String):
         self.arena = str(msg.data)

@@ -1,7 +1,7 @@
 from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from std_msgs.msg import Float64, String
-from core.utils.config import Topic
+from core.utils.config import Topic, MissionParams
 import time
 
 class Turn_Next_Buoy_Execution(BaseExecution):
@@ -12,7 +12,9 @@ class Turn_Next_Buoy_Execution(BaseExecution):
         super().__init__(name, node=node)
         self.node = node
         self.arena = "B"
-        self.duration = 10.0  # Duration for the turn maneuver
+        self.duration = MissionParams.turn_next_buoy_duration  # Duration for the turn maneuver
+        self.speed_effort = MissionParams.turn_next_buoy_speed_effort
+        self.yaw_effort = MissionParams.turn_next_buoy_yaw_effort
         self.start_time = 0.0
         self.mission = mission
         self.detected = False
@@ -60,10 +62,10 @@ class Turn_Next_Buoy_Execution(BaseExecution):
                 return Status.SUCCESS
 
         # Simultaneous forward and turn
-        speed = 120.0
+        speed = self.speed_effort
         
         # Turn Left for Track A (negative yaw effort), Turn Right for Track B (positive yaw effort)
-        yaw = -200.0 if self.arena == "A" else 200.0
+        yaw = -self.yaw_effort if self.arena == "A" else self.yaw_effort
         
         self.speed_effort_pub.publish(Float64(data=speed))
         self.yaw_effort_pub.publish(Float64(data=yaw))

@@ -5,7 +5,7 @@ from std_msgs.msg import Bool, Float64, UInt8, String
 from core.mission.find_mode import FindMode
 from core.mission.frame_counter import FrameCounter
 from core_msgs.msg import Pixhawk
-from core.utils.config import Topic
+from core.utils.config import Topic, MissionParams
 
 import time
 
@@ -23,15 +23,15 @@ class Finding_Execution(BaseExecution):
         self.frame_counter = None
         self.detected = False
         self.arena = "B"
-        self.effort = 150
+        self.effort = MissionParams.finding_yaw_effort
         self.dsc = self.effort * (-1 if self.arena == "A" else 1)  #Reverse effort untuk mission 2
         self.mission = mission
-        self.time_threshold = 0.2
+        self.time_threshold = MissionParams.finding_time_threshold
 
         self.px_heading = 0.0
         self.phase = "finding"        
 
-        self.speed_effort = 70.0
+        self.speed_effort = MissionParams.finding_speed_effort
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
@@ -47,22 +47,6 @@ class Finding_Execution(BaseExecution):
         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
         self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
         self.heading_sub = Topic.heading_deg.createSubscriber(self.node, self._heading_cb)
-       
-        self.effort_sub = Topic.tuning_effort_tn.createSubscriber(
-            self.node,
-            self._effort_cb
-        )     
-
-        self.speed_sub = Topic.tuning_effort_st.createSubscriber(
-            self.node,
-            self._speed_cb
-        )
-        
-    def _speed_cb(self, msg: Float64):
-        self.speed_effort = float(msg.data)
-
-    def _effort_cb(self, msg: Float64):
-        self.effort = float(msg.data)
 
     def _arena_cb(self, msg: String):
         self.arena = str(msg.data)
