@@ -12,6 +12,8 @@ class PWMController(Node):
         super().__init__('PWM')
         self.node = node
         self.master = mavutil.mavlink_connection("/dev/ttyUSB0", baud=57600)
+        self.master.target_system = 1
+        self.master.target_component = 1
         self.pxmode = PxMode.HOLD
         self.pwm_chan = None
         self._setup_communication()
