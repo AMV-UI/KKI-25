@@ -264,7 +264,9 @@ def main():
 
     try:
         front_cam.run()
-        rclpy.spin(front_cam)
+        executor = rclpy.executors.MultiThreadedExecutor()
+        executor.add_node(front_cam)
+        executor.spin()
         
     except KeyboardInterrupt:
         front_cam.get_logger().info("Shutting down front camera node...")

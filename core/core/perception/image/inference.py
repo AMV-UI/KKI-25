@@ -163,9 +163,9 @@ class ObjectDetector:
                     dsc_x = mid_x - width
                     yaw_state = dsc_x
                 elif self.max_green != -1:
-                    yaw_state = self.pid_adjust * (-1 if arena == "A" else 1)
-                elif self.max_red != -1:
                     yaw_state = self.pid_adjust * (1 if arena == "A" else -1)
+                elif self.max_red != -1:
+                    yaw_state = self.pid_adjust * (-1 if arena == "A" else 1)
                 else:
                     yaw_state = 0
                 if self.max_green != -1 or self.max_red != -1:
@@ -187,9 +187,9 @@ class ObjectDetector:
                     dsc_x = mid_x - width
                     yaw_state = dsc_x
                 elif self.max_green_box != -1:
-                    yaw_state = self.pid_adjust * (-1 if arena == "B" else 1)
-                elif self.max_blue_box != -1:
                     yaw_state = self.pid_adjust * (1 if arena == "B" else -1)
+                elif self.max_blue_box != -1:
+                    yaw_state = self.pid_adjust * (-1 if arena == "B" else 1)
                 else:
                     yaw_state = 0
 

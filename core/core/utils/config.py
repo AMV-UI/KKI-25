@@ -39,8 +39,8 @@ class MissionStatus:
 
 class MissionParams:
     # Buoy Mission
-    buoy_speed_effort = -120.0
-    buoy_yaw_effort = -120.0
+    buoy_speed_effort = 120.0
+    buoy_yaw_effort = 200.0
     buoy_time_threshold = 2.0
 
     # Turn Next Buoy Mission
