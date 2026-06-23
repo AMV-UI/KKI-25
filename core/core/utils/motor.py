@@ -49,7 +49,7 @@ class Motor:
         self.node.get_logger().debug(f"Autonomous Mode: motor_speed={motor_speed}, x_speed={x_speed}")
         return self.__calcAdjustedSpeed({
             self.channel.MOTOR_X: self.calculateSpeed(int(control_effort_x * x_speed)),
-            self.channel.MOTOR_Y: self.calculateSpeed(int(control_effort_y * motor_speed)),
+            self.channel.MOTOR_Y: self.calculateSpeed(int(-control_effort_y * motor_speed)),
         })
 
     # def half_detected(self):
