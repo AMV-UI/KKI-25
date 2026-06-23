@@ -121,7 +121,7 @@ class ObjectDetector:
                     area = abs((x2 - x1) * (y2 - y1))
 
                     # Filter out small/far away objects
-                    if area < 600:
+                    if area < 200:
                         continue
 
                     if mission == MissionStatus.BUOY:
