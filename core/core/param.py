@@ -11,7 +11,7 @@ class ParameterBlackboard(Node):
         super().__init__('parameter_blackboard')
 
         # Use self as the node for publishers/subscribers
-        self.arena = "A"
+        self.arena = "B"
         self.st_speed = 1.0
         self.tn_speed = 1.0
         self.dock_lat = 0.0
