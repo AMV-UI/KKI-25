@@ -12,6 +12,7 @@ from core_msgs.msg import StateObject, AutoControl
 from core.utils.config import NodeConfig, Topic, MissionStatus
 from core.utils.device_fetching import get_webcam_device_idx
 from rclpy.node import Node
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from std_msgs.msg import Float64, Bool, String
 
 class CameraController(Node):
@@ -145,6 +146,7 @@ class CameraController(Node):
 
     def _arena_cb(self, msg: String):
         self.arena = str(msg.data)
+        self.get_logger().info(f"Received arena: {self.arena}")
 
     def mission_callback(self, msg):
         """Update current mission"""
@@ -254,7 +256,8 @@ class CameraController(Node):
     def run(self):
         """Start the main execution loop"""
         # timer for frame processing (30 FPS = 0.033s)
-        self.timer = self.create_timer(1/self.fps, self.process_frame)
+        self.timer_cb_group = ReentrantCallbackGroup()
+        self.timer = self.create_timer(1/self.fps, self.process_frame, callback_group=self.timer_cb_group)
         self.get_logger().info("Front camera processing started at 30 FPS")
 
 
