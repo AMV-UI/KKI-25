@@ -75,8 +75,8 @@ class Finding_Execution(BaseExecution):
             self.frame_counter.reset()
 
         # Reverse yaw effort to counter Turn_Next_Buoy overshoot
-        # Arena A: Turn Right (Positive), Arena B: Turn Left (Negative)
-        yaw_val = float(self.effort * (-1 if self.arena == "B" else 1))
+        # Arena A: Turn Left (Negative), Arena B: Turn Right (Positive)
+        yaw_val = float(self.effort * (-1 if self.arena == "A" else 1))
         self.yaw_effort_pub.publish(Float64(data=yaw_val))
         
         # Zero speed effort during finding phase, just yaw

@@ -68,8 +68,10 @@ class CameraController(Node):
         # Simulation subscriber
         self.bridge = CvBridge()
         self.sim_img = None
+        self.sim_bottom_img = None
         self.first_image_received = False
         self.create_subscription(Image, '/sonobot/camera/image_color', self.sim_camera_cb, qos_profile_sensor_data)
+        self.create_subscription(Image, '/blueboat/camera_bottom/image_color', self.sim_bottom_camera_cb, qos_profile_sensor_data)
 
         self.REC_UP_CAMERA = False
         self.REC_DOWN_CAMERA = False
@@ -111,10 +113,10 @@ class CameraController(Node):
             return 'HIGH'
         
     def _take_upper_photo(self):
-        ret, frame = self.up_cap.read()
-        if ret:
+        if self.sim_img is not None:
+            frame = self.sim_img.copy()
             timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            photo_filename = f"/home/amv/KKI-25/core_perception/photos/{timestamp}_upCamera.jpg"
+            photo_filename = f"/home/apenchu/hobi/ros2_ws/src/KKI-25/core_perception/photos/{timestamp}_upCamera.jpg"
             cv2.imwrite(photo_filename, frame)
             self.get_logger().info(f"Photo taken and saved to {photo_filename}", throttle_duration_sec=5.0)
             self.green_box_pub.publish(self.encode_base64(frame))
@@ -122,10 +124,10 @@ class CameraController(Node):
             self.get_logger().error("Failed to capture image from upper camera")
 
     def _take_down_photo(self):
-        ret, frame = self.down_cap.read()
-        if ret:
+        if self.sim_bottom_img is not None:
+            frame = self.sim_bottom_img.copy()
             timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            photo_filename = f"/home/amv/KKI-25/core_perception/photos/{timestamp}_downCamera.jpg"
+            photo_filename = f"/home/apenchu/hobi/ros2_ws/src/KKI-25/core_perception/photos/{timestamp}_downCamera.jpg"
             cv2.imwrite(photo_filename, frame)
             self.get_logger().info(f"Photo taken and saved to {photo_filename}", throttle_duration_sec=5.0)
             self.blue_box_pub.publish(self.encode_base64(frame))
@@ -201,25 +203,29 @@ class CameraController(Node):
                 self.first_image_received = True
         except Exception as e:
             self.get_logger().error(f"Error converting image: {e}")
+            
+    def sim_bottom_camera_cb(self, msg):
+        try:
+            self.sim_bottom_img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+        except Exception as e:
+            self.get_logger().error(f"Error converting bottom image: {e}")
  
 
     def process_frame(self):
         """Process a single frame - called by timer"""
         try:
-            # success, img = self.up_cap.read()
             if self.sim_img is not None:
                 img = self.sim_img.copy()
                 success = True
             else:
                 success = False
                 img = None
+                
+            if self.sim_bottom_img is not None:
+                bottom_img = self.sim_bottom_img.copy()
+            else:
+                bottom_img = None
 
-            # if self.REC_UP_CAMERA:
-            #     self.up_vid_writer.write(img)
-            # if self.REC_DOWN_CAMERA:
-            #     self.down_vid_writer.write(self.down_cap.read()[1])
-            
-            # print("In your mom")
             if not success:
                 return
 
@@ -256,17 +262,17 @@ class CameraController(Node):
 
             # Passing image data
             top_camera = self.encode_base64(self.img)
-            # bot_camera = self.encode_base64(self.down_cap.read()[1])
-            bot_camera = self.encode_base64(img) # Use the same sim image
+            if bottom_img is not None:
+                bot_camera = self.encode_base64(bottom_img)
+            else:
+                bot_camera = top_camera # fallback
+            
             self.camera_processed_pub.publish(top_camera)
 
             if(self.mission_type == MissionStatus.GREEN_BOX and self.detected):
                 self.green_box_pub.publish(top_camera)
 
             if(self.mission_type == MissionStatus.BLUE_BOX and self.detected):
-                # self.under = self.down_cap.read()[1]
-                # under_camera = self.encode_base64(self.under)
-                # self.blue_box_pub.publish(under_camera)
                 self.blue_box_pub.publish(bot_camera)
 
         except Exception as e:
