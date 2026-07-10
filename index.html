@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ROS 2 / MediaMTX DVR Replay Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
+    <style>
+        body { background: #121212; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 8px; }
+        video { width: 100%; background: #000; border-radius: 4px; }
+        .controls { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+        input[type="range"] { width: 100%; }
+        .time-labels { display: flex; justify-content: space-between; font-size: 0.85rem; color: #aaa; }
+        button { padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0052a3; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>DVR Replay Testing Console</h2>
+    <video id="videoPlayer" controls autoplay></video>
+
+    <div class="controls">
+        <button onclick="fetchRecordings()">Load Recording History</button>
+        
+        <input type="range" id="timelineSlider" min="0" max="100" value="0" disabled oninput="onSliderSeek(this.value)">
+        
+        <div class="time-labels">
+            <span id="startTimeLabel">Start: --:--:--</span>
+            <span id="currentTimeLabel">Current: --:--:--</span>
+            <span id="endTimeLabel">End: --:--:--</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    const streamPath = 'live/usbcam'; // Matches your RTSP target path
+    const apiBase = 'http://localhost:9997/v3';
+    const hlsBase = 'http://localhost:8888';
+    
+    const video = document.getElementById('videoPlayer');
+    const slider = document.getElementById('timelineSlider');
+    
+    let recordingSegments = [];
+    let totalDurationSeconds = 0;
+    let hlsInstance = null;
+
+    async function fetchRecordings() {
+        try {
+            // 1. Query MediaMTX API to get all recorded segments for this stream path
+            const response = await fetch(`${apiBase}/recordings/list?path=${streamPath}`);
+            const data = await response.json();
+            
+            if (!data.items || data.items.length === 0) {
+                alert("No recordings found for path: " + streamPath);
+                return;
+            }
+
+            // Extract segments details
+            recordingSegments = data.items[0].segments;
+            
+            // Calculate total duration across all segments
+            totalDurationSeconds = recordingSegments.reduce((acc, seg) => acc + seg.duration, 0);
+            
+            // 2. Configure the HTML slider parameters
+            slider.max = totalDurationSeconds;
+            slider.value = 0;
+            slider.disabled = false;
+
+            // Set text labels based on timestamps
+            document.getElementById('startTimeLabel').innerText = "Start: " + new Date(recordingSegments[0].start).toLocaleTimeString();
+            document.getElementById('endTimeLabel').innerText = "End: " + new Date(recordingSegments[recordingSegments.length - 1].end).toLocaleTimeString();
+
+            // 3. Initialize HLS Playback pointing to MediaMTX's historical playlist endpoint
+            const playlistUrl = `${hlsBase}/${streamPath}/index.m3u8`;
+            setupHlsPlayer(playlistUrl);
+
+        } catch (error) {
+            console.error("Failed to communicate with MediaMTX API:", error);
+            alert("API connection failed. Ensure port 9997 is open and CORS allows the request.");
+        }
+    }
+
+    function setupHlsPlayer(url) {
+        if (hlsInstance) {
+            hlsInstance.destroy();
+        }
+
+        if (Hls.isSupported()) {
+            hlsInstance = new Hls();
+            hlsInstance.loadSource(url);
+            hlsInstance.attachMedia(video);
+            
+            // Listen to video time updates to move slider automatically during playback
+            video.addEventListener('timeupdate', () => {
+                if (!slider.dragging) {
+                    slider.value = video.currentTime;
+                    document.getElementById('currentTimeLabel').innerText = "Current: " + formatTime(video.currentTime);
+                }
+            });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            // Fallback for Safari native HLS support
+            video.src = url;
+        }
+    }
+
+    // Triggered when user drags the timeline slider
+    function onSliderSeek(value) {
+        if (video) {
+            video.currentTime = value;
+            document.getElementById('currentTimeLabel').innerText = "Current: " + formatTime(value);
+        }
+    }
+
+    // Helper formatting tool
+    function formatTime(seconds) {
+        const date = new Date(null);
+        date.setSeconds(seconds);
+        return date.toISOString().substr(11, 8);
+    }
+    
+    // Simple drag flag flags to stop automatic updates while moving the slider
+    slider.addEventListener('mousedown', () => slider.dragging = true);
+    slider.addEventListener('mouseup', () => slider.dragging = false);
+</script>
+
+</body>
+</html>

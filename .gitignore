@@ -13,3 +13,5 @@ log/
 .vscode
 *.pth 
 venv/
+
+recordings/

@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package gcs;
+
+import "google/protobuf/timestamp.proto";
+
+service Server {
+  rpc getTelemetry(telemetryRequest) returns (stream telemetryResponse) {};
+}
+
+enum Mode {
+  MANUAL = 0;
+  AUTONOMOUS = 1;
+}
+
+enum Side {
+  A = 0;
+  B = 1;
+  C = 2;
+  D = 3;
+  NOT_FOUND = 4;
+}
+
+message telemetryRequest {}
+
+message telemetryResponse {
+  Mode mode = 1;
+  float battery = 2;
+  double latitude = 3;
+  double longitude = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  Side qr_side = 6;
+  float depth = 7;
+  bool fc_status = 8;
+  bool sensor_status = 9;
+}
