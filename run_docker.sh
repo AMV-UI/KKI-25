@@ -15,7 +15,7 @@ docker run -it --rm \
     --network=host \
     -v "$WORKSPACE_DIR:$WORKSPACE_DIR" \
     -v "$STUBS_DIR:/stubs" \
-    --device=/dev/video0:/dev/video0 \
+    --privileged \
     -w "$WORKSPACE_DIR" \
     ros-jazzy-rov \
     bash

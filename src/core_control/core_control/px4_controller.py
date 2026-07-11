@@ -8,7 +8,7 @@ from rclpy.node import Node
 from pymavlink import mavutil
 from std_msgs.msg import Float64, String
 from core_msgs.msg import Pixhawk
-from core.utils.config import Topic, PxMode
+from core.utils.config import Topic
 
 
 class PixhawkController(Node):
@@ -17,24 +17,37 @@ class PixhawkController(Node):
 
         self.pixhawk = Pixhawk()
         self.pxmode = "MANUAL"
-        self.rc_chans = None
-        self.pwm_chan = None
         self.ser_2 = None
+        self.current_manual_control = (0, 0, 0, 0)
 
         # Publishers
         self.pixhawk_pub = Topic.pixhawk.createPublisher(self)
         self.heading_deg_pub = Topic.heading_deg.createPublisher(self)
-        self.rc5_pub = Topic.rc5.createPublisher(self)
-        self.rc6_pub = Topic.rc6.createPublisher(self)
         self.pxmode_pub = Topic.pxmode.createPublisher(self)
 
         # Subscribers
-        self.pwm_sub = Topic.pwm.createSubscriber(self, self._pwm_callback)
+        self.joy_sub = Topic.joy.createSubscriber(self, self._joy_callback)
 
         self.msg_heading_msg = Float64()
 
+        self.forward = 0
+        self.lateral = 0
+        self.yaw = 0
+        self.vertical = 0
+
         self._init_serial()
         self.get_logger().info("Pixhawk Controller Node Started")
+
+    def _joy_callback(self, joy_msg):
+        self.forward = joy_msg.axes[1] * 1000
+        self.lateral = joy_msg.axes[0] * -1000
+        self.yaw = joy_msg.axes[3] * -1000
+        if int(joy_msg.axes[7]) == 1:
+            self.vertical = 500
+        elif int(joy_msg.axes[7]) == -1:
+            self.vertical = -500
+        else:
+            self.vertical = 0
 
     def error_throttle(self, period_ms, msg):
         self.get_logger().error(msg, throttle_duration_sec=period_ms / 1000.0)
@@ -45,7 +58,7 @@ class PixhawkController(Node):
     def _get_serial_ports(self):
         dirs = []
         list_of_files = os.listdir("/dev")
-        pattern = "ttyUSB*"
+        pattern = "ttyACM*"
         for entry in list_of_files:
             if fnmatch.fnmatch(entry, pattern):
                 dirs.append(f"/dev/{entry}")
@@ -56,7 +69,6 @@ class PixhawkController(Node):
         if not ports:
             self.error_throttle(5000, "No USB serial ports found (Pixhawk)")
             return
-
         self.get_logger().info(f"Available USB ports: {ports}")
         for port in ports:
             try:
@@ -122,31 +134,11 @@ class PixhawkController(Node):
             self.get_logger().error(f"Error in request_pixhawk: {error}")
             return self.pixhawk
 
-    def _px_rc_val(self):
-        if self.ser_2 is None:
-            return self.rc_chans
-        fetched_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
-        self.rc_chans = fetched_channels if fetched_channels != None else self.rc_chans
-        return self.rc_chans
-
-    def _get_pwm(self):
-        self.rc5_pub.publish(Float64(data=float(self.rc_chans.chan5_raw)))
-        self.rc6_pub.publish(Float64(data=float(self.rc_chans.chan6_raw)))
-        self.get_logger().info(
-            f"Channel Values : {self.rc_chans.chan1_raw}, {self.rc_chans.chan3_raw}, {self.rc_chans.chan8_raw}",
-            throttle_duration_sec=1.0,
-        )
-
-    def _px_set_mode(self, pwm_val):
+    def _px_set_mode(self, mode):
         if self.ser_2 is None:
             return
 
-        if pwm_val <= 1300:
-            self.pxmode = PxMode.HOLD
-        elif 1301 <= pwm_val <= 1700:
-            self.pxmode = PxMode.MANUAL
-        else:
-            self.pxmode = PxMode.AUTO
+        self.pxmode = mode
 
         pxmode_msg = String()
         pxmode_msg.data = self.pxmode
@@ -165,21 +157,14 @@ class PixhawkController(Node):
         )
         self.info_throttle(5000, f"Mode set to : {self.pxmode}")
 
-    def _pwm_callback(self, pwm_msg):
-        self.pwm_chan = pwm_msg.channels
-
-    def set_rc_channel_pwm(self, pwm_list):
-        if self.ser_2 is None:
-            return
-        rc_channel_values = [0 for _ in range(8)]
-        for idx, pwm in enumerate(pwm_list):
-            if idx < 8:
-                rc_channel_values[idx] = pwm
-
-        self.ser_2.mav.rc_channels_override_send(
+    def set_manual_control(self):
+        self.ser_2.mav.manual_control_send(
             self.ser_2.target_system,
-            self.ser_2.target_component,
-            *rc_channel_values,
+            self.current_manual_control[0],
+            self.current_manual_control[1],
+            self.current_manual_control[2],
+            self.current_manual_control[3],
+            0,
         )
 
     def main(self):
@@ -197,11 +182,7 @@ class PixhawkController(Node):
 
             self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
             self.heading_deg_pub.publish(self.msg_heading_msg)
-
-            self.rc_chans = self._px_rc_val()
-            if self.rc_chans:
-                self._px_set_mode(self.rc_chans.chan8_raw)
-                self._get_pwm()
+            self.set_manual_control()
 
 
 def main(args=None):

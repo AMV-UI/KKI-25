@@ -1,24 +1,16 @@
 #!/usr/bin/env python3
 
-import rclpy
 import py_trees
-from enum import Enum
-from pymavlink import mavutil
 from core.utils.factory import TopicFactory, ParamFactory
-from std_msgs.msg import Float64, Bool, UInt8, String, UInt16, UInt8MultiArray, UInt32
-from sensor_msgs.msg import Image, CompressedImage
+from std_msgs.msg import Float64, Bool, UInt8, String, UInt16
 from core_msgs.msg import (
-    Controller,
-    Config,
     Camera,
     KillSwitch,
-    AutoControl,
-    ObjectCount,
-    Option,
     Pwm,
     Pixhawk,
-    StateObject,
 )
+from sensor_msgs.msg import Joy
+
 
 class Param:
     KP = ParamFactory("/yaw_controller/yaw_controller/Kp", float)
@@ -30,9 +22,10 @@ class Param:
     CONF_THRESHOLD = ParamFactory("/mission/confidence_threshold", float)
     FLAG = ParamFactory("/mission/flag", bool)
 
+
 class MissionStatus:
     BUOY = "buoy"
-    GREEN_BOX = "greenbox" 
+    GREEN_BOX = "greenbox"
     BLUE_BOX = "bluebox"
     DOCKING = "docking"
 
@@ -53,14 +46,15 @@ class NodeConfig:
     gcs = "GCS"
     movement_controller = "movement_controller"
 
+
 class MissionStatus:
     BUOY = "buoy"
-    GREEN_BOX = "greenbox" 
+    GREEN_BOX = "greenbox"
     BLUE_BOX = "bluebox"
     DOCKING = "docking"
-    
-class Topic:
 
+
+class Topic:
     # Migrate From Param
     arena = TopicFactory("/core/arena", String)
     st_speed = TopicFactory("/motor_controller/x_speed", Float64)
@@ -72,21 +66,21 @@ class Topic:
     camera_processed = TopicFactory("/asv/vision/camera/processed", String)
     image_green_box = TopicFactory("/asv/vision/image/show_green", String)
     image_blue_box = TopicFactory("/asv/vision/image/show_blue", String)
-    green_box_encoded = TopicFactory("/asv/vision/image/green", String) 
-    blue_box_encoded = TopicFactory("/asv/vision/image/blue", String) 
+    green_box_encoded = TopicFactory("/asv/vision/image/green", String)
+    blue_box_encoded = TopicFactory("/asv/vision/image/blue", String)
 
     # Inference
     dsc = TopicFactory("/core/vision/image/dsc", Float64)
     detected = TopicFactory("/core/vision/image/detected", Bool)
 
     heading_deg = TopicFactory("/core/heading_deg", Float64)
-    initial_heading = TopicFactory("/core/initial/heading", Float64) 
+    initial_heading = TopicFactory("/core/initial/heading", Float64)
 
     recorded_path = TopicFactory("/core/recorded_path", String)
 
     manual_yaw = TopicFactory("/core/manual_yaw", Float64)
     manual_speed = TopicFactory("/core/manual_speed", Float64)
-    
+
     # Misc.
     kill_switch = TopicFactory("/core/kill_switch", KillSwitch)
     jetson_batt = TopicFactory("/core/battery/jetson", UInt16)
@@ -94,18 +88,15 @@ class Topic:
     mux_state = TopicFactory("/core/mux_state", UInt8)
 
     # Motion Control
-    # YAW = X AXIS (Left/Right)
-    # SPEED = Y AXIS (Forward/Backward)
-    yaw_effort = TopicFactory("/core/motor/yaw_effort", Float64)
-    speed_effort = TopicFactory("/core/motor/speed_effort", Float64)
+    joy = TopicFactory("/joy", Joy)
 
     rc5 = TopicFactory("/core/motor/rc5", Float64)
     rc6 = TopicFactory("/core/motor/rc6", Float64)
     rc7 = TopicFactory("/core/motor/rc7", Float64)
-    
+
     # Mission
     mission = TopicFactory("/core/mission/current", UInt8)
-    mission_type = TopicFactory("/core/mission/type", String) 
+    mission_type = TopicFactory("/core/mission/type", String)
 
     # PWM
     pwm = TopicFactory("/core/pwm", Pwm)
@@ -116,12 +107,13 @@ class Topic:
     pixhawk = TopicFactory("/core/micon/pixhawk", Pixhawk)
     pxmode = TopicFactory("/core/micon/pixhawk/mode", String)
 
-    #Finding Mode
+    # Finding Mode
 
     # Tuning
-    tuning_mission = TopicFactory("/core/tuning/mission", UInt8) 
+    tuning_mission = TopicFactory("/core/tuning/mission", UInt8)
     tuning_effort_st = TopicFactory("/core/tuning/effort/st", Float64)
     tuning_effort_tn = TopicFactory("/core/tuning/effort/tn", Float64)
+
 
 class BT:
     class ALL:
@@ -138,10 +130,12 @@ class BT:
         frame_counter_manuver = ("frame_counter_manuver", py_trees.common.Access.WRITE)
         image = ("image", py_trees.common.Access.WRITE)
         camera_bottom = ("camera_bottom", py_trees.common.Access.WRITE)
-        
+
+
 class Direction:
     A = [0, 270, 180, 270]
     B = [0, 90, 180, 90]
+
 
 class Tower:
     RED = "Red"
@@ -178,9 +172,11 @@ class SPEED:
     Slow = 0.3
     Idle = 0
 
+
 class Channel:
     MOTOR_X = 0
     MOTOR_Y = 2
+
 
 class PxMode:
     HOLD = "HOLD"
@@ -188,9 +184,11 @@ class PxMode:
     GUIDED = "GUIDED"
     AUTO = "AUTO"
 
+
 class SETPOINT:
     SETPOINT_YAW = 320
     SETPOINT_DSC = 0
+
 
 class MotorReverse:
     map = ()
