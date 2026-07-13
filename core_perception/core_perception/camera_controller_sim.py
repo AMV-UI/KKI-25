@@ -269,11 +269,15 @@ class CameraController(Node):
             
             self.camera_processed_pub.publish(top_camera)
 
+            # Combine both camera images to send in one String message
+            combined_msg = String()
+            combined_msg.data = top_camera.data + "|||" + bot_camera.data
+
             if(self.mission_type == MissionStatus.GREEN_BOX and self.detected):
-                self.green_box_pub.publish(top_camera)
+                self.green_box_pub.publish(combined_msg)
 
             if(self.mission_type == MissionStatus.BLUE_BOX and self.detected):
-                self.blue_box_pub.publish(bot_camera)
+                self.blue_box_pub.publish(combined_msg)
 
         except Exception as e:
             self.get_logger().error(f"Error in process_frame: {traceback.format_exc()}")

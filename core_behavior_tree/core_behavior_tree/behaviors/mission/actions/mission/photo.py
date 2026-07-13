@@ -68,13 +68,27 @@ class Photo_Execution(BaseExecution):
                     os.makedirs(save_dir, exist_ok=True)
                 
                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                filename = os.path.join(save_dir, f"{timestamp}_{prefix}_Auto.jpg")
                 
-                img_data = base64.b64decode(b64_data)
-                with open(filename, "wb") as f:
-                    f.write(img_data)
+                # Split the combined string to get both cameras
+                parts = b64_data.split("|||")
+                top_b64 = parts[0]
+                bot_b64 = parts[1] if len(parts) > 1 else None
                 
-                self.node.get_logger().info(f"[{self.name}] Auto-saved photo to {filename}")
+                # Save Top Camera
+                filename_top = os.path.join(save_dir, f"{timestamp}_{prefix}_TopCamera_Auto.jpg")
+                img_data_top = base64.b64decode(top_b64)
+                with open(filename_top, "wb") as f:
+                    f.write(img_data_top)
+                self.node.get_logger().info(f"[{self.name}] Auto-saved Top Camera photo to {filename_top}")
+                
+                # Save Bottom Camera if available
+                if bot_b64:
+                    filename_bot = os.path.join(save_dir, f"{timestamp}_{prefix}_BottomCamera_Auto.jpg")
+                    img_data_bot = base64.b64decode(bot_b64)
+                    with open(filename_bot, "wb") as f:
+                        f.write(img_data_bot)
+                    self.node.get_logger().info(f"[{self.name}] Auto-saved Bottom Camera photo to {filename_bot}")
+                
                 self.has_saved_photo = True
         except Exception as e:
             self.node.get_logger().error(f"[{self.name}] Failed to save photo: {str(e)}")
