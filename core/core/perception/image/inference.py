@@ -139,15 +139,17 @@ class ObjectDetector:
                         img, status = self.green_box_detected(
                             cls, img, x1, y1, x2, y2, confidence
                         )
-
-                        return img, 0, status
+                        if status:
+                            return img, 0, status
+                        # If false, keep checking other boxes
 
                     elif mission == MissionStatus.BLUE_BOX:
                         img, status = self.blue_box_detected(
                             cls, img, x1, y1, x2, y2, confidence
                         )
-                        
-                        return img, 0, status
+                        if status:
+                            return img, 0, status
+                        # If false, keep checking other boxes
 
             if mission == MissionStatus.BUOY: 
                 if self.max_red < self.max_green * self.treshold:
