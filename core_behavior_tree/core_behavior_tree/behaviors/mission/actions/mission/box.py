@@ -4,10 +4,10 @@ from std_msgs.msg import String
 from core.utils.config import Topic, MissionStatus
 
 class Box_Execution(BaseExecution):
-    \"\"\"
+    """
     Main execution: Set inital heading and finding the buoy
     - Fallback: if pxmode is still on hold
-    \"\"\"
+    """
     def __init__(self, name, node=None, mission=None):
         super().__init__(name, node=node)
         self.node = node
