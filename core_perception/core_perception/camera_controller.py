@@ -30,7 +30,7 @@ class CameraController(Node):
         self.arena = "B"
 
         self.up_camera_serial_idx = get_webcam_device_idx('046d_C270_HD_WEBCAM_E0198440')
-        self.down_camera_serial_idx = get_webcam_device_idx('Sonix_Technology_Co.__Ltd._USB_20_Camera_SN0001')
+        self.down_camera_serial_idx = get_webcam_device_idx('Sonix_Technology_Co.__Ltd._USB_2.0_Camera_SN0001')
 
         self.buoy_detector = ObjectDetector(
             "/home/amv/models/KKI-25/buoy_v1.engine",
