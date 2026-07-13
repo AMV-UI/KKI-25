@@ -25,6 +25,6 @@ def get_webcam_device_idx(target_serial):
             # Usually, the 'capture' device is the one you want.
             capabilities = device.get('ID_V4L_CAPABILITIES', '')
             if ':capture:' in capabilities:
-                return int(device.device_node[10])
+                return int(device.device_node[10:])
             
     return None

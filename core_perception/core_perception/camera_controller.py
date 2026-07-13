@@ -51,13 +51,13 @@ class CameraController(Node):
         )
 
         self.up_cap = cv2.VideoCapture(self.up_camera_serial_idx)
-        self.up_cap.set(1, 30)  # Set FPS
+        self.up_cap.set(5, 30)  # Set FPS (CAP_PROP_FPS is 5)
         self.up_cap.set(3, 640)  # Set width
         self.up_cap.set(4, 480)  # Set height
 
         # Configure down camera
         self.down_cap = cv2.VideoCapture(self.down_camera_serial_idx)
-        self.down_cap.set(1, 30)  # Set FPS
+        self.down_cap.set(5, 30)  # Set FPS (CAP_PROP_FPS is 5)
         self.down_cap.set(3, 640)  # Set width
         self.down_cap.set(4, 480)  # Set height
 
@@ -234,20 +234,27 @@ class CameraController(Node):
             # Passing image data
             top_camera = self.encode_base64(self.img)
             
-            # Komen baris down_cap read di bawah ini karena menyebabkan crash saat kamera dicopot
-            # bot_camera = self.encode_base64(self.down_cap.read()[1])
+            # Read down camera safely to avoid crash if unplugged
+            # Kalau down camera tidak ada, gunakan top camera sebagai fallback
+            bot_camera = None
+            if self.down_cap is not None and self.down_cap.isOpened():
+                ret, bot_frame = self.down_cap.read()
+                if ret and bot_frame is not None:
+                    bot_camera = self.encode_base64(bot_frame)
             
+            if bot_camera is None:
+                bot_camera = top_camera  # Fallback
+            
+            # kAMERA ATAS selalu dipublish
             self.camera_processed_pub.publish(top_camera)
 
             if(self.mission_type == MissionStatus.GREEN_BOX and self.detected):
                 self.green_box_pub.publish(top_camera)
 
-            # Komen blok mission BLUE_BOX karena bergantung pada bot_camera yang dinonaktifkan
-            # if(self.mission_type == MissionStatus.BLUE_BOX and self.detected):
-            #     # self.under = self.down_cap.read()[1]
-            #     # under_camera = self.encode_base64(self.under)
-            #     # self.blue_box_pub.publish(under_camera)
-            #     self.blue_box_pub.publish(bot_camera)
+            # Publish bottom camera image when Blue Box is detected
+            # Kalau gaada camera bawah komen aja, karena kamera bawah lagi ga dipake
+            if(self.mission_type == MissionStatus.BLUE_BOX and self.detected):
+                self.blue_box_pub.publish(bot_camera)
 
         except Exception as e:
             self.get_logger().error(f"Error in process_frame: {traceback.format_exc()}")
