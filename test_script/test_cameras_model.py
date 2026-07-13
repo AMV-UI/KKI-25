@@ -10,9 +10,9 @@ def main():
     print("=== TEST KAMERA DAN MODEL YOLO ===")
     
     # Minta input index kamera
-    up_idx = input("Masukkan index kamera Atas (misal: 0 atau /dev/video0): ")
-    down_idx = input("Masukkan index kamera Bawah (misal: 2 atau /dev/video2): ")
-    
+    up_idx = input("/dev/video2")
+    down_idx = input("/dev/video0")
+
     # Konversi ke int jika input berupa angka
     if up_idx.isdigit(): up_idx = int(up_idx)
     if down_idx.isdigit(): down_idx = int(down_idx)
