@@ -22,7 +22,6 @@ setup(
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
-            "gamepad = core_control.gamepad_controller:main",
             "px4 = core_control.px4_controller:main",
         ],
     },

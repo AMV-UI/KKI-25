@@ -19,6 +19,13 @@ class PixhawkController(Node):
         self.pxmode = "MANUAL"
         self.ser_2 = None
         self.current_manual_control = (0, 0, 0, 0)
+        self.rc_chans = None
+
+        self.a_button_pressed = False
+        self.b_button_pressed = False
+        self.x_button_pressed = False
+
+        self.setup_param()
 
         # Publishers
         self.pixhawk_pub = Topic.pixhawk.createPublisher(self)
@@ -30,24 +37,60 @@ class PixhawkController(Node):
 
         self.msg_heading_msg = Float64()
 
-        self.forward = 0
-        self.lateral = 0
-        self.yaw = 0
-        self.vertical = 0
-
         self._init_serial()
         self.get_logger().info("Pixhawk Controller Node Started")
 
+    def setup_param(self):
+        self.declare_parameter("log_rc", True)
+        self.declare_parameter("log_manual_control", True)
+        self.declare_parameter("log_joystick", True)
+        self.declare_parameter("info_throttle", 5000)
+
     def _joy_callback(self, joy_msg):
-        self.forward = joy_msg.axes[1] * 1000
-        self.lateral = joy_msg.axes[0] * -1000
-        self.yaw = joy_msg.axes[3] * -1000
+
+        # Parse Movement
+        forward = joy_msg.axes[1] * 1000
+        lateral = joy_msg.axes[0] * -1000
+        yaw = joy_msg.axes[3] * -1000
         if int(joy_msg.axes[7]) == 1:
-            self.vertical = 500
+            vertical = 500
         elif int(joy_msg.axes[7]) == -1:
-            self.vertical = -500
+            vertical = -500
         else:
-            self.vertical = 0
+            vertical = 0
+        self.current_manual_control = (
+            int(forward),
+            int(lateral),
+            int(vertical),
+            int(yaw),
+        )
+
+        # Parse toggles
+        b_button = joy_msg.buttons[1]  # depth hold ON
+        if not b_button and self.b_button_pressed:
+            self._px_set_mode("ALT_HOLD")
+            self.pxmode = "ALT_HOLD"
+
+        a_button = joy_msg.buttons[0]  # manual ON
+        if not a_button and self.a_button_pressed:
+            self._px_set_mode("MANUAL")
+            self.pxmode = "MANUAL"
+
+        x_button = joy_msg.buttons[2]  # hold ON
+        if not x_button and self.x_button_pressed:
+            self._px_set_mode("STABILIZE")
+            self.pxmode = "STABILIZE"
+
+        self.a_button_pressed = a_button
+        self.b_button_pressed = b_button
+        self.x_button_pressed = x_button
+
+        if self.get_parameter("log_joystick").value:
+            self.get_logger().info(
+                f"Joy Input -> Fwd: {int(forward)} | Lat: {int(lateral)} | "
+                f"Vert: {int(vertical)} | Yaw: {int(yaw)} | "
+                f"Btn A: {a_button} | Btn B: {b_button} | Btn X: {x_button}"
+            )
 
     def error_throttle(self, period_ms, msg):
         self.get_logger().error(msg, throttle_duration_sec=period_ms / 1000.0)
@@ -158,6 +201,14 @@ class PixhawkController(Node):
         self.info_throttle(5000, f"Mode set to : {self.pxmode}")
 
     def set_manual_control(self):
+        if self.get_parameter("log_manual_control").value:
+            self.get_logger().info(
+                f"Sending MANUAL_CONTROL -> "
+                f"x(pitch): {self.current_manual_control[0]} | "
+                f"y(roll): {self.current_manual_control[1]} | "
+                f"z(thrust): {self.current_manual_control[2]} | "
+                f"r(yaw): {self.current_manual_control[3]}"
+            )
         self.ser_2.mav.manual_control_send(
             self.ser_2.target_system,
             self.current_manual_control[0],
@@ -166,6 +217,23 @@ class PixhawkController(Node):
             self.current_manual_control[3],
             0,
         )
+
+    def _px_rc_val(self):
+        if self.ser_2 is None:
+            return self.rc_chans
+        fetched_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=False)
+        self.rc_chans = fetched_channels if fetched_channels != None else self.rc_chans
+        return self.rc_chans
+
+    def _get_cur_mode(self):
+        if self.ser_2 is None:
+            return 0
+
+        if "HEARTBEAT" in self.ser_2.messages:
+            latest_heartbeat = self.ser_2.messages["HEARTBEAT"]
+            return latest_heartbeat.custom_mode
+
+        return 0
 
     def main(self):
         while rclpy.ok():
@@ -183,6 +251,23 @@ class PixhawkController(Node):
             self.msg_heading_msg.data = float(self.pixhawk.msg_heading)
             self.heading_deg_pub.publish(self.msg_heading_msg)
             self.set_manual_control()
+
+            self.get_logger().info("Getting rc chans")
+            rc_msg = self._px_rc_val()
+            if self.get_parameter("log_rc").value and rc_msg is not None:
+                self.get_logger().info(
+                    f"CH1: {rc_msg.chan1_raw} | "
+                    f"CH2: {rc_msg.chan2_raw} | "
+                    f"CH3: {rc_msg.chan3_raw} | "
+                    f"CH4: {rc_msg.chan4_raw} | "
+                    f"CH5: {rc_msg.chan5_raw} | "
+                    f"CH6: {rc_msg.chan6_raw} | "
+                    f"CH7: {rc_msg.chan7_raw} | "
+                    f"CH8: {rc_msg.chan8_raw} | "
+                    f"Mode: {self._get_cur_mode()}"
+                )
+            else:
+                self.get_logger().warn("No RC_CHANNELS data available yet")
 
 
 def main(args=None):

@@ -2,7 +2,7 @@ FROM ros:jazzy-ros-base
 
 # Update apt and install pip
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ros-jazzy-joy ffmpeg python3-pip python3-venv python3-opencv && \
+    apt-get install -y --no-install-recommends bash-completion ros-jazzy-joy ffmpeg python3-pip python3-venv python3-opencv && \
     rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install --no-cache-dir pyserial pymavlink py-trees inputs grpcio grpcio-tools setuptools==79.0.1 --break-system-packages && \
