@@ -2,7 +2,7 @@
 
 import py_trees
 from core.utils.factory import TopicFactory, ParamFactory
-from std_msgs.msg import Float64, Bool, UInt8, String, UInt16
+from std_msgs.msg import Float64, Bool, UInt8, String, UInt16, Char
 from core_msgs.msg import (
     Camera,
     KillSwitch,
@@ -69,6 +69,11 @@ class Topic:
     green_box_encoded = TopicFactory("/asv/vision/image/green", String)
     blue_box_encoded = TopicFactory("/asv/vision/image/blue", String)
 
+    front_camera_processed = TopicFactory("/rov/vision/camera/front/processed", String)
+    bottom_camera_processed = TopicFactory(
+        "/rov/vision/camera/bottom/processed", String
+    )
+
     # Inference
     dsc = TopicFactory("/core/vision/image/dsc", Float64)
     detected = TopicFactory("/core/vision/image/detected", Bool)
@@ -97,6 +102,7 @@ class Topic:
     # Mission
     mission = TopicFactory("/core/mission/current", UInt8)
     mission_type = TopicFactory("/core/mission/type", String)
+    qr_side = TopicFactory("/rov/qr_side", Char)
 
     # PWM
     pwm = TopicFactory("/core/pwm", Pwm)

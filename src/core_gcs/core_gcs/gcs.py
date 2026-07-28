@@ -1,14 +1,16 @@
 import asyncio
 import logging
 import threading
+from datetime import datetime, timezone
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String
+
+from core.utils.config import Topic
 
 import grpc
-from server_pb2 import telemetryRequest, telemetryResponse
-from server_pb2_grpc import ServerServicer, add_ServerServicer_to_server
+from .server_pb2 import telemetryRequest, telemetryResponse
+from .server_pb2_grpc import ServerServicer, add_ServerServicer_to_server
 
 
 class RosGrpcServicer(ServerServicer):
@@ -18,28 +20,59 @@ class RosGrpcServicer(ServerServicer):
     async def getTelemetry(
         self, request: telemetryRequest, context: grpc.aio.ServicerContext
     ) -> telemetryResponse:
-        logging.info("Client connected to stream.")
+        self.node.get_logger().info("Client connected to stream.")
 
-        queue = asyncio.Queue()
+        topic_map = {
+            "pixhawk": Topic.pixhawk,
+            "pxmode": Topic.pxmode,
+            "qr_side": Topic.qr_side,
+        }
+
+        state_cache = {name: None for name in topic_map.keys()}
+
+        new_data_event = asyncio.Event()
         loop = asyncio.get_running_loop()
 
-        # NOTE add required topics / subscribers
-        def ros_callback(msg):
-            loop.call_soon_threadsafe(queue.put_nowait, msg.data)
+        def make_callback(cache_key):
+            def callback(msg):
+                state_cache[cache_key] = msg
+                loop.call_soon_threadsafe(new_data_event.set)
 
-        sub = self.node.create_subscription(
-            String, "my_telemetry_topic", ros_callback, 10
-        )
+            return callback
+
+        active_subs = []
+        for name, factory in topic_map.items():
+            cb = make_callback(name)
+            sub = factory.createSubscriber(self.node, cb)
+            active_subs.append(sub)
 
         try:
-            while context.is_active():
-                ros_data = await queue.get()
-                # NOTE SET DATA TO CORRECT FIELDS
-                yield telemetryResponse(message=f"Live ROS Data: {ros_data}")
+            while True:
+                await new_data_event.wait()
+                new_data_event.clear()
+                pix_msg = state_cache["pixhawk"]
+                mode_msg = state_cache["pxmode"]
+                qr_side_msg = state_cache["qr_side"]
+
+                if pix_msg is None or mode_msg is None or qr_side_msg is None:
+                    continue
+
+                yield telemetryResponse(
+                    mode=mode_msg.data,
+                    battery=0,
+                    latitude=pix_msg.lat,
+                    longitude=pix_msg.lon,
+                    timestamp=datetime.fromtimestamp(pix_msg.sys_time, tz=timezone.utc),
+                    qr_side=qr_side_msg.data,
+                    depth=0,
+                    fc_status=True,
+                    sensor_status=True,
+                )
 
         finally:
-            logging.info("Client disconnected, destroying subscription.")
-            self.node.destroy_subscription(sub)
+            logging.info("Client disconnected, destroying subscriptions.")
+            for sub in active_subs:
+                self.node.destroy_subscription(sub)
 
 
 async def serve(ros_node: Node) -> None:
@@ -48,7 +81,8 @@ async def serve(ros_node: Node) -> None:
 
     listen_addr = "[::]:50051"
     server.add_insecure_port(listen_addr)
-    logging.info(f"Starting async gRPC server on {listen_addr}")
+
+    ros_node.get_logger().info(f"Starting async gRPC server on {listen_addr}")
 
     await server.start()
     await server.wait_for_termination()

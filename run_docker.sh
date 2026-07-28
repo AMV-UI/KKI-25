@@ -15,7 +15,9 @@ docker run -it --rm \
     --network=host \
     -v "$WORKSPACE_DIR:$WORKSPACE_DIR" \
     -v "$STUBS_DIR:/stubs" \
+    -v "/dev:/dev" \
+    -v "/run/udev:/run/udev:ro" \
     --privileged \
     -w "$WORKSPACE_DIR" \
     ros-jazzy-rov \
-    bash
+    bash -c "if [ -f \"$WORKSPACE_DIR/install/setup.bash\" ]; then source \"$WORKSPACE_DIR/install/setup.bash\"; else source /opt/ros/jazzy/setup.bash; fi; exec bash"
