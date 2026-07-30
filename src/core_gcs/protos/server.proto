@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package gcs;
+
+import "google/protobuf/timestamp.proto";
+
+service Server {
+  rpc getTelemetry(telemetryRequest) returns (stream telemetryResponse) {};
+}
+
+enum Mode {
+  MANUAL = 0;
+  AUTONOMOUS = 1;
+}
+
+enum Side {
+  A = 0;
+  B = 1;
+  C = 2;
+  D = 3;
+  NOT_FOUND = 4;
+}
+
+message telemetryRequest {}
+
+message telemetryResponse {
+  Mode mode = 1;
+  float battery = 2;
+  google.protobuf.Timestamp timestamp = 5;
+  Side qr_side = 6;
+  float depth = 7;
+  bool fc_status = 8;
+  bool sensor_status = 9;
+  float rollspeed = 10;
+  float pitchspeed = 11;
+  float yawspeed = 12;
+  float roll = 13;
+  float pitch = 14;
+  float yaw = 15; 
+  uint32 forward_rc = 16;
+  uint32 lateral_rc = 17;
+  uint32 vertical_rc = 18;
+  uint32 yaw_rc = 19;
+  uint32 mot1_eff = 20;
+  uint32 mot2_eff = 21;
+  uint32 mot3_eff = 22;
+  uint32 mot4_eff = 23;
+  uint32 mot5_eff = 24;
+  uint32 mot6_eff = 25;
+}
