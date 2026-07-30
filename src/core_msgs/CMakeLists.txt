@@ -23,6 +23,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 "msg/Pwm.msg"
 "msg/Pixhawk.msg"
 "msg/StateObject.msg"
+"msg/ControlState.msg"
 
 )
 # uncomment the following section in order to fill in

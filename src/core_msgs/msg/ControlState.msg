@@ -1,0 +1,11 @@
+uint16 forward
+uint16 lateral
+uint16 vertical
+uint16 yaw
+uint16 grip
+uint16 mot1
+uint16 mot2
+uint16 mot3
+uint16 mot4
+uint16 mot5
+uint16 mot6

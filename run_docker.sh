@@ -17,6 +17,7 @@ docker run -it --rm \
     -v "$STUBS_DIR:/stubs" \
     -v "/dev:/dev" \
     -v "/run/udev:/run/udev:ro" \
+    -v "/sys:/sys:ro" \
     --privileged \
     -w "$WORKSPACE_DIR" \
     ros-jazzy-rov \

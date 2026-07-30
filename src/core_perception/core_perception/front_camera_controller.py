@@ -1,29 +1,25 @@
-#!/usr/bin/env python3
-
 import cv2
+from pyzbar.pyzbar import decode
 from core.utils.config import Topic
 from core_perception.base_camera_controller import BaseCameraNode
 from std_msgs.msg import String
 
 
 class FrontCameraNode(BaseCameraNode):
-    """
-    Child class for the Front (Up) Camera.
-    Handles QR Code detection and specific front-facing publishers.
-    """
-
     def __init__(self):
-        super().__init__("front_camera", "CNFHH52R10643003DBB0_Integrated_Webcam_HD")
-
-        self.camera_pub = Topic.front_camera_processed.createPublisher(self)
+        super().__init__(
+            node_name="front_camera",
+            camera_identifier="046d_C270_HD_WEBCAM_55E22480",
+            stream_url="rtsp://localhost:8554/live/frontcam",
+        )
         self.qr_data_pub = Topic.qr_side.createPublisher(self)
 
-        self.qr_detector = cv2.QRCodeDetector()
-
     def process_and_publish(self, frame):
-        data, bbox, _ = self.qr_detector.detectAndDecode(frame)
+        decoded_objects = decode(frame)
 
-        if bbox is not None and data:
+        for obj in decoded_objects:
+            data = obj.data.decode("utf-8")
+
             self.get_logger().info(
                 f"QR Code Detected: {data}", throttle_duration_sec=2.0
             )
@@ -32,16 +28,22 @@ class FrontCameraNode(BaseCameraNode):
             qr_msg.data = data
             self.qr_data_pub.publish(qr_msg)
 
-            bbox = bbox[0].astype(int)
-            for i in range(len(bbox)):
-                cv2.line(
-                    frame,
-                    tuple(bbox[i]),
-                    tuple(bbox[(i + 1) % len(bbox)]),
-                    (0, 255, 0),
-                    3,
-                )
+            points = obj.polygon
+            if len(points) == 4:
+                pts = [(pt.x, pt.y) for pt in points]
+                for i in range(4):
+                    cv2.line(frame, pts[i], pts[(i + 1) % 4], (0, 255, 0), 3)
 
-        encoded_msg = self.encode_base64(frame)
-        if encoded_msg:
-            self.camera_pub.publish(encoded_msg)
+                text_x = pts[0][0]
+                text_y = max(pts[0][1] - 10, 20)
+
+                cv2.putText(
+                    frame,
+                    data,
+                    (text_x, text_y),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
+                    2,
+                    cv2.LINE_AA,
+                )

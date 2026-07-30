@@ -2,12 +2,13 @@
 
 import py_trees
 from core.utils.factory import TopicFactory, ParamFactory
-from std_msgs.msg import Float64, Bool, UInt8, String, UInt16, Char
+from std_msgs.msg import Float64, Bool, UInt8, String, UInt16
 from core_msgs.msg import (
     Camera,
     KillSwitch,
     Pwm,
     Pixhawk,
+    ControlState,
 )
 from sensor_msgs.msg import Joy
 
@@ -62,6 +63,8 @@ class Topic:
     dock_lat = TopicFactory("/docking/target_latitude", Float64)
     dock_lon = TopicFactory("/docking/target_longitude", Float64)
 
+    control_state = TopicFactory("/rov/control", ControlState)
+
     # Camera
     camera_processed = TopicFactory("/asv/vision/camera/processed", String)
     image_green_box = TopicFactory("/asv/vision/image/show_green", String)
@@ -102,7 +105,7 @@ class Topic:
     # Mission
     mission = TopicFactory("/core/mission/current", UInt8)
     mission_type = TopicFactory("/core/mission/type", String)
-    qr_side = TopicFactory("/rov/qr_side", Char)
+    qr_side = TopicFactory("/rov/qr_side", String)
 
     # PWM
     pwm = TopicFactory("/core/pwm", Pwm)

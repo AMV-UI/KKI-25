@@ -7,7 +7,7 @@ import time
 from rclpy.node import Node
 from pymavlink import mavutil
 from std_msgs.msg import Float64, String
-from core_msgs.msg import Pixhawk
+from core_msgs.msg import Pixhawk, ControlState
 from core.utils.config import Topic
 
 
@@ -18,12 +18,14 @@ class PixhawkController(Node):
         self.pixhawk = Pixhawk()
         self.pxmode = "MANUAL"
         self.ser_2 = None
-        self.current_manual_control = (0, 0, 0, 0)
+
+        self.current_manual_control = [1500.0, 1500.0, 1500.0, 1500.0]
+        self.target_manual_control = [1500.0, 1500.0, 1500.0, 1500.0]
         self.rc_chans = None
 
         self.MAX_SLEW_PER_SEC = 400  # unit PWM per detik, sesuaikan
         self.last_servo_time = time.time()
-        self.servo_pwm = 2500
+        self.servo_pwm = 1500
         self.servo_dir = 0
 
         self.a_button_pressed = False
@@ -36,6 +38,7 @@ class PixhawkController(Node):
         self.pixhawk_pub = Topic.pixhawk.createPublisher(self)
         self.heading_deg_pub = Topic.heading_deg.createPublisher(self)
         self.pxmode_pub = Topic.pxmode.createPublisher(self)
+        self.control_pub = Topic.control_state.createPublisher(self)
 
         # Subscribers
         self.joy_sub = Topic.joy.createSubscriber(self, self._joy_callback)
@@ -52,6 +55,7 @@ class PixhawkController(Node):
         self.declare_parameter("log_servo", True)
 
         self.declare_parameter("info_throttle", 500)
+        self.declare_parameter("smoothing_factor", 0.2)
 
         self.declare_parameter("scale_forward", 1.0)
         self.declare_parameter("scale_lateral", 1.0)
@@ -76,10 +80,10 @@ class PixhawkController(Node):
 
         raw_forward = joy_msg.axes[1] * 1
         raw_lateral = joy_msg.axes[0] * -1
-        raw_yaw = joy_msg.axes[3] * -1
+        raw_yaw = joy_msg.axes[2] * -1
 
-        raw_up = (joy_msg.axes[5] * -1.0 + 1.0) / 2.0
-        raw_down = (joy_msg.axes[2] - 1.0) / 2.0
+        raw_up = (joy_msg.axes[4] * -1.0 + 1.0) / 2.0
+        raw_down = (joy_msg.axes[5] - 1.0) / 2.0
         raw_vertical = raw_up + raw_down
 
         scale_fwd = self.get_parameter("scale_forward").value
@@ -102,7 +106,7 @@ class PixhawkController(Node):
         vertical = max(
             1300, min(1700, int(1500 + (raw_vertical * scale_vert + trim_vert) * 400))
         )
-        self.current_manual_control = (forward, lateral, vertical, yaw)
+        self.target_manual_control = (forward, lateral, vertical, yaw)
 
         # Parse toggles
         b_button = joy_msg.buttons[1]  # depth hold ON
@@ -115,7 +119,7 @@ class PixhawkController(Node):
             self._px_set_mode("MANUAL")
             self.pxmode = "MANUAL"
 
-        x_button = joy_msg.buttons[2]  # stabilize ON
+        x_button = joy_msg.buttons[3]  # stabilize ON
         if not x_button and self.x_button_pressed:
             self._px_set_mode("STABILIZE")
             self.pxmode = "STABILIZE"
@@ -164,23 +168,21 @@ class PixhawkController(Node):
                 self.get_logger().info(f"Pixhawk found on {port}")
                 self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
                 self._px_arm()
-                if self.get_parameter("log_rc").value:
-                    self.ser_2.mav.request_data_stream_send(
-                        self.ser_2.target_system,
-                        self.ser_2.target_component,
-                        mavutil.mavlink.MAV_DATA_STREAM_RC_CHANNELS,
-                        10,
-                        1,
-                    )
+                self.ser_2.mav.request_data_stream_send(
+                    self.ser_2.target_system,
+                    self.ser_2.target_component,
+                    mavutil.mavlink.MAV_DATA_STREAM_RC_CHANNELS,
+                    10,
+                    1,
+                )
 
-                if self.get_parameter("log_servo").value:
-                    self.ser_2.mav.request_data_stream_send(
-                        self.ser_2.target_system,
-                        self.ser_2.target_component,
-                        mavutil.mavlink.MAV_DATA_STREAM_RAW_CONTROLLER,
-                        10,
-                        1,
-                    )
+                self.ser_2.mav.request_data_stream_send(
+                    self.ser_2.target_system,
+                    self.ser_2.target_component,
+                    mavutil.mavlink.MAV_DATA_STREAM_RAW_CONTROLLER,
+                    10,
+                    1,
+                )
                 self.ser_2.mav.request_data_stream_send(
                     self.ser_2.target_system,
                     self.ser_2.target_component,
@@ -236,6 +238,15 @@ class PixhawkController(Node):
             msg_coor = self.ser_2.messages.get("GLOBAL_POSITION_INT", None)
             alignment = self.ser_2.messages.get("VFR_HUD", None)
             system_time = self.ser_2.messages.get("SYSTEM_TIME", None)
+            attitude = self.ser_2.messages.get("ATTITUDE", None)
+
+            if attitude is not None:
+                self.pixhawk.rollspeed = attitude.rollspeed
+                self.pixhawk.yawspeed = attitude.yawspeed
+                self.pixhawk.pitchspeed = attitude.pitchspeed
+                self.pixhawk.roll = attitude.roll
+                self.pixhawk.yaw = attitude.yaw
+                self.pixhawk.pitch = attitude.pitch
 
             if msg_coor is not None:
                 self.pixhawk.lat = msg_coor.lat / 1e7
@@ -275,10 +286,16 @@ class PixhawkController(Node):
         self.info_throttle(f"Mode set to : {self.pxmode}")
 
     def set_manual_control(self):
-        forward = self.current_manual_control[0]
-        lateral = self.current_manual_control[1]
-        vertical = self.current_manual_control[2]
-        yaw = self.current_manual_control[3]
+
+        for i in range(4):
+            self.current_manual_control[i] += self.get_parameter(
+                "smoothing_factor"
+            ).value * (self.target_manual_control[i] - self.current_manual_control[i])
+
+        forward = int(self.current_manual_control[0])
+        lateral = int(self.current_manual_control[1])
+        vertical = int(self.current_manual_control[2])
+        yaw = int(self.current_manual_control[3])
 
         if self.get_parameter("log_manual_control").value:
             self.info_throttle(
@@ -326,6 +343,8 @@ class PixhawkController(Node):
 
             self._pump_mavlink_messages()
             rc_msg = self.ser_2.messages.get("RC_CHANNELS", None)
+
+            control_msg = ControlState()
             if self.get_parameter("log_rc").value:
                 if rc_msg is not None:
                     self.info_throttle(
@@ -343,6 +362,7 @@ class PixhawkController(Node):
                     self.error_throttle("No RC_CHANNELS data available yet")
 
             servo_msg = self.ser_2.messages.get("SERVO_OUTPUT_RAW", None)
+
             if self.get_parameter("log_servo").value:
                 if servo_msg is not None:
                     self.info_throttle(
@@ -352,6 +372,19 @@ class PixhawkController(Node):
                     )
                 else:
                     self.error_throttle("No servo output data available yet")
+
+            control_msg.forward = rc_msg.chan5_raw
+            control_msg.lateral = rc_msg.chan6_raw
+            control_msg.vertical = rc_msg.chan3_raw
+            control_msg.yaw = rc_msg.chan4_raw
+            control_msg.mot1 = servo_msg.servo1_raw
+            control_msg.mot2 = servo_msg.servo2_raw
+            control_msg.mot3 = servo_msg.servo3_raw
+            control_msg.mot4 = servo_msg.servo4_raw
+            control_msg.mot5 = servo_msg.servo5_raw
+            control_msg.mot6 = servo_msg.servo6_raw
+            control_msg.grip = servo_msg.servo9_raw
+            self.control_pub.publish(control_msg)
 
             pixhawk_data = self.request_pixhawk()
             self.pixhawk_pub.publish(pixhawk_data)

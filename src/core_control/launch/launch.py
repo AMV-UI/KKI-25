@@ -2,7 +2,6 @@
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -22,14 +21,13 @@ def generate_launch_description():
         "trim_lateral": "0.0",
         "trim_yaw": "0.0",
         "trim_vertical": "0.0",
+        "smoothing_factor": "0.05",
     }
-
-    gcs_param = DeclareLaunchArgument("gcs", default_value="false")
 
     launch_args = [
         DeclareLaunchArgument(name, default_value=val)
         for name, val in default_params.items()
-    ] + [gcs_param]
+    ]
 
     node_params = {name: LaunchConfiguration(name) for name in default_params.keys()}
 
@@ -55,7 +53,13 @@ def generate_launch_description():
                 name="gcs",
                 output="screen",
                 parameters=[{}],
-                condition=IfCondition(LaunchConfiguration("gcs")),
+            ),
+            Node(
+                package="core_perception",
+                executable="cameras",
+                name="cameras",
+                output="screen",
+                parameters=[{}],
             ),
         ]
     )

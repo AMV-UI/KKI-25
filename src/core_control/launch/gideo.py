@@ -8,16 +8,9 @@ def generate_launch_description():
     return LaunchDescription(
         [
             Node(
-                package="core_perception",
-                executable="cameras",
-                name="cameras",
-                output="screen",
-                parameters=[{}],
-            ),
-            Node(
                 package="core_gcs",
-                executable="gcs_video",
-                name="gcs_video",
+                executable="gcs",
+                name="gcs",
                 output="screen",
                 parameters=[{}],
             ),
