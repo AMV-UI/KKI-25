@@ -181,7 +181,7 @@ class ObjectDetector:
                 elif self.max_green != -1:
                     yaw_state = self.pid_adjust * (1 if arena == "A" else -1)
                 elif self.max_red != -1:
-                    yaw_state = self.pid_adjust * (-1 if arena == "A" else 1)
+                    yaw_state = self.pid_adjust * (1 if arena == "A" else -1)
                 else:
                     yaw_state = 0
                 if self.max_green != -1 or self.max_red != -1:
