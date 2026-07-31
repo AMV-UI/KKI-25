@@ -33,12 +33,16 @@ class Motor:
         res[self.channel.MOTOR_Y] = self.__adjust(
             res[self.channel.MOTOR_Y], self.motor_adjust
         )
+        if hasattr(self.channel, 'MOTOR_BOW') and self.channel.MOTOR_BOW in res:
+            res[self.channel.MOTOR_BOW] = self.__adjust(
+                res[self.channel.MOTOR_BOW], self.motor_adjust
+            )
         return res
 
     def calculateSpeed(self, control_effort):
         return self.STANDBY + control_effort
 
-    def autonomous(self, control_effort_x=50, control_effort_y=300):
+    def autonomous(self, control_effort_x=50, control_effort_y=300, bow_effort=0):
         # motor_speed = Param.MOTOR_SPEED.getValue(self.node)
         # x_speed = Param.X_SPEED.getValue(self.node)
 
@@ -46,11 +50,14 @@ class Motor:
         x_speed = 1 
 
 
-        self.node.get_logger().debug(f"Autonomous Mode: motor_speed={motor_speed}, x_speed={x_speed}")
-        return self.__calcAdjustedSpeed({
+        self.node.get_logger().debug(f"Autonomous Mode: motor_speed={motor_speed}, x_speed={x_speed}, bow={bow_effort}")
+        res = {
             self.channel.MOTOR_X: self.calculateSpeed(int(control_effort_x * x_speed)),
             self.channel.MOTOR_Y: self.calculateSpeed(int(-control_effort_y * motor_speed)),
-        })
+        }
+        if hasattr(self.channel, 'MOTOR_BOW'):
+            res[self.channel.MOTOR_BOW] = self.calculateSpeed(int(bow_effort))
+        return self.__calcAdjustedSpeed(res)
 
     # def half_detected(self):
     #     Param.MOTOR_SPEED.setParam(self.node, SPEED.Slow)

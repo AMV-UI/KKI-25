@@ -40,7 +40,7 @@ class MissionTreeBuilder:
 
     # Perception
     MISSIONS_CONFIG = [
-        # (Initial_Execution, Initial_Fallback, "Initial", 0),
+        (Initial_Execution, Initial_Fallback, "Initial", 0),
         (Buoy_Execution, Buoy_Fallback, "Buoy", 0),
         (Turn_Next_Buoy_Execution, Turn_Next_Buoy_Fallback, "Turn Next Buoy", 1),
         (Box_Execution, Box_Fallback, "Change Mission to Green Box", 6),
@@ -50,10 +50,10 @@ class MissionTreeBuilder:
         (Box_Execution, Box_Fallback, "Change Mission to Blue Box", 8),
         (Finding_Execution, Finding_Fallback, "Finding Blue Box", 8), 
         (Photo_Execution, Photo_Fallback, "Photo Blue Box", 9), 
-        # (Box_Execution, Box_Fallback, "Change Mission to Docking", 10),
+        (Box_Execution, Box_Fallback, "Change Mission to Docking", 10),
         # (Pass_Execution, Pass_Fallback, "Pass Box", 10),
-        # (Docking_Execution, Docking_Fallback, "Docking", 10),
-        # (Done_Execution, Done_Fallback, "Done", 10),
+        (Docking_Execution, Docking_Fallback, "Docking", 10),
+        (Done_Execution, Done_Fallback, "Done", 10),
     ]
 
     def __init__(self, ros_node):

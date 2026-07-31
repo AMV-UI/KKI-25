@@ -27,12 +27,19 @@ class Box_Execution(BaseExecution):
         self.mission_type = str(msg.data)
 
     def execute(self) -> Status:
-        if (self.mission_type == MissionStatus.BUOY):
-            self.mission_type = MissionStatus.GREEN_BOX                   
-        elif (self.mission_type == MissionStatus.GREEN_BOX):
+        if self.mission == 6:
+            self.mission_type = MissionStatus.GREEN_BOX
+        elif self.mission == 8:
             self.mission_type = MissionStatus.BLUE_BOX
-        elif (self.mission_type == MissionStatus.BLUE_BOX):
+        elif self.mission == 10:
             self.mission_type = MissionStatus.DOCKING
+        else:
+            if (self.mission_type == MissionStatus.BUOY):
+                self.mission_type = MissionStatus.GREEN_BOX                   
+            elif (self.mission_type == MissionStatus.GREEN_BOX):
+                self.mission_type = MissionStatus.BLUE_BOX
+            elif (self.mission_type == MissionStatus.BLUE_BOX):
+                self.mission_type = MissionStatus.DOCKING
 
         self.mission_type_pub.publish(String(data=self.mission_type))
         if self.mission is not None:

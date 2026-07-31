@@ -57,6 +57,7 @@ class MotorController(Node):
         self.state_dst = float()
         self.yaw_effort = float()
         self.speed_effort = float()
+        self.bow_effort = float()
 
         self._setup_communication()
 
@@ -71,6 +72,7 @@ class MotorController(Node):
         # Subscribers
         self.yaw_effort_sub = Topic.yaw_effort.createSubscriber(self, self._yaw_effort_callback)
         self.speed_effort_sub = Topic.speed_effort.createSubscriber(self, self._speed_effort_callback)
+        self.bow_effort_sub = Topic.bow_effort.createSubscriber(self, self._bow_effort_callback)
         self.dsc_sub = Topic.dsc.createSubscriber(self, self._dsc_callback)
 
     def display_pwm_status(self):
@@ -92,7 +94,8 @@ class MotorController(Node):
         
         for k, v in self.motor.autonomous(
             control_effort_x=self.yaw_effort,
-            control_effort_y=self.speed_effort
+            control_effort_y=self.speed_effort,
+            bow_effort=self.bow_effort
         ).items():
             self.pwm.channels[k] = v
 
@@ -101,6 +104,9 @@ class MotorController(Node):
 
     def _speed_effort_callback(self, msg: Float64):
         self.speed_effort = msg.data
+
+    def _bow_effort_callback(self, msg: Float64):
+        self.bow_effort = msg.data
 
     def _killswitch_callback(self, msg: KillSwitch):
         self.killswitch_state.data = msg.data

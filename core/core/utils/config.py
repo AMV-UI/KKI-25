@@ -44,8 +44,8 @@ class MissionParams:
     buoy_time_threshold = 2.0
 
     # Turn Next Buoy Mission
-    turn_next_buoy_speed_effort = 120.0
-    turn_next_buoy_yaw_effort = 100.0
+    turn_next_buoy_speed_effort = 170.0
+    turn_next_buoy_yaw_effort = 150.0
     turn_next_buoy_duration = 20.0
 
     # Finding Mission BOX
@@ -61,10 +61,13 @@ class MissionParams:
     # Photo Mission
     photo_time_threshold = 2.0
 
-    # Dock Mission
-    dock_speed_effort = 100.0
-    dock_yaw_effort = 200.0
+    # Dock Mission 
+    dock_speed_effort = 200.0
+    dock_yaw_effort = 70.0
     dock_time_threshold = 0.2
+    dock_margin_error = 5.0
+    dock_forward_time_1 = 5.0
+    dock_forward_time_2 = 5.0
 	
     # Passthrough Mission
     passthrough_speed_effort = 130.0
@@ -132,6 +135,7 @@ class Topic:
     # SPEED = Y AXIS (Forward/Backward)
     yaw_effort = TopicFactory("/core/motor/yaw_effort", Float64)
     speed_effort = TopicFactory("/core/motor/speed_effort", Float64)
+    bow_effort = TopicFactory("/core/motor/bow_effort", Float64)
 
     rc5 = TopicFactory("/core/motor/rc5", Float64)
     rc6 = TopicFactory("/core/motor/rc6", Float64)

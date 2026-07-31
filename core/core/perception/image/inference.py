@@ -104,7 +104,9 @@ class ObjectDetector:
             self.green_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
             self.blue_box = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
 
-            
+            red_buoys_large = 0
+            docking_buoys_centers = []
+
             # threshold boxes
             # self.minimum_blue_box_area = 200
             # self.minimum_green_box_area = 200
@@ -131,9 +133,21 @@ class ObjectDetector:
 
 
                     elif mission == MissionStatus.DOCKING:
-                        img, self.green_box, self.blue_box = self.dock_detected(
-                            cls, img, x1, y1, x2, y2, confidence, area
-                        )                    
+                        if self.class_names[cls] == "redBuoy" or self.class_names[cls] == "red_buoy":
+                            color = (0, 0, 255)
+                            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+                            cv2.putText(
+                                img,
+                                f"red_buoy (Area: {area})",
+                                (x1, y1),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                1,
+                                color,
+                                2,
+                            )
+                            docking_buoys_centers.append((x1 + x2) // 2)
+                            if area > 3000:
+                                red_buoys_large += 1
 
                     elif mission == MissionStatus.GREEN_BOX:
                         img, status = self.green_box_detected(
@@ -176,30 +190,18 @@ class ObjectDetector:
                 color = (0, 0, 0)
                 cv2.rectangle(img, (width, height), (width, height), color, 3)
             elif mission == MissionStatus.DOCKING:
-                if self.max_green_box < self.max_blue_box * self.treshold:
-                    self.max_green_box = -1
-                elif self.max_blue_box < self.max_green_box * self.treshold:
-                    self.max_blue_box = -1
-
-                self.mid_green_box = (self.green_box["x1"] + self.green_box["x2"]) // 2
-                self.mid_blue_box = (self.blue_box["x1"] + self.blue_box["x2"]) // 2
-
-                if self.max_green_box != -1 and self.max_blue_box != -1:
-                    mid_x = (self.mid_green_box + self.mid_blue_box) // 2
-                    dsc_x = mid_x - width
-                    yaw_state = dsc_x
-                elif self.max_green_box != -1:
-                    yaw_state = self.pid_adjust * (1 if arena == "B" else -1)
-                elif self.max_blue_box != -1:
-                    yaw_state = self.pid_adjust * (-1 if arena == "B" else 1)
-                else:
-                    yaw_state = 0
-
-                if self.max_blue_box != -1 or self.max_green_box != -1:
+                if red_buoys_large >= 3:
                     detected = True
-
-                color = (0, 0, 0)
-                cv2.rectangle(img, (width, height), (width, height), color, 3)
+                else:
+                    detected = False
+                if len(docking_buoys_centers) > 0:
+                    mid_x = sum(docking_buoys_centers) // len(docking_buoys_centers)
+                    yaw_state = mid_x - width
+                else:
+                    yaw_state = 9999.0
+                
+                # Visual feedback for DOCKING state
+                cv2.putText(img, f"Red Buoys > 7000 area: {red_buoys_large}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
             return img, yaw_state, detected
 
     def buoy_detected(self, cls, img, x1, y1, x2, y2, confidence, area):

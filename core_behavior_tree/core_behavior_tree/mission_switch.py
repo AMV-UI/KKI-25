@@ -25,7 +25,7 @@ class BehaviorTreeNode(Node):
         # self.tick_period = 2 #2hz for dev
         self.timer = self.create_timer(self.tick_period, self.tick_tree)
         
-        self.setup_visualization()
+        # self.setup_visualization()
         
         self.get_logger().info("Behavior tree initialized and ready")
 

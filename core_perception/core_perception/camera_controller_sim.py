@@ -43,7 +43,7 @@ class CameraController(Node):
         )
 
         self.box_detector = ObjectDetector(
-            "/home/apenchu/Downloads/best.pt",
+            "/home/apenchu/Downloads/box_v1.pt",
             self,
             [
                 "blueBox",
@@ -229,7 +229,7 @@ class CameraController(Node):
             if not success:
                 return
 
-            if self.mission_type == MissionStatus.BUOY:
+            if self.mission_type == MissionStatus.BUOY or self.mission_type == MissionStatus.DOCKING:
                 self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
             else:
                 self.get_logger().info(f"Masuk sini", throttle_duration_sec=1.0)
