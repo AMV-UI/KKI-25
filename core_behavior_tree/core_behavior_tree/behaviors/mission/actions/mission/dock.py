@@ -92,6 +92,7 @@ class Docking_Execution(BaseExecution):
             if abs(theta) < 10.0:
                 self.node.get_logger().info(f"[{self.name}] Arah GPS sesuai! Mulai berjalan maju menuju target...")
                 self.dock_state = 1
+                self.locked_heading = self.heading
                 self.speed_effort_pub.publish(Float64(data=0.0))
                 self.yaw_effort_pub.publish(Float64(data=0.0))
                 self.bow_effort_pub.publish(Float64(data=0.0))
@@ -108,8 +109,11 @@ class Docking_Execution(BaseExecution):
 
         elif self.dock_state == 1:
             # APPROACH
-            if distance <= MissionParams.dock_margin_error:
-                self.node.get_logger().info(f"[{self.name}] Mencapai batas margin GPS ({distance:.2f}m)! Memulai PUTARAN 90 DERAJAT...")
+            if distance <= MissionParams.dock_margin_error or self.detected:
+                if self.detected:
+                    self.node.get_logger().info(f"[{self.name}] 3 Buoy Merah Terdeteksi! Memulai PUTARAN 90 DERAJAT...")
+                else:
+                    self.node.get_logger().info(f"[{self.name}] Mencapai batas margin GPS ({distance:.2f}m)! Memulai PUTARAN 90 DERAJAT...")
                 self.dock_state = 2
                 self.speed_effort_pub.publish(Float64(data=0.0))
                 self.yaw_effort_pub.publish(Float64(data=0.0))
@@ -118,10 +122,10 @@ class Docking_Execution(BaseExecution):
                 # Set target yaw based on arena to align parallel to dock
                 if self.arena == "A":
                     # Slide Left -> Dock is on Left -> Turn Right 90 degrees
-                    self.target_yaw = (self.heading + 90) % 360
+                    self.target_yaw = (self.locked_heading + 90) % 360
                 else:
                     # Slide Right -> Dock is on Right -> Turn Left 90 degrees
-                    self.target_yaw = (self.heading - 90 + 360) % 360
+                    self.target_yaw = (self.locked_heading - 90 + 360) % 360
                 return Status.RUNNING
                 
             self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
@@ -155,7 +159,7 @@ class Docking_Execution(BaseExecution):
             
             if abs(yaw_diff) < 5.0:
                 self.node.get_logger().info(f"[{self.name}] Selesai putaran 1! Memulai maju 1...")
-                self.dock_state = 2
+                self.dock_state = 3
                 self.start_time = time.time()
                 self.yaw_effort_pub.publish(Float64(data=0.0))
                 return Status.RUNNING
@@ -170,7 +174,7 @@ class Docking_Execution(BaseExecution):
             # FORWARD 1
             if time.time() - self.start_time > MissionParams.dock_forward_time_1:
                 self.node.get_logger().info(f"[{self.name}] Selesai maju 1! Memulai putaran 2...")
-                self.dock_state = 3
+                self.dock_state = 4
                 if self.arena == "A":
                     self.target_yaw = (self.heading - 90 + 360) % 360 # Turn CCW
                 else:
@@ -192,7 +196,7 @@ class Docking_Execution(BaseExecution):
             
             if abs(yaw_diff) < 5.0:
                 self.node.get_logger().info(f"[{self.name}] Selesai putaran 2! Memulai maju 2...")
-                self.dock_state = 4
+                self.dock_state = 5
                 self.start_time = time.time()
                 self.yaw_effort_pub.publish(Float64(data=0.0))
                 return Status.RUNNING
@@ -207,7 +211,7 @@ class Docking_Execution(BaseExecution):
             # FORWARD 2
             if time.time() - self.start_time > MissionParams.dock_forward_time_2:
                 self.node.get_logger().info(f"[{self.name}] Selesai maju 2! Memulai putaran 3...")
-                self.dock_state = 5
+                self.dock_state = 6
                 if self.arena == "A":
                     self.target_yaw = (self.heading - 90 + 360) % 360 # Turn CCW
                 else:
