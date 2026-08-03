@@ -46,7 +46,7 @@ class MissionParams:
     # Turn Next Buoy Mission
     turn_next_buoy_speed_effort = 150.0
     turn_next_buoy_yaw_effort = 70.0
-    turn_next_buoy_duration = 10.0
+    turn_next_buoy_duration = 20.0
 
     # Finding Mission BOX
     finding_speed_effort = 150.0
