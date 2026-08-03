@@ -39,30 +39,30 @@ class MissionStatus:
 
 class MissionParams:
     # Buoy Mission
-    buoy_speed_effort = 150.0
+    buoy_speed_effort = 120.0
     buoy_yaw_effort = 200.0
     buoy_time_threshold = 2.0
 
     # Turn Next Buoy Mission
-    turn_next_buoy_speed_effort = 150.0
+    turn_next_buoy_speed_effort = 120.0
     turn_next_buoy_yaw_effort = 150.0
     turn_next_buoy_duration = 5.0
 
     # Finding Mission BOX
     finding_speed_effort = 70.0
-    finding_yaw_effort = 200.0
+    finding_yaw_effort = 150.0
     finding_time_threshold = 0.2
 
     # Unfinding Mission BOX
     unfinding_speed_effort = 70.0
-    unfinding_yaw_effort = 200.0
+    unfinding_yaw_effort = 150.0
     unfinding_time_threshold = 0.2
 
     # Photo Mission
     photo_time_threshold = 2.0
 
     # Dock Mission 
-    dock_speed_effort = 150.0
+    dock_speed_effort = 120.0
     dock_yaw_effort = 150.0
     dock_time_threshold = 0.2
     dock_margin_error = 5.0
