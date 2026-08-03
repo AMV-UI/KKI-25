@@ -67,6 +67,18 @@ class Docking_Execution(BaseExecution):
     def _detected_cb(self, msg: Bool):
         self.detected = msg.data
 
+    def initialise(self) -> None:
+        self.dock_state = 0
+        self.integral_align = 0.0
+        self.prev_align = 0.0
+        self.integral_cam = 0.0
+        self.prev_cam = 0.0
+        self.integral_head = 0.0
+        self.prev_head = 0.0
+        if hasattr(self, 'frame_counter') and self.frame_counter:
+            self.frame_counter.reset()
+        self.node.get_logger().info(f"[{self.name}] Initializing Docking Execution")
+
     def _pixhawk_cb(self, msg: Pixhawk):
         self.lat = msg.lat
         self.lon = msg.lon
@@ -86,24 +98,44 @@ class Docking_Execution(BaseExecution):
         distance = haversine(self.lon, self.lat, self.docking_lon, self.docking_lat)
 
         if self.dock_state == 0:
-            # ALIGN TO GPS FIRST
-            self.node.get_logger().info(f"[{self.name}] ALIGN_TO_GPS: Berputar menyamakan arah ke target GPS (theta: {theta:.2f})...", throttle_duration_sec=1.0)
+            # ALIGN TO GPS FIRST (MOVING FORWARD FOR COG)
+            self.node.get_logger().info(f"[{self.name}] ALIGN_TO_GPS (COG): Bergerak maju & menyelaraskan arah ke target GPS (theta: {theta:.2f})...", throttle_duration_sec=1.0)
             
-            if abs(theta) < 10.0:
-                self.node.get_logger().info(f"[{self.name}] Arah GPS sesuai! Mulai berjalan maju menuju target...")
+            if abs(theta) < 3.0:
+                self.node.get_logger().info(f"[{self.name}] Arah GPS sesuai (Akurasi {abs(theta):.2f} deg)! Mengunci heading & lanjut maju...")
                 self.dock_state = 1
                 self.locked_heading = self.heading
-                self.speed_effort_pub.publish(Float64(data=0.0))
-                self.yaw_effort_pub.publish(Float64(data=0.0))
-                self.bow_effort_pub.publish(Float64(data=0.0))
+                # Keep moving, do not stop
                 return Status.RUNNING
 
-            if theta > 0:
-                yaw_cmd = -float(self.effort)
-            else:
-                yaw_cmd = float(self.effort)
+            # PID Control for GPS Alignment
+            kp = MissionParams.kp_head
+            ki = MissionParams.ki_head
+            kd = MissionParams.kd_head
+            
+            error = -theta
+            self.integral_align += error
+            max_int = 500.0
+            if self.integral_align > max_int: self.integral_align = max_int
+            elif self.integral_align < -max_int: self.integral_align = -max_int
+            
+            derivative = error - getattr(self, 'prev_align', 0.0)
+            self.prev_align = error
+            
+            yaw_cmd = (error * kp) + (self.integral_align * ki) + (derivative * kd)
+            
+            if yaw_cmd > float(self.effort): yaw_cmd = float(self.effort)
+            elif yaw_cmd < -float(self.effort): yaw_cmd = -float(self.effort)
+            
+            # Minimum effort only if far from target
+            min_eff = 45.0
+            if abs(theta) > 2.0 and abs(yaw_cmd) < min_eff:
+                yaw_cmd = min_eff if yaw_cmd > 0 else -min_eff
+            elif abs(theta) <= 2.0:
+                self.integral_align *= 0.9 # Bleed off integral when centered
                 
-            self.speed_effort_pub.publish(Float64(data=0.0))
+            # MUST MOVE FORWARD to allow GPS COG (Course Over Ground) to calculate heading accurately!
+            self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
             self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
             return Status.RUNNING
 
@@ -133,17 +165,50 @@ class Docking_Execution(BaseExecution):
             # Combine GPS and Vision for perfect docking approach
             if self.dsc != 9999.0:
                 self.node.get_logger().info(f"[{self.name}] CAMERA LOCK: Menyelaraskan kapal ke buoy docking (DSC: {self.dsc:.2f})...", throttle_duration_sec=1.0)
-                # DSC > 0 means buoys are to the right. Turn right (negative yaw) to center them.
-                yaw_cmd = -self.dsc * 0.3 
+                # DSC PID
+                kp = MissionParams.kp_cam
+                ki = MissionParams.ki_cam
+                kd = MissionParams.kd_cam
+                
+                error = -self.dsc
+                self.integral_cam += error
+                max_int = 1000.0
+                if self.integral_cam > max_int: self.integral_cam = max_int
+                elif self.integral_cam < -max_int: self.integral_cam = -max_int
+                
+                derivative = error - getattr(self, 'prev_cam', 0.0)
+                self.prev_cam = error
+                
+                yaw_cmd = (error * kp) + (self.integral_cam * ki) + (derivative * kd)
                 max_yaw = float(self.effort)
+                
+                if abs(error) < 10.0:
+                    self.integral_cam *= 0.9
             else:
-                self.node.get_logger().info(f"[{self.name}] GPS NAVIGATE: Jarak: {distance:.2f}m, theta: {theta:.2f}. Menuju lat lon...", throttle_duration_sec=1.0)
-                if abs(theta) < 2.0:
-                    yaw_cmd = 0.0
-                else:
-                    yaw_cmd = -theta * 2.0
-                max_yaw = float(self.effort * 0.4) # Limit to 40% effort for smooth GPS corrections
-                    
+                from core.mission.gps_stuff import calc_turn
+                yaw_diff = calc_turn(self.locked_heading, self.heading)
+                self.node.get_logger().info(f"[{self.name}] HEADING LOCK: Jarak: {distance:.2f}m. Mengunci arah di {self.locked_heading:.1f} deg (Diff: {yaw_diff:.1f})...", throttle_duration_sec=1.0)
+                
+                # Heading PID
+                kp = MissionParams.kp_head
+                ki = MissionParams.ki_head
+                kd = MissionParams.kd_head
+                
+                error = yaw_diff
+                self.integral_head += error
+                max_int = 500.0
+                if self.integral_head > max_int: self.integral_head = max_int
+                elif self.integral_head < -max_int: self.integral_head = -max_int
+                
+                derivative = error - getattr(self, 'prev_head', 0.0)
+                self.prev_head = error
+                
+                yaw_cmd = (error * kp) + (self.integral_head * ki) + (derivative * kd)
+                max_yaw = float(self.effort * 0.4) # Limit to 40% effort for smooth corrections
+                
+                if abs(error) < 2.0:
+                    self.integral_head *= 0.9
+                
             if yaw_cmd > max_yaw: yaw_cmd = max_yaw
             elif yaw_cmd < -max_yaw: yaw_cmd = -max_yaw
                 
@@ -155,16 +220,29 @@ class Docking_Execution(BaseExecution):
             from core.mission.gps_stuff import calc_turn
             yaw_diff = calc_turn(self.target_yaw, self.heading)
             
-            self.node.get_logger().info(f"[{self.name}] ALIGN 1: Berputar ke {self.target_yaw:.1f} deg (diff: {yaw_diff:.1f} deg)...", throttle_duration_sec=1.0)
+            self.node.get_logger().info(f"[{self.name}] ALIGN 1: Berputar ke {self.target_yaw:.1f} deg (Current: {self.heading:.1f}, Diff: {yaw_diff:.1f} deg)...", throttle_duration_sec=1.0)
             
-            if abs(yaw_diff) < 5.0:
-                self.node.get_logger().info(f"[{self.name}] Selesai putaran 1! Memulai maju 1...")
+            if abs(yaw_diff) < 3.0:
+                self.node.get_logger().info(f"[{self.name}] AKURAT! Selesai putaran 1 dengan akurasi: {abs(yaw_diff):.2f} derajat! Memulai maju 1...")
                 self.dock_state = 3
                 self.start_time = time.time()
                 self.yaw_effort_pub.publish(Float64(data=0.0))
                 return Status.RUNNING
                 
-            yaw_cmd = float(self.effort) if yaw_diff > 0 else -float(self.effort)
+            # Proportional Control
+            kp = 2.0
+            yaw_cmd = yaw_diff * kp
+            
+            if yaw_cmd > float(self.effort): yaw_cmd = float(self.effort)
+            elif yaw_cmd < -float(self.effort): yaw_cmd = -float(self.effort)
+            
+            # Minimum effort only if far from target
+            min_eff = 45.0
+            if abs(yaw_diff) > 2.0 and abs(yaw_cmd) < min_eff:
+                yaw_cmd = min_eff if yaw_cmd > 0 else -min_eff
+            elif abs(yaw_diff) <= 2.0:
+                yaw_cmd = 0.0
+
             self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
             self.speed_effort_pub.publish(Float64(data=0.0))
             self.bow_effort_pub.publish(Float64(data=0.0))
@@ -192,16 +270,29 @@ class Docking_Execution(BaseExecution):
             from core.mission.gps_stuff import calc_turn
             yaw_diff = calc_turn(self.target_yaw, self.heading)
             
-            self.node.get_logger().info(f"[{self.name}] ALIGN 2: Berputar ke {self.target_yaw:.1f} deg (diff: {yaw_diff:.1f} deg)...", throttle_duration_sec=1.0)
+            self.node.get_logger().info(f"[{self.name}] ALIGN 2: Berputar ke {self.target_yaw:.1f} deg (Current: {self.heading:.1f}, Diff: {yaw_diff:.1f} deg)...", throttle_duration_sec=1.0)
             
-            if abs(yaw_diff) < 5.0:
-                self.node.get_logger().info(f"[{self.name}] Selesai putaran 2! Memulai maju 2...")
+            if abs(yaw_diff) < 3.0:
+                self.node.get_logger().info(f"[{self.name}] AKURAT! Selesai putaran 2 dengan akurasi: {abs(yaw_diff):.2f} derajat! Memulai maju 2...")
                 self.dock_state = 5
                 self.start_time = time.time()
                 self.yaw_effort_pub.publish(Float64(data=0.0))
                 return Status.RUNNING
                 
-            yaw_cmd = float(self.effort) if yaw_diff > 0 else -float(self.effort)
+            # Proportional Control
+            kp = 2.0
+            yaw_cmd = yaw_diff * kp
+            
+            if yaw_cmd > float(self.effort): yaw_cmd = float(self.effort)
+            elif yaw_cmd < -float(self.effort): yaw_cmd = -float(self.effort)
+            
+            # Minimum effort only if far from target
+            min_eff = 45.0
+            if abs(yaw_diff) > 2.0 and abs(yaw_cmd) < min_eff:
+                yaw_cmd = min_eff if yaw_cmd > 0 else -min_eff
+            elif abs(yaw_diff) <= 2.0:
+                yaw_cmd = 0.0
+
             self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
             self.speed_effort_pub.publish(Float64(data=0.0))
             self.bow_effort_pub.publish(Float64(data=0.0))
@@ -229,15 +320,28 @@ class Docking_Execution(BaseExecution):
             from core.mission.gps_stuff import calc_turn
             yaw_diff = calc_turn(self.target_yaw, self.heading)
             
-            self.node.get_logger().info(f"[{self.name}] ALIGN 3: Berputar ke {self.target_yaw:.1f} deg (diff: {yaw_diff:.1f} deg)...", throttle_duration_sec=1.0)
+            self.node.get_logger().info(f"[{self.name}] ALIGN 3: Berputar ke {self.target_yaw:.1f} deg (Current: {self.heading:.1f}, Diff: {yaw_diff:.1f} deg)...", throttle_duration_sec=1.0)
             
-            if abs(yaw_diff) < 5.0:
-                self.node.get_logger().info(f"[{self.name}] Selesai putaran 3! Memulai SLIDING...")
+            if abs(yaw_diff) < 3.0:
+                self.node.get_logger().info(f"[{self.name}] AKURAT! Selesai putaran 3 dengan akurasi: {abs(yaw_diff):.2f} derajat! Memulai SLIDING...")
                 self.dock_state = 7
                 self.yaw_effort_pub.publish(Float64(data=0.0))
                 return Status.RUNNING
                 
-            yaw_cmd = float(self.effort) if yaw_diff > 0 else -float(self.effort)
+            # Proportional Control
+            kp = 2.0
+            yaw_cmd = yaw_diff * kp
+            
+            if yaw_cmd > float(self.effort): yaw_cmd = float(self.effort)
+            elif yaw_cmd < -float(self.effort): yaw_cmd = -float(self.effort)
+            
+            # Minimum effort only if far from target
+            min_eff = 45.0
+            if abs(yaw_diff) > 2.0 and abs(yaw_cmd) < min_eff:
+                yaw_cmd = min_eff if yaw_cmd > 0 else -min_eff
+            elif abs(yaw_diff) <= 2.0:
+                yaw_cmd = 0.0
+
             self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
             self.speed_effort_pub.publish(Float64(data=0.0))
             self.bow_effort_pub.publish(Float64(data=0.0))

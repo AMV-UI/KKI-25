@@ -11,7 +11,8 @@ class ParameterBlackboard(Node):
         super().__init__('parameter_blackboard')
 
         # Use self as the node for publishers/subscribers
-        self.arena = "A"
+        # B itu untuk arena A, dan A untuk arena B (kalau di real robot)
+        self.arena = "B"
         self.st_speed = 1.0
         self.tn_speed = 1.0
         self.dock_lat = 0.0

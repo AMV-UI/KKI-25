@@ -60,27 +60,94 @@ class Finding_Execution(BaseExecution):
     def _heading_cb(self, msg: Float64):
         self.px_heading = float(msg.data)
 
-    def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}] We are executing Finding... track: {self.arena}", throttle_duration_sec=1.0)        
-        if self.detected:
-            self.frame_counter.is_started()
-            if self.frame_counter.is_enough():
-                self.frame_counter.reset()
-                self.node.get_logger().info(
-                    f"[{self.name}] Finding Complete"
-                )
-                self.mission_pub.publish(UInt8(data=self.mission))
-                return Status.SUCCESS
-        else:
+    def initialise(self) -> None:
+        self.has_seen_box = False
+        self.lost_time = 0.0
+        self.integral = 0.0
+        self.prev_dsc = 0.0
+        if self.frame_counter:
             self.frame_counter.reset()
+        self.node.get_logger().info(f"[{self.name}] Initializing Finding Execution")
 
-        # Reverse yaw effort to counter Turn_Next_Buoy overshoot
-        # Arena A: Turn Left (Negative), Arena B: Turn Right (Positive)
-        yaw_val = float(self.effort * (1 if self.arena == "A" else -1))
-        self.yaw_effort_pub.publish(Float64(data=yaw_val))
-        
-        # Zero speed effort during finding phase, just yaw
-        self.speed_effort_pub.publish(Float64(data=0.0))
+    def execute(self) -> Status:
+        if self.dsc != 9999.0:
+            self.has_seen_box = True
+            self.lost_time = 0.0
+            
+            # Box is visible in camera
+            self.node.get_logger().info(f"[{self.name}] Box terlihat! Bergerak mendekat... (DSC: {self.dsc:.2f})", throttle_duration_sec=1.0)
+            
+            # Full PID Control for tracking and fighting currents
+            kp = MissionParams.kp_cam
+            ki = MissionParams.ki_cam
+            kd = MissionParams.kd_cam
+            
+            # Accumulate integral
+            self.integral += self.dsc
+            
+            # Anti-windup
+            max_integral = 2000.0
+            if self.integral > max_integral: self.integral = max_integral
+            elif self.integral < -max_integral: self.integral = -max_integral
+            
+            # Calculate derivative
+            derivative = self.dsc - self.prev_dsc
+            self.prev_dsc = self.dsc
+            
+            yaw_cmd = (self.dsc * kp) + (self.integral * ki) + (derivative * kd)
+            
+            # Remove hard deadband so the integral can fight steady currents
+            # But limit small noise
+            if abs(self.dsc) < 5.0:
+                self.integral *= 0.9 # Bleed off integral slightly when centered
+                
+            # Limit maximum steering
+            if yaw_cmd > float(self.effort): yaw_cmd = float(self.effort)
+            elif yaw_cmd < -float(self.effort): yaw_cmd = -float(self.effort)
+            
+            # Move forward and center the box
+            self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
+            self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
+            
+            if self.detected:
+                # Box is visible AND large enough (area > 10000)
+                self.frame_counter.is_started()
+                if self.frame_counter.is_enough():
+                    self.frame_counter.reset()
+                    self.node.get_logger().info(
+                        f"[{self.name}] Box cukup besar! Memulai pengambilan foto..."
+                    )
+                    self.mission_pub.publish(UInt8(data=self.mission))
+                    return Status.SUCCESS
+            else:
+                self.frame_counter.reset()
+        else:
+            # Box not visible
+            self.frame_counter.reset()
+            
+            if getattr(self, 'has_seen_box', False):
+                if not hasattr(self, 'lost_time') or self.lost_time == 0.0:
+                    self.lost_time = self.node.get_clock().now().nanoseconds / 1e9
+                
+                # If lost for more than 2 seconds, assume completely lost and spin again
+                if (self.node.get_clock().now().nanoseconds / 1e9) - self.lost_time > 2.0:
+                    self.has_seen_box = False
+                    self.lost_time = 0.0
+                else:
+                    self.node.get_logger().info(f"[{self.name}] Box hilang sejenak, melaju lurus...", throttle_duration_sec=1.0)
+                    self.yaw_effort_pub.publish(Float64(data=0.0))
+                    self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
+                    return Status.RUNNING
+
+            # Not seen yet or lost for too long, spin to find it
+            self.node.get_logger().info(f"[{self.name}] Mencari box...", throttle_duration_sec=2.0)
+            # Reverse yaw effort to counter Turn_Next_Buoy overshoot
+            yaw_val = float(self.effort * (1 if self.arena == "A" else -1))
+            self.yaw_effort_pub.publish(Float64(data=yaw_val))
+            
+            # Zero speed effort during finding phase, just yaw
+            self.speed_effort_pub.publish(Float64(data=0.0))
+            
         return Status.RUNNING
 
 class Finding_Fallback(BaseFallback):

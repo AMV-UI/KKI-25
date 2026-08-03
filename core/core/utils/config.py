@@ -49,23 +49,34 @@ class MissionParams:
     turn_next_buoy_duration = 5.0
 
     # Finding Mission BOX
-    finding_speed_effort = 70.0
+    finding_speed_effort = 150.0
     finding_yaw_effort = 200.0
     finding_time_threshold = 0.2
 
     # Unfinding Mission BOX
-    unfinding_speed_effort = 70.0
+    unfinding_speed_effort = 150.0
     unfinding_yaw_effort = 200.0
     unfinding_time_threshold = 0.2
 
     # Photo Mission
     photo_time_threshold = 2.0
 
-    # Dock Mission 
+    # Docking Mission
     dock_speed_effort = 150.0
-    dock_yaw_effort = 150.0
-    dock_time_threshold = 0.2
-    dock_margin_error = 5.0
+    dock_yaw_effort = 200.0
+    dock_time_threshold = 2.0
+    dock_margin_error = 2.0
+
+    # PID Tuning Parameters
+    # 1. Camera Tracking PID (Used for Buoy, Box, Docking Camera)
+    kp_cam = 0.5
+    ki_cam = 0.01
+    kd_cam = 0.05
+    
+    # 2. Heading/GPS Tracking PID (Used for Docking GPS)
+    kp_head = 2.0
+    ki_head = 0
+    kd_head = 0
     dock_forward_time_1 = 5.0
     dock_forward_time_2 = 5.0
 	

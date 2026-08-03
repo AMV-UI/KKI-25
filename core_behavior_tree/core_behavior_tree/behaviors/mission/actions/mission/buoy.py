@@ -51,6 +51,8 @@ class Buoy_Execution(BaseExecution):
 
     def initialise(self) -> None:
         self.has_seen_buoy = False
+        self.integral = 0.0
+        self.prev_dsc = 0.0
         if self.frame_counter:
             self.frame_counter.reset()
         self.node.get_logger().info(f"[{self.name}] Initializing Buoy Execution")
@@ -92,11 +94,40 @@ class Buoy_Execution(BaseExecution):
         self.has_seen_buoy = True
         self.frame_counter.reset()
 
-        self.yaw_effort_pub.publish(Float64(data=self.dsc))
+        # Full PID Control for tracking and fighting currents
+        kp = MissionParams.kp_cam
+        ki = MissionParams.ki_cam
+        kd = MissionParams.kd_cam
+        
+        # Accumulate integral
+        self.integral += self.dsc
+        
+        # Anti-windup
+        max_integral = 2000.0
+        if self.integral > max_integral: self.integral = max_integral
+        elif self.integral < -max_integral: self.integral = -max_integral
+        
+        # Calculate derivative
+        derivative = self.dsc - self.prev_dsc
+        self.prev_dsc = self.dsc
+        
+        yaw_cmd = (self.dsc * kp) + (self.integral * ki) + (derivative * kd)
+        
+        # Remove hard deadband so the integral can fight steady currents
+        # But limit small noise
+        if abs(self.dsc) < 5.0:
+            self.integral *= 0.9 # Bleed off integral slightly when centered
+            
+        # Limit maximum steering
+        max_yaw = float(MissionParams.buoy_yaw_effort)
+        if yaw_cmd > max_yaw: yaw_cmd = max_yaw
+        elif yaw_cmd < -max_yaw: yaw_cmd = -max_yaw
+
+        self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
         self.speed_effort_pub.publish(Float64(data=self.speed_effort))
             
         self.node.get_logger().info(
-            f"[{self.name}] Approaching target - DSC: {self.dsc}",
+            f"[{self.name}] Approaching target - DSC: {self.dsc:.2f}, YawCmd: {yaw_cmd:.2f}",
             throttle_duration_sec=2.0
             )
         

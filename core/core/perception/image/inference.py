@@ -86,7 +86,7 @@ class ObjectDetector:
         height = int(height)
 
         center = (width, height)
-        yaw_state = center[0]
+        yaw_state = 9999.0
 
         detected = False
 
@@ -150,40 +150,40 @@ class ObjectDetector:
                                 red_buoys_large += 1
 
                     elif mission == MissionStatus.GREEN_BOX:
-                        img, status = self.green_box_detected(
-                            cls, img, x1, y1, x2, y2, confidence
+                        img, yaw_state, status = self.green_box_detected(
+                            cls, img, x1, y1, x2, y2, confidence, area
                         )
-                        if status:
-                            return img, 0, status
+                        if yaw_state != 9999.0:
+                            return img, yaw_state, status
                         # If false, keep checking other boxes
 
                     elif mission == MissionStatus.BLUE_BOX:
-                        img, status = self.blue_box_detected(
-                            cls, img, x1, y1, x2, y2, confidence
+                        img, yaw_state, status = self.blue_box_detected(
+                            cls, img, x1, y1, x2, y2, confidence, area
                         )
-                        if status:
-                            return img, 0, status
+                        if yaw_state != 9999.0:
+                            return img, yaw_state, status
                         # If false, keep checking other boxes
 
-            if mission == MissionStatus.BUOY: 
+            if mission == MissionStatus.BUOY:
                 if self.max_red < self.max_green * self.treshold:
                     self.max_red = -1
                 elif self.max_green < self.max_red * self.treshold:
                     self.max_green = -1
 
-                self.mid_red = (self.red["x1"] + self.red["x2"]) // 2
                 self.mid_green = (self.green["x1"] + self.green["x2"]) // 2
+                self.mid_red = (self.red["x1"] + self.red["x2"]) // 2
 
                 if self.max_red != -1 and self.max_green != -1:
                     mid_x = (self.mid_green + self.mid_red) // 2
                     dsc_x = mid_x - width
                     yaw_state = dsc_x
                 elif self.max_green != -1:
-                    yaw_state = self.pid_adjust * (1 if arena == "A" else -1)
-                elif self.max_red != -1:
                     yaw_state = self.pid_adjust * (-1 if arena == "A" else 1)
+                elif self.max_red != -1:
+                    yaw_state = self.pid_adjust * (1 if arena == "A" else -1)
                 else:
-                    yaw_state = 0
+                    yaw_state = 9999.0
                 if self.max_green != -1 or self.max_red != -1:
                     detected = True
 
@@ -287,9 +287,10 @@ class ObjectDetector:
 
         return img, green_box, blue_box 
 
-    def green_box_detected(self, cls, img, x1, y1, x2, y2, confidence):
+    def green_box_detected(self, cls, img, x1, y1, x2, y2, confidence, area):
         status = False
-        if self.class_names[cls] == "greenBox":
+        yaw_state = 9999.0
+        if self.class_names[cls] == "greenBox" or self.class_names[cls] == "green_box":
             color = (0, 0, 255)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             cv2.putText(
@@ -302,12 +303,22 @@ class ObjectDetector:
                 2,
             )
 
-            status = True
-        return img, status
+            mid_x = (x1 + x2) // 2
+            width = img.shape[1] // 2
+            yaw_state = (mid_x - width) * 0.5 # Scale DSC for box
+            
+            # Draw area info
+            cv2.putText(img, f"Area: {area}", (x1, y2 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+            
+            if area > 10000:
+                status = True
+                
+        return img, yaw_state, status
 
-    def blue_box_detected(self, cls, img, x1, y1, x2, y2, confidence):
+    def blue_box_detected(self, cls, img, x1, y1, x2, y2, confidence, area):
         status = False
-        if self.class_names[cls] == "blueBox":
+        yaw_state = 9999.0
+        if self.class_names[cls] == "blueBox" or self.class_names[cls] == "blue_box":
             color = (0, 69, 0)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
             cv2.putText(
@@ -319,8 +330,16 @@ class ObjectDetector:
                 color,
                 2,
             )
-            status = True
-        return img, status
+
+            mid_x = (x1 + x2) // 2
+            width = img.shape[1] // 2
+            yaw_state = (mid_x - width) * 0.5
+            
+            cv2.putText(img, f"Area: {area}", (x1, y2 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+            
+            if area > 10000:
+                status = True
+        return img, yaw_state, status
 
     def run(self):
         while True:
