@@ -79,8 +79,8 @@ class Docking_Execution(BaseExecution):
 
     def execute(self) -> Status:
         # Override for testing GPS accuracy based on initial position
-        # self.docking_lat = 44.51239
-        # self.docking_lon = 26.10777
+        self.docking_lat = 44.51239
+        self.docking_lon = 26.10777
 
         theta = find_deg(self.lat, self.lon, self.docking_lat, self.docking_lon, self.heading)
         distance = haversine(self.lon, self.lat, self.docking_lon, self.docking_lat)
