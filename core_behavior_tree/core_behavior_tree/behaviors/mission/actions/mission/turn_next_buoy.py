@@ -65,7 +65,7 @@ class Turn_Next_Buoy_Execution(BaseExecution):
         speed = self.speed_effort
         
         # Turn Left for Track A (negative yaw effort), Turn Right for Track B (positive yaw effort)
-        yaw = self.yaw_effort if self.arena == "A" else -self.yaw_effort
+        yaw = -self.yaw_effort if self.arena == "A" else self.yaw_effort
         
         self.speed_effort_pub.publish(Float64(data=speed))
         self.yaw_effort_pub.publish(Float64(data=yaw))
