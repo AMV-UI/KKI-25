@@ -49,31 +49,33 @@ class Unfinding_Execution(BaseExecution):
     def _detected_cb(self, msg: Bool):
         self.detected = bool(msg.data)
 
+    def initialise(self) -> None:
+        self.start_time = time.time()
+        self.node.get_logger().info(f"[{self.name}] Initializing Unfinding Execution for {getattr(MissionParams, 'unfinding_duration', 5.0)}s")
+
     def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}] track {self.arena}", throttle_duration_sec=1.0)
-
-        if not self.detected:
-            self.frame_counter.is_started() 
-            self.counter = time.time()
-            if self.frame_counter.is_enough():
-                self.frame_counter.reset()
-                self.node.get_logger().info(f"[{self.name}] Condition Succeeded from EXECUTION -> Mission COMPLETE")
-                self.mission_pub.publish(UInt8(data=self.mission))
-                return Status.SUCCESS
-
-            self.node.get_logger().info(f"[{self.name}] Condition Failed -> Switching to FALLBACK", throttle_duration_sec=2.0)
-            return Status.RUNNING
-
-        self.frame_counter.reset()
-
-        self.yaw_effort_pub.publish(Float64(data=self.yaw_effort * (-1 if self.arena == "B" else 1)))
-        self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+        elapsed = time.time() - self.start_time
+        
+        if elapsed >= getattr(MissionParams, 'unfinding_duration', 5.0):
+            self.node.get_logger().info(f"[{self.name}] Unfinding maneuver complete.")
+            # Stop the boat
+            self.yaw_effort_pub.publish(Float64(data=0.0))
+            self.speed_effort_pub.publish(Float64(data=0.0))
             
-        self.node.get_logger().info(
-            f"[{self.name}] Approaching target - Effort: {self.yaw_effort}",
-            throttle_duration_sec=2.0
-            )
+            # Move to next mission state
+            if self.mission is not None:
+                from std_msgs.msg import UInt8
+                self.mission_pub.publish(UInt8(data=self.mission))
+            return Status.SUCCESS
 
+        # Turn maneuver similar to turn_next_buoy
+        # Arena A -> Positive yaw, Arena B -> Negative yaw
+        yaw = float(self.yaw_effort if self.arena == "A" else -self.yaw_effort)
+        
+        self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
+        self.yaw_effort_pub.publish(Float64(data=yaw))
+        
+        self.node.get_logger().info(f"[{self.name}] Unfinding... elapsed: {elapsed:.1f}s / {getattr(MissionParams, 'unfinding_duration', 5.0)}s", throttle_duration_sec=1.0)
         return Status.RUNNING
 
 

@@ -24,7 +24,7 @@ class Finding_Execution(BaseExecution):
         self.detected = False
         self.arena = "B"
         self.effort = MissionParams.finding_yaw_effort
-        self.dsc = self.effort * (-1 if self.arena == "A" else 1)  #Reverse effort untuk mission 2
+        self.dsc = 9999.0
         self.mission = mission
         self.time_threshold = MissionParams.finding_time_threshold
 
@@ -59,29 +59,111 @@ class Finding_Execution(BaseExecution):
 
     def _heading_cb(self, msg: Float64):
         self.px_heading = float(msg.data)
+    def initialise(self) -> None:
+        self.phase = "searching" # "searching", "aligning", "approaching"
+        self.approach_start_time = 0.0
+        self.integral = 0.0
+        self.prev_dsc = 0.0
+        self.node.get_logger().info(f"[{self.name}] Initializing Finding Execution")
 
     def execute(self) -> Status:
-        self.node.get_logger().info(f"[{self.name}] We are executing Finding... track: {self.arena}", throttle_duration_sec=1.0)        
-        if self.detected:
-            self.frame_counter.is_started()
-            if self.frame_counter.is_enough():
-                self.frame_counter.reset()
-                self.node.get_logger().info(
-                    f"[{self.name}] Finding Complete"
-                )
-                self.mission_pub.publish(UInt8(data=self.mission))
-                return Status.SUCCESS
-        else:
-            self.frame_counter.reset()
+        # State: SEARCHING
+        if self.phase == "searching":
+            if getattr(self, 'dsc', 9999.0) != 9999.0:
+                self.node.get_logger().info(f"[{self.name}] Box terlihat! Beralih ke fase ALIGNMENT...")
+                self.phase = "aligning"
+                return Status.RUNNING
 
-        # Reverse yaw effort to counter Turn_Next_Buoy overshoot
-        # Arena A: Turn Left (Negative), Arena B: Turn Right (Positive)
-        yaw_val = float(self.effort * (1 if self.arena == "A" else -1))
-        self.yaw_effort_pub.publish(Float64(data=yaw_val))
-        
-        # Zero speed effort during finding phase, just yaw
-        self.speed_effort_pub.publish(Float64(data=0.0))
-        return Status.RUNNING
+            self.node.get_logger().info(f"[{self.name}] Mencari box... (Spinning)", throttle_duration_sec=2.0)
+            
+            # Spin opposite to turn_next_buoy
+            yaw_val = -float(self.effort) if self.arena == "A" else float(self.effort)
+            
+            self.yaw_effort_pub.publish(Float64(data=yaw_val))
+            self.speed_effort_pub.publish(Float64(data=0.0))
+            return Status.RUNNING
+
+        # State: ALIGNING
+        elif self.phase == "aligning":
+            if getattr(self, 'dsc', 9999.0) == 9999.0:
+                self.node.get_logger().info(f"[{self.name}] Box hilang saat alignment! Kembali ke SEARCHING...")
+                self.phase = "searching"
+                return Status.RUNNING
+
+            if abs(self.dsc) < 20.0:
+                self.node.get_logger().info(f"[{self.name}] Box berada di tengah! Beralih ke fase APPROACHING...")
+                self.phase = "approaching"
+                self.approach_start_time = time.time()
+                self.integral = 0.0
+                self.prev_dsc = 0.0
+                return Status.RUNNING
+
+            # Use PID to center the box, but DO NOT move forward
+            kp = getattr(MissionParams, 'kp_cam', 0.5)
+            ki = getattr(MissionParams, 'ki_cam', 0.02)
+            kd = getattr(MissionParams, 'kd_cam', 0.2)
+            
+            self.integral += self.dsc
+            max_int = 2000.0
+            if self.integral > max_int: self.integral = max_int
+            elif self.integral < -max_int: self.integral = -max_int
+            
+            derivative = self.dsc - self.prev_dsc
+            self.prev_dsc = self.dsc
+            
+            yaw_cmd = (self.dsc * kp) + (self.integral * ki) + (derivative * kd)
+            
+            align_effort = float(self.effort) * 0.5
+            if yaw_cmd > align_effort: yaw_cmd = align_effort
+            elif yaw_cmd < -align_effort: yaw_cmd = -align_effort
+
+            self.node.get_logger().info(f"[{self.name}] Menyelaraskan box (DSC: {self.dsc:.2f})", throttle_duration_sec=1.0)
+            self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
+            self.speed_effort_pub.publish(Float64(data=0.0))
+            return Status.RUNNING
+
+        # State: APPROACHING
+        elif self.phase == "approaching":
+            elapsed = time.time() - self.approach_start_time
+            if elapsed >= getattr(MissionParams, 'finding_approach_duration', 5.0):
+                self.node.get_logger().info(f"[{self.name}] Selesai mendekati box selama {elapsed:.1f} detik. Mission COMPLETE.")
+                if self.mission is not None:
+                    from std_msgs.msg import UInt8
+                    self.mission_pub.publish(UInt8(data=self.mission))
+                return Status.SUCCESS
+
+            if getattr(self, 'dsc', 9999.0) == 9999.0:
+                self.node.get_logger().info(f"[{self.name}] Box hilang saat approach! Menunggu/melaju lurus...", throttle_duration_sec=1.0)
+                # Keep moving forward but stop steering
+                self.yaw_effort_pub.publish(Float64(data=0.0))
+                self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
+                return Status.RUNNING
+
+            # Track using PID while moving forward
+            kp = getattr(MissionParams, 'kp_cam', 0.5)
+            ki = getattr(MissionParams, 'ki_cam', 0.02)
+            kd = getattr(MissionParams, 'kd_cam', 0.2)
+            
+            self.integral += self.dsc
+            if abs(self.dsc) < 5.0:
+                self.integral *= 0.9
+                
+            max_int = 2000.0
+            if self.integral > max_int: self.integral = max_int
+            elif self.integral < -max_int: self.integral = -max_int
+            
+            derivative = self.dsc - self.prev_dsc
+            self.prev_dsc = self.dsc
+            
+            yaw_cmd = (self.dsc * kp) + (self.integral * ki) + (derivative * kd)
+            
+            if yaw_cmd > float(self.effort): yaw_cmd = float(self.effort)
+            elif yaw_cmd < -float(self.effort): yaw_cmd = -float(self.effort)
+
+            self.node.get_logger().info(f"[{self.name}] Mendekati box (Maju) - Waktu tersisa: {getattr(MissionParams, 'finding_approach_duration', 5.0) - elapsed:.1f}s", throttle_duration_sec=1.0)
+            self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
+            self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
+            return Status.RUNNING
 
 class Finding_Fallback(BaseFallback):
     """

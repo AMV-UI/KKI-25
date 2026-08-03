@@ -46,17 +46,24 @@ class MissionParams:
     # Turn Next Buoy Mission
     turn_next_buoy_speed_effort = 150.0
     turn_next_buoy_yaw_effort = 150.0
-    turn_next_buoy_duration = 5.0
+    turn_next_buoy_duration = 20.0
 
     # Finding Mission BOX
-    finding_speed_effort = 70.0
+    finding_speed_effort = 150.0
     finding_yaw_effort = 200.0
     finding_time_threshold = 0.2
+    finding_approach_duration = 5.0
 
     # Unfinding Mission BOX
-    unfinding_speed_effort = 70.0
+    unfinding_speed_effort = 150.0
     unfinding_yaw_effort = 200.0
     unfinding_time_threshold = 0.2
+    unfinding_duration = 5.0
+    
+    # PID Tuning Parameters (Camera Tracking for Box)
+    kp_cam = 0.2
+    ki_cam = 0.01
+    kd_cam = 0.4
 
     # Photo Mission
     photo_time_threshold = 2.0
