@@ -124,7 +124,7 @@ class ObjectDetector:
 
                     # Filter out small/far away objects
                     # if area < 600: #simulasi
-                    if area < 400:
+                    if area < 200:
                         continue
 
                     if mission == MissionStatus.BUOY:
