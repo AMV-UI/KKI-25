@@ -12,7 +12,7 @@ from std_msgs.msg import String
 from core.utils.config import Topic
 from io import BytesIO
 from core_msgs.msg import ObjectCount
-from core.utils.config import Param, SPEED, MissionStatus
+from core.utils.config import Param, SPEED, MissionStatus, MissionParams
 from core.utils.motor import Motor
 # from core.perception.image.camera_bottom import BottomCamera
 
@@ -27,7 +27,7 @@ class ObjectDetector:
         self.conf_threshold_buoy = 0.15
         self.conf_threshold_box = 0.4
         self.node = node
-        self.arena = "B"
+        self.arena = getattr(MissionParams, 'default_arena', 'B')
         self.max_green_box_area = 30000
         self.max_blue_box_area = 30000
 
@@ -123,7 +123,8 @@ class ObjectDetector:
                     area = abs((x2 - x1) * (y2 - y1))
 
                     # Filter out small/far away objects
-                    if area < 600: #simulasi
+                    min_buoy = getattr(MissionParams, 'min_area_buoy', 600.0)
+                    if area < min_buoy: #simulasi
                     # if area < 50:
                         continue
 
@@ -147,7 +148,9 @@ class ObjectDetector:
                                 2,
                             )
                             docking_buoys_centers.append((x1 + x2) // 2)
-                            if area > 3000:
+                            
+                            min_dock = getattr(MissionParams, 'min_area_docking_buoy', 3000.0)
+                            if area > min_dock:
                                 red_buoys_large += 1
 
                     elif mission == MissionStatus.GREEN_BOX:
@@ -165,6 +168,16 @@ class ObjectDetector:
                         if status:
                             return img, box_yaw_state, status
                         # If false, keep checking other boxes
+                        
+                    elif mission == MissionStatus.BOTH_BOXES:
+                        if self.class_names[cls] == "greenBox":
+                            if area > self.max_green_box:
+                                self.max_green_box = area
+                                self.green_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+                        elif self.class_names[cls] == "blueBox":
+                            if area > self.max_blue_box:
+                                self.max_blue_box = area
+                                self.blue_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
 
             if mission == MissionStatus.BUOY: 
                 if self.max_red < self.max_green * self.treshold:
@@ -203,6 +216,35 @@ class ObjectDetector:
                 
                 # Visual feedback for DOCKING state
                 cv2.putText(img, f"Red Buoys > 7000 area: {red_buoys_large}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+            
+            elif mission == MissionStatus.BOTH_BOXES:
+                # Proximity Check
+                prox_thresh = getattr(MissionParams, 'finding_proximity_area_threshold', 40000.0)
+                if self.max_green_box > prox_thresh or self.max_blue_box > prox_thresh:
+                    yaw_state = -9999.0
+                    detected = True
+                    if self.max_green_box != -1: cv2.rectangle(img, (self.green_box["x1"], self.green_box["y1"]), (self.green_box["x2"], self.green_box["y2"]), (0, 0, 255), 3)
+                    if self.max_blue_box != -1: cv2.rectangle(img, (self.blue_box["x1"], self.blue_box["y1"]), (self.blue_box["x2"], self.blue_box["y2"]), (0, 69, 0), 3)
+                elif self.max_green_box != -1 and self.max_blue_box != -1:
+                    mid_green = (self.green_box["x1"] + self.green_box["x2"]) // 2
+                    mid_blue = (self.blue_box["x1"] + self.blue_box["x2"]) // 2
+                    mid_x = (mid_green + mid_blue) // 2
+                    yaw_state = (mid_x - width) * 0.5
+                    detected = True
+                    cv2.rectangle(img, (self.green_box["x1"], self.green_box["y1"]), (self.green_box["x2"], self.green_box["y2"]), (0, 0, 255), 3)
+                    cv2.rectangle(img, (self.blue_box["x1"], self.blue_box["y1"]), (self.blue_box["x2"], self.blue_box["y2"]), (0, 69, 0), 3)
+                elif self.max_green_box != -1:
+                    yaw_state = 8888.0
+                    detected = True
+                    cv2.rectangle(img, (self.green_box["x1"], self.green_box["y1"]), (self.green_box["x2"], self.green_box["y2"]), (0, 0, 255), 3)
+                elif self.max_blue_box != -1:
+                    yaw_state = 7777.0
+                    detected = True
+                    cv2.rectangle(img, (self.blue_box["x1"], self.blue_box["y1"]), (self.blue_box["x2"], self.blue_box["y2"]), (0, 69, 0), 3)
+                else:
+                    yaw_state = 9999.0
+                    detected = False
+
             return img, yaw_state, detected
 
     def buoy_detected(self, cls, img, x1, y1, x2, y2, confidence, area):

@@ -43,34 +43,43 @@ class Turn_Next_Buoy_Execution(BaseExecution):
 
     def initialise(self) -> None:
         self.start_time = time.time()
-        self.node.get_logger().info(f"[{self.name}] Starting simultaneous turn and forward maneuver for {self.duration}s in arena {self.arena}")
+        self.global_start_time = time.time()
+        self.direction = 1
+        self.node.get_logger().info(f"[{self.name}] Starting sweeping turn maneuver in arena {self.arena}")
 
     def execute(self) -> Status:
-        elapsed = time.time() - self.start_time
-        
-        if elapsed >= self.duration:
-            self.node.get_logger().info(f"[{self.name}] Maneuver complete. Detected: {self.detected}")
-            # Stop the boat
+        total_elapsed = time.time() - self.global_start_time
+        if total_elapsed >= MissionParams.turn_next_buoy_timeout:
+            self.node.get_logger().info(f"[{self.name}] Global timeout ({MissionParams.turn_next_buoy_timeout}s) reached! Moving to next mission.")
             self.yaw_effort_pub.publish(Float64(data=0.0))
             self.speed_effort_pub.publish(Float64(data=0.0))
-            
-            if self.detected:
-                self.node.get_logger().info(f"[{self.name}] Buoy STILL detected! Looping back to Buoy Mission.")
-                return Status.FAILURE
-            else:
-                self.node.get_logger().info(f"[{self.name}] No buoy detected. Proceeding to Box Mission.")
-                return Status.SUCCESS
+            return Status.SUCCESS
+
+        elapsed = time.time() - self.start_time
+        
+        if self.detected and total_elapsed > 3.0:
+            self.node.get_logger().info(f"[{self.name}] Target detected! Sweeping complete.")
+            self.yaw_effort_pub.publish(Float64(data=0.0))
+            self.speed_effort_pub.publish(Float64(data=0.0))
+            return Status.SUCCESS
+        
+        if elapsed >= self.duration:
+            self.node.get_logger().info(f"[{self.name}] Sweeping time {self.duration}s up. Reversing direction.")
+            self.direction *= -1
+            self.start_time = time.time()
+            elapsed = 0.0
 
         # Simultaneous forward and turn
         speed = self.speed_effort
         
-        # Turn Left for Track A (negative yaw effort), Turn Right for Track B (positive yaw effort)
-        yaw = self.yaw_effort if self.arena == "A" else -self.yaw_effort
+        # Turn Right for Track A (positive yaw effort), Turn Left for Track B (negative yaw effort)
+        base_yaw = self.yaw_effort if self.arena == "A" else -self.yaw_effort
+        yaw = base_yaw * self.direction
         
         self.speed_effort_pub.publish(Float64(data=speed))
-        self.yaw_effort_pub.publish(Float64(data=yaw))
+        self.yaw_effort_pub.publish(Float64(data=float(yaw)))
         
-        self.node.get_logger().info(f"[{self.name}] Turning... elapsed: {elapsed:.1f}s", throttle_duration_sec=1.0)
+        self.node.get_logger().info(f"[{self.name}] Sweeping (Dir: {self.direction})... elapsed: {elapsed:.1f}s / {self.duration}s", throttle_duration_sec=1.0)
         return Status.RUNNING
 
 class Turn_Next_Buoy_Fallback(BaseFallback):

@@ -231,10 +231,15 @@ class CameraController(Node):
 
             if self.mission_type == MissionStatus.BUOY or self.mission_type == MissionStatus.DOCKING:
                 self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
+                # If during BUOY it doesn't detect a buoy, check if a Box is visible (for Turn Next Buoy sweeping logic)
+                if self.mission_type == MissionStatus.BUOY and not self.detected:
+                    box_img, box_dsc, box_detected = self.box_detector.process_frame(MissionStatus.BOTH_BOXES, self.arena, img, self.up_cap, self)
+                    if box_detected:
+                        self.img = box_img
+                        self.dsc = box_dsc
+                        self.detected = True
             else:
-                self.get_logger().info(f"Masuk sini", throttle_duration_sec=1.0)
                 self.img, self.dsc, self.detected = self.box_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
-            self.get_logger().info(f"Test: {self.mission_type}", throttle_duration_sec=1.0)
 
             if self.img is None:
                 self.get_logger().warn("Failed to get frame", throttle_duration_sec=5.0)

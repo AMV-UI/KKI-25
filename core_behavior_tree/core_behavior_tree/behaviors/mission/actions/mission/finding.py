@@ -60,94 +60,95 @@ class Finding_Execution(BaseExecution):
     def _heading_cb(self, msg: Float64):
         self.px_heading = float(msg.data)
     def initialise(self) -> None:
-        self.phase = "searching" # "searching", "aligning", "approaching"
+        self.phase = "zigzagging" # "zigzagging", "searching", "aligning", "approaching"
+        self.zigzag_start_time = time.time()
+        self.last_sweep_toggle = time.time()
+        self.direction = 1
         self.approach_start_time = 0.0
         self.integral = 0.0
         self.prev_dsc = 0.0
         self.node.get_logger().info(f"[{self.name}] Initializing Finding Execution")
 
     def execute(self) -> Status:
-        # State: SEARCHING
-        if self.phase == "searching":
-            if getattr(self, 'dsc', 9999.0) != 9999.0:
+        # Ignore detections for the first 1.0s to allow the camera to switch to the new mission mode
+        if getattr(self, 'detected', False) and (time.time() - getattr(self, 'zigzag_start_time', 0.0) > 1.0):
+            if self.phase in ["zigzagging", "searching"]:
                 self.node.get_logger().info(f"[{self.name}] Box terlihat! Beralih ke fase ALIGNMENT...")
                 self.phase = "aligning"
                 return Status.RUNNING
 
-            self.node.get_logger().info(f"[{self.name}] Mencari box... (Spinning)", throttle_duration_sec=2.0)
+        # State: ZIGZAGGING
+        if self.phase == "zigzagging":
+            elapsed = time.time() - self.zigzag_start_time
+            if elapsed > getattr(MissionParams, 'finding_zigzag_timeout', 20.0):
+                self.node.get_logger().info(f"[{self.name}] Zigzag timeout! Beralih ke fase SEARCHING (Spinning)...")
+                self.phase = "searching"
+                return Status.RUNNING
+                
+            sweep_dur = getattr(MissionParams, 'finding_zigzag_sweep_duration', 5.0)
+            if (time.time() - self.last_sweep_toggle) > sweep_dur:
+                self.direction *= -1
+                self.last_sweep_toggle = time.time()
+                self.node.get_logger().info(f"[{self.name}] Zigzag sweep time up. Reversing direction.")
+                
+            # Berlawanan arah dengan turn_next_buoy (Turn_Next_Buoy A mengirim Positif, jadi kita kirim Negatif untuk putaran pertama)
+            base_yaw = -float(self.effort) if self.arena == "A" else float(self.effort)
+            yaw_val = base_yaw * self.direction
+            speed_val = getattr(MissionParams, 'finding_speed_effort', 150.0)
             
-            # Spin opposite to turn_next_buoy
+            self.yaw_effort_pub.publish(Float64(data=yaw_val))
+            self.speed_effort_pub.publish(Float64(data=speed_val))
+            
+            self.node.get_logger().info(f"[{self.name}] Zigzagging... elapsed: {elapsed:.1f}s", throttle_duration_sec=1.0)
+            return Status.RUNNING
+
+        # State: SEARCHING
+        if self.phase == "searching":
+            self.node.get_logger().info(f"[{self.name}] Mencari sembarang box... (Spinning)", throttle_duration_sec=2.0)
+            # Turn opposite of Turn_Next_Buoy (Turn_Next_Buoy A sends Positive, so we send Negative)
             yaw_val = -float(self.effort) if self.arena == "A" else float(self.effort)
-            
             self.yaw_effort_pub.publish(Float64(data=yaw_val))
             self.speed_effort_pub.publish(Float64(data=0.0))
             return Status.RUNNING
 
         # State: ALIGNING
         elif self.phase == "aligning":
-            if getattr(self, 'dsc', 9999.0) == 9999.0:
-                self.node.get_logger().info(f"[{self.name}] Box hilang saat alignment! Kembali ke SEARCHING...")
+            if not getattr(self, 'detected', False):
+                self.node.get_logger().info(f"[{self.name}] Box hilang saat alignment! Kembali ke SEARCHING...", throttle_duration_sec=1.0)
                 self.phase = "searching"
                 return Status.RUNNING
 
-            if abs(self.dsc) < 20.0:
-                self.node.get_logger().info(f"[{self.name}] Box berada di tengah! Beralih ke fase APPROACHING...")
-                self.phase = "approaching"
-                self.approach_start_time = time.time()
-                self.integral = 0.0
-                self.prev_dsc = 0.0
-                return Status.RUNNING
-
-            # Use PID to center the box, but DO NOT move forward
-            kp = getattr(MissionParams, 'kp_cam', 0.5)
-            ki = getattr(MissionParams, 'ki_cam', 0.02)
-            kd = getattr(MissionParams, 'kd_cam', 0.2)
-            
-            self.integral += self.dsc
-            max_int = 2000.0
-            if self.integral > max_int: self.integral = max_int
-            elif self.integral < -max_int: self.integral = -max_int
-            
-            derivative = self.dsc - self.prev_dsc
-            self.prev_dsc = self.dsc
-            
-            yaw_cmd = (self.dsc * kp) + (self.integral * ki) + (derivative * kd)
-            
-            align_effort = float(self.effort) * 0.5
-            if yaw_cmd > align_effort: yaw_cmd = align_effort
-            elif yaw_cmd < -align_effort: yaw_cmd = -align_effort
-
-            self.node.get_logger().info(f"[{self.name}] Menyelaraskan box (DSC: {self.dsc:.2f})", throttle_duration_sec=1.0)
-            self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
-            self.speed_effort_pub.publish(Float64(data=0.0))
-            return Status.RUNNING
-
-        # State: APPROACHING
-        elif self.phase == "approaching":
-            elapsed = time.time() - self.approach_start_time
-            if elapsed >= getattr(MissionParams, 'finding_approach_duration', 5.0):
-                self.node.get_logger().info(f"[{self.name}] Selesai mendekati box selama {elapsed:.1f} detik. Mission COMPLETE.")
+            if getattr(self, 'dsc', 9999.0) == -9999.0:
+                self.node.get_logger().info(f"[{self.name}] Box sudah sangat dekat! Beralih ke misi PHOTO...")
                 if self.mission is not None:
                     from std_msgs.msg import UInt8
                     self.mission_pub.publish(UInt8(data=self.mission))
                 return Status.SUCCESS
 
-            if getattr(self, 'dsc', 9999.0) == 9999.0:
-                self.node.get_logger().info(f"[{self.name}] Box hilang saat approach! Menunggu/melaju lurus...", throttle_duration_sec=1.0)
-                # Keep moving forward but stop steering
-                self.yaw_effort_pub.publish(Float64(data=0.0))
-                self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
+            # Code 8888.0 = Only Green found. Turn Right
+            # Right = Negative
+            if self.dsc == 8888.0:
+                self.node.get_logger().info(f"[{self.name}] Hanya Hijau terlihat. Berputar mencari Biru...", throttle_duration_sec=1.0)
+                yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
+                self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
+                self.speed_effort_pub.publish(Float64(data=0.0))
+                return Status.RUNNING
+            
+            # Code 7777.0 = Only Blue found. Turn Left
+            # Left = Positive
+            elif self.dsc == 7777.0:
+                self.node.get_logger().info(f"[{self.name}] Hanya Biru terlihat. Berputar mencari Hijau...", throttle_duration_sec=1.0)
+                yaw_cmd = float(self.effort) if self.arena == "A" else -float(self.effort)
+                self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
+                self.speed_effort_pub.publish(Float64(data=0.0))
                 return Status.RUNNING
 
-            # Track using PID while moving forward
-            kp = getattr(MissionParams, 'kp_cam', 0.5)
-            ki = getattr(MissionParams, 'ki_cam', 0.02)
-            kd = getattr(MissionParams, 'kd_cam', 0.2)
+            # Use PID to center the midpoint while moving forward
+            kp = getattr(MissionParams, 'kp_cam', 0.2)
+            ki = getattr(MissionParams, 'ki_cam', 0.01)
+            kd = getattr(MissionParams, 'kd_cam', 0.4)
             
             self.integral += self.dsc
-            if abs(self.dsc) < 5.0:
-                self.integral *= 0.9
-                
             max_int = 2000.0
             if self.integral > max_int: self.integral = max_int
             elif self.integral < -max_int: self.integral = -max_int
@@ -155,12 +156,15 @@ class Finding_Execution(BaseExecution):
             derivative = self.dsc - self.prev_dsc
             self.prev_dsc = self.dsc
             
-            yaw_cmd = (self.dsc * kp) + (self.integral * ki) + (derivative * kd)
+            # Negative sign added because: Target Left (Negative DSC) -> Needs Left Turn -> Needs Positive Yaw
+            raw_pid = (self.dsc * kp) + (self.integral * ki) + (derivative * kd)
+            yaw_cmd = -raw_pid
             
-            if yaw_cmd > float(self.effort): yaw_cmd = float(self.effort)
-            elif yaw_cmd < -float(self.effort): yaw_cmd = -float(self.effort)
+            align_effort = float(self.effort) * 0.5
+            if yaw_cmd > align_effort: yaw_cmd = align_effort
+            elif yaw_cmd < -align_effort: yaw_cmd = -align_effort
 
-            self.node.get_logger().info(f"[{self.name}] Mendekati box (Maju) - Waktu tersisa: {getattr(MissionParams, 'finding_approach_duration', 5.0) - elapsed:.1f}s", throttle_duration_sec=1.0)
+            self.node.get_logger().info(f"[{self.name}] Menyelaraskan titik tengah Box & Maju (DSC: {self.dsc:.2f})", throttle_duration_sec=1.0)
             self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
             self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
             return Status.RUNNING
