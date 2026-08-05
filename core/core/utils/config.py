@@ -39,21 +39,21 @@ class MissionStatus:
 
 class MissionParams:
     # Buoy Mission
-    buoy_speed_effort = 150.0
-    buoy_yaw_effort = 170.0
+    buoy_speed_effort = 170.0
+    buoy_yaw_effort = 200.0
     buoy_time_threshold = 2.0
 
     # Turn Next Buoy Mission
-    turn_next_buoy_speed_effort = 200.0
-    turn_next_buoy_yaw_effort = 150.0
+    turn_next_buoy_speed_effort = 170.0
+    turn_next_buoy_yaw_effort = 200.0
     turn_next_buoy_duration = 5.0
-    turn_next_buoy_timeout = 10.0
+    turn_next_buoy_timeout = 50.0
 
     # Finding Mission BOX
     finding_speed_effort = 150.0
     finding_yaw_effort = 150.0
     finding_time_threshold = 5.0
-    finding_proximity_area_threshold = 40000.0  # Area box (px) untuk mendeteksi sudah sangat dekat
+    finding_proximity_area_threshold = 10000.0  # Area box (px) untuk mendeteksi sudah sangat dekat
     finding_zigzag_timeout = 5.0 # Durasi keseluruhan zigzag mencari box
     finding_zigzag_sweep_duration = 5.0 # Durasi bolak-balik zigzag mencari box
     photo_zigzag_duration = 3.0  # Durasi sweeping zigzag saat box hilang di misi foto
@@ -65,7 +65,7 @@ class MissionParams:
     unfinding_duration = 5.0
 
     # Detection Configuration
-    min_area_buoy = 600.0
+    min_area_buoy = 400.0
     min_area_docking_buoy = 3000.0
     default_arena = "B"
     
