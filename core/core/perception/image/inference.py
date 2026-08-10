@@ -350,6 +350,9 @@ class ObjectDetector:
             width = img.shape[1] // 2
             yaw_state = (mid_x - width) * 0.5 # Scale DSC for box
             status = True
+        elif self.class_names[cls] == "blueBox":
+            yaw_state = 7777.0
+            status = True
             
         return img, yaw_state, status
 
@@ -372,6 +375,9 @@ class ObjectDetector:
             mid_x = (x1 + x2) // 2
             width = img.shape[1] // 2
             yaw_state = (mid_x - width) * 0.5
+            status = True
+        elif self.class_names[cls] == "greenBox":
+            yaw_state = 8888.0
             status = True
             
         return img, yaw_state, status

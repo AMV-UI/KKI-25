@@ -1,6 +1,6 @@
 from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
-from std_msgs.msg import Float64, String
+from std_msgs.msg import Float64, String, Bool
 from core.utils.config import Topic, MissionParams
 import time
 
@@ -29,11 +29,17 @@ class Turn_Next_Buoy_Execution(BaseExecution):
             self._arena_cb
         )
         
-        from std_msgs.msg import Bool
         self.detected_sub = Topic.detected.createSubscriber(
             self.node,
             self._detected_cb
         )
+        self.box_detected_sub = Topic.box_detected.createSubscriber(
+            self.node,
+            self._box_detected_cb
+        )
+
+    def _box_detected_cb(self, msg: Bool):
+        self.box_detected = bool(msg.data)
 
     def _arena_cb(self, msg: String):
         self.arena = str(msg.data)
@@ -42,12 +48,20 @@ class Turn_Next_Buoy_Execution(BaseExecution):
         self.detected = bool(msg.data)
 
     def initialise(self) -> None:
+        self.box_detected = False
         self.start_time = time.time()
         self.global_start_time = time.time()
         self.direction = 1
         self.node.get_logger().info(f"[{self.name}] Starting sweeping turn maneuver in arena {self.arena}")
 
     def execute(self) -> Status:
+        # Preemptively skip if box is detected
+        if getattr(self, 'box_detected', False):
+            self.node.get_logger().info(f"[{self.name}] Box detected preemptively! Terminating turn_next_buoy early.")
+            self.yaw_effort_pub.publish(Float64(data=0.0))
+            self.speed_effort_pub.publish(Float64(data=0.0))
+            return Status.SUCCESS
+
         total_elapsed = time.time() - self.global_start_time
         if total_elapsed >= MissionParams.turn_next_buoy_timeout:
             self.node.get_logger().info(f"[{self.name}] Global timeout ({MissionParams.turn_next_buoy_timeout}s) reached! Moving to next mission.")

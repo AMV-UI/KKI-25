@@ -48,9 +48,17 @@ class Buoy_Execution(BaseExecution):
             self.node, 
             self._dsc_cb
         )
+        self.box_detected_sub = Topic.box_detected.createSubscriber(
+            self.node,
+            self._box_detected_cb
+        )
+
+    def _box_detected_cb(self, msg: Bool):
+        self.box_detected = bool(msg.data)
 
     def initialise(self) -> None:
         self.has_seen_buoy = False
+        self.box_detected = False
         if self.frame_counter:
             self.frame_counter.reset()
         self.node.get_logger().info(f"[{self.name}] Initializing Buoy Execution")
@@ -66,6 +74,12 @@ class Buoy_Execution(BaseExecution):
 
     def execute(self) -> Status:
         self.node.get_logger().info(f"[{self.name}] track {self.arena}", throttle_duration_sec=1.0)
+        
+        # Preemptively skip to box mission if box detector found something
+        if getattr(self, 'box_detected', False):
+            self.node.get_logger().info(f"[{self.name}] Box detected preemptively! Terminating buoy mission early.")
+            self.mission_pub.publish(UInt8(data=self.mission))
+            return Status.SUCCESS
 
         if not self.detected:
             if self.has_seen_buoy:

@@ -53,9 +53,6 @@ class MissionParams:
     finding_speed_effort = 150.0
     finding_yaw_effort = 150.0
     finding_time_threshold = 5.0
-    finding_proximity_area_threshold = 10000.0  # Area box (px) untuk mendeteksi sudah sangat dekat
-    finding_zigzag_timeout = 5.0 # Durasi keseluruhan zigzag mencari box
-    finding_zigzag_sweep_duration = 5.0 # Durasi bolak-balik zigzag mencari box
     photo_zigzag_duration = 3.0  # Durasi sweeping zigzag saat box hilang di misi foto
 
     # Unfinding Mission BOX
@@ -128,6 +125,9 @@ class Topic:
     image_blue_box = TopicFactory("/asv/vision/image/show_blue", String)
     green_box_encoded = TopicFactory("/asv/vision/image/green", String) 
     blue_box_encoded = TopicFactory("/asv/vision/image/blue", String) 
+    
+    # Perception
+    box_detected = TopicFactory("/core/perception/box_detected", Bool)
 
     # Inference
     dsc = TopicFactory("/core/vision/image/dsc", Float64)

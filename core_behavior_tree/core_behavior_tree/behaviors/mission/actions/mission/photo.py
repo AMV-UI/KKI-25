@@ -99,25 +99,31 @@ class Photo_Execution(BaseExecution):
 
     def align_to_target(self, target_name):
         if self.dsc == 9999.0:
-            # Not seen yet, zigzag to find it
-            elapsed = time.time() - self.sweep_start_time
-            zigzag_duration = getattr(MissionParams, 'photo_zigzag_duration', 3.0)
-            if elapsed >= zigzag_duration:
-                self.sweep_direction *= -1
-                self.sweep_start_time = time.time()
-
-            base_yaw = float(self.effort) * 0.5
-            if self.arena == "B":
-                if target_name == "Green": base_yaw = -base_yaw
-            else:
-                if target_name == "Blue": base_yaw = -base_yaw
-                
-            yaw_cmd = base_yaw * self.sweep_direction
+            # Default spinning direction (like finding box)
+            # Arena A: Turn Right (Negative), Arena B: Turn Left (Positive)
+            yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
             
             self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
-            # Move forward while zig-zagging
-            self.speed_effort_pub.publish(Float64(data=float(MissionParams.finding_speed_effort)))
-            self.node.get_logger().info(f"[{self.name}] Zig-zag mencari Box {target_name} untuk difoto...", throttle_duration_sec=1.0)
+            self.speed_effort_pub.publish(Float64(data=0.0))
+            self.node.get_logger().info(f"[{self.name}] Memutar mencari Box {target_name} untuk difoto...", throttle_duration_sec=1.0)
+            return False
+            
+        if self.dsc == 8888.0:
+            # Only Green is seen. Green is on the left, Blue on the right.
+            # If we see Green and want Blue, we should turn Right (Negative)
+            yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
+            self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
+            self.speed_effort_pub.publish(Float64(data=0.0))
+            self.node.get_logger().info(f"[{self.name}] Box Hijau terlihat! Memutar berlawanan mencari Box {target_name}...", throttle_duration_sec=1.0)
+            return False
+            
+        if self.dsc == 7777.0:
+            # Only Blue is seen.
+            # If we see Blue and want Green, we should turn Left (Positive)
+            yaw_cmd = float(self.effort) if self.arena == "A" else -float(self.effort)
+            self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
+            self.speed_effort_pub.publish(Float64(data=0.0))
+            self.node.get_logger().info(f"[{self.name}] Box Biru terlihat! Memutar berlawanan mencari Box {target_name}...", throttle_duration_sec=1.0)
             return False
         
         # Center the box
