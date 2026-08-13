@@ -20,6 +20,8 @@ class Photo_Execution(BaseExecution):
         self.integral = 0.0
         self.effort = MissionParams.finding_yaw_effort
         self.has_saved_photo = False
+        self.time_threshold = getattr(MissionParams, 'photo_time_threshold', 2.0)
+        self.frame_counter = FrameCounter(self.time_threshold)
         
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
@@ -62,6 +64,8 @@ class Photo_Execution(BaseExecution):
         self.target_mission = None
         self.integral = 0.0
         self.prev_dsc = 0.0
+        if self.frame_counter:
+            self.frame_counter.reset()
         self.sweep_start_time = time.time()
         self.sweep_direction = 1
         self.node.get_logger().info(f"[{self.name}] Memulai Misi Foto Ganda")
@@ -99,6 +103,7 @@ class Photo_Execution(BaseExecution):
 
     def align_to_target(self, target_name):
         if self.dsc == 9999.0:
+            if self.frame_counter: self.frame_counter.reset()
             # Default spinning direction (like finding box)
             # Arena A: Turn Right (Negative), Arena B: Turn Left (Positive)
             yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
@@ -109,6 +114,7 @@ class Photo_Execution(BaseExecution):
             return False
             
         if self.dsc == 8888.0:
+            if self.frame_counter: self.frame_counter.reset()
             # Only Green is seen. Green is on the left, Blue on the right.
             # If we see Green and want Blue, we should turn Right (Negative)
             yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
@@ -118,6 +124,7 @@ class Photo_Execution(BaseExecution):
             return False
             
         if self.dsc == 7777.0:
+            if self.frame_counter: self.frame_counter.reset()
             # Only Blue is seen.
             # If we see Blue and want Green, we should turn Left (Positive)
             yaw_cmd = float(self.effort) if self.arena == "A" else -float(self.effort)
@@ -125,12 +132,18 @@ class Photo_Execution(BaseExecution):
             self.speed_effort_pub.publish(Float64(data=0.0))
             self.node.get_logger().info(f"[{self.name}] Box Biru terlihat! Memutar berlawanan mencari Box {target_name}...", throttle_duration_sec=1.0)
             return False
-        
-        # Center the box
-        if abs(self.dsc) < 20.0:
-            self.yaw_effort_pub.publish(Float64(data=0.0))
-            self.speed_effort_pub.publish(Float64(data=0.0))
-            return True
+        # Target box is roughly in the center, start counting frames
+        if abs(self.dsc) < 150.0:
+            if self.frame_counter:
+                self.frame_counter.is_started()
+                if self.frame_counter.is_enough():
+                    self.frame_counter.reset()
+                    self.yaw_effort_pub.publish(Float64(data=0.0))
+                    self.speed_effort_pub.publish(Float64(data=0.0))
+                    return True
+        else:
+            if self.frame_counter:
+                self.frame_counter.reset()
             
         kp = getattr(MissionParams, 'kp_cam', 0.2)
         ki = getattr(MissionParams, 'ki_cam', 0.01)
@@ -183,6 +196,9 @@ class Photo_Execution(BaseExecution):
             self.mission_type_pub.publish(String(data=MissionStatus.BLUE_BOX))
             self.bluebox = None
             self.integral = 0.0
+            self.dsc = 9999.0
+            if self.frame_counter:
+                self.frame_counter.reset()
             self.phase = "align_blue"
             return Status.RUNNING
             

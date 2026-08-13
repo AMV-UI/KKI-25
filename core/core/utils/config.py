@@ -44,16 +44,15 @@ class MissionParams:
     buoy_time_threshold = 2.0
 
     # Turn Next Buoy Mission
-    turn_next_buoy_speed_effort = 170.0
-    turn_next_buoy_yaw_effort = 200.0
-    turn_next_buoy_duration = 5.0
-    turn_next_buoy_timeout = 50.0
+    turn_next_buoy_speed_effort = 200.0
+    turn_next_buoy_yaw_effort = 150.0
+    turn_next_buoy_duration = 10.0
+    turn_next_buoy_timeout = 10.0
 
     # Finding Mission BOX
     finding_speed_effort = 150.0
     finding_yaw_effort = 150.0
-    finding_time_threshold = 5.0
-    photo_zigzag_duration = 3.0  # Durasi sweeping zigzag saat box hilang di misi foto
+    finding_lost_timeout = 3.0
 
     # Unfinding Mission BOX
     unfinding_speed_effort = 150.0
@@ -65,7 +64,6 @@ class MissionParams:
     min_area_buoy = 400.0
     min_area_docking_buoy = 3000.0
     default_arena = "B"
-    
     
     # PID Tuning Parameters (Camera Tracking for Box)
     kp_cam = 0.2
@@ -80,8 +78,6 @@ class MissionParams:
     dock_yaw_effort = 150.0
     dock_time_threshold = 0.2
     dock_margin_error = 5.0
-    dock_forward_time_1 = 5.0
-    dock_forward_time_2 = 5.0
 	
     # Passthrough Mission
     passthrough_speed_effort = 130.0

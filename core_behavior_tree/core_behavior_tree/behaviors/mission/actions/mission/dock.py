@@ -44,6 +44,7 @@ class Docking_Execution(BaseExecution):
         self.docking_lat_sub = Topic.dock_lat.createSubscriber(self.node, self._docking_lat_cb)
         self.docking_lon_sub = Topic.dock_lon.createSubscriber(self.node, self._docking_lon_cb)
         self.heading_sub = Topic.heading_deg.createSubscriber(self.node, self._heading_cb)
+        self.initial_heading_sub = Topic.initial_heading.createSubscriber(self.node, self._initial_heading_cb)
         self.pixhawk = Topic.pixhawk.createSubscriber(self.node, self._pixhawk_cb) 
         self.detected_sub = Topic.detected.createSubscriber(self.node, self._detected_cb)
         self.dsc_sub = Topic.dsc.createSubscriber(self.node, self._dsc_cb)
@@ -54,6 +55,9 @@ class Docking_Execution(BaseExecution):
 
         self.mission_pub = Topic.mission.createPublisher(self.node)
         self.arena_sub = Topic.arena.createSubscriber(self.node, self._arena_cb)
+
+    def _initial_heading_cb(self, msg: Float64):
+        self.locked_heading = float(msg.data)
 
     def _arena_cb(self, msg):
         self.arena = str(msg.data)
@@ -92,7 +96,6 @@ class Docking_Execution(BaseExecution):
             if abs(theta) < 10.0:
                 self.node.get_logger().info(f"[{self.name}] Arah GPS sesuai! Mulai berjalan maju menuju target...")
                 self.dock_state = 1
-                self.locked_heading = self.heading
                 self.speed_effort_pub.publish(Float64(data=0.0))
                 self.yaw_effort_pub.publish(Float64(data=0.0))
                 self.bow_effort_pub.publish(Float64(data=0.0))
@@ -108,59 +111,49 @@ class Docking_Execution(BaseExecution):
             return Status.RUNNING
 
         elif self.dock_state == 1:
-            # APPROACH
-            if distance <= MissionParams.dock_margin_error or self.detected:
-                if self.detected:
-                    self.node.get_logger().info(f"[{self.name}] 3 Buoy Merah Terdeteksi! Memulai PUTARAN 90 DERAJAT...")
-                else:
-                    self.node.get_logger().info(f"[{self.name}] Mencapai batas margin GPS ({distance:.2f}m)! Memulai PUTARAN 90 DERAJAT...")
+            # APPROACH & AVOID
+            if distance <= MissionParams.dock_margin_error:
+                self.node.get_logger().info(f"[{self.name}] Mencapai batas margin GPS ({distance:.2f}m)! Mulai menyesuaikan arah akhir...")
                 self.dock_state = 2
                 self.speed_effort_pub.publish(Float64(data=0.0))
                 self.yaw_effort_pub.publish(Float64(data=0.0))
                 self.bow_effort_pub.publish(Float64(data=0.0))
-                
-                # Set target yaw based on arena to align parallel to dock
-                if self.arena == "A":
-                    # Slide Left -> Dock is on Left -> Turn Right 90 degrees
-                    self.target_yaw = (self.locked_heading + 90) % 360
-                else:
-                    # Slide Right -> Dock is on Right -> Turn Left 90 degrees
-                    self.target_yaw = (self.locked_heading - 90 + 360) % 360
                 return Status.RUNNING
-                
+
             self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
             
-            # Combine GPS and Vision for perfect docking approach
+            # Obstacle avoidance with red buoy
             if self.dsc != 9999.0:
-                self.node.get_logger().info(f"[{self.name}] CAMERA LOCK: Menyelaraskan kapal ke buoy docking (DSC: {self.dsc:.2f})...", throttle_duration_sec=1.0)
-                # DSC > 0 means buoys are to the right. Turn right (negative yaw) to center them.
-                yaw_cmd = -self.dsc * 0.3 
-                max_yaw = float(self.effort)
+                self.node.get_logger().info(f"[{self.name}] OBSTACLE AVOIDANCE: Buoy terdeteksi! Menghindar...", throttle_duration_sec=1.0)
+                # Arena A: Turn Right (Starboard) -> Negative Yaw
+                # Arena B: Turn Left (Port) -> Positive Yaw
+                if self.arena == "A":
+                    yaw_cmd = -float(self.effort)
+                else:
+                    yaw_cmd = float(self.effort)
             else:
-                self.node.get_logger().info(f"[{self.name}] GPS NAVIGATE: Jarak: {distance:.2f}m, theta: {theta:.2f}. Menuju lat lon...", throttle_duration_sec=1.0)
+                self.node.get_logger().info(f"[{self.name}] GPS NAVIGATE: Jarak: {distance:.2f}m, theta: {theta:.2f}. Menuju waypoint...", throttle_duration_sec=1.0)
                 if abs(theta) < 2.0:
                     yaw_cmd = 0.0
                 else:
                     yaw_cmd = -theta * 2.0
                 max_yaw = float(self.effort * 0.4) # Limit to 40% effort for smooth GPS corrections
-                    
-            if yaw_cmd > max_yaw: yaw_cmd = max_yaw
-            elif yaw_cmd < -max_yaw: yaw_cmd = -max_yaw
+                if yaw_cmd > max_yaw: yaw_cmd = max_yaw
+                elif yaw_cmd < -max_yaw: yaw_cmd = -max_yaw
                 
             self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
             return Status.RUNNING
             
         elif self.dock_state == 2:
-            # ALIGN 1 (TURN 90 DEGREES OUT)
+            # FINAL ALIGNMENT TO LOCKED HEADING
             from core.mission.gps_stuff import calc_turn
-            yaw_diff = calc_turn(self.target_yaw, self.heading)
+            yaw_diff = calc_turn(self.locked_heading, self.heading)
             
-            self.node.get_logger().info(f"[{self.name}] ALIGN 1: Berputar ke {self.target_yaw:.1f} deg (diff: {yaw_diff:.1f} deg)...", throttle_duration_sec=1.0)
+            self.node.get_logger().info(f"[{self.name}] FINAL ALIGN: Mengembalikan arah ke {self.locked_heading:.1f} deg (diff: {yaw_diff:.1f} deg)...", throttle_duration_sec=1.0)
             
             if abs(yaw_diff) < 5.0:
-                self.node.get_logger().info(f"[{self.name}] Selesai putaran 1! Memulai maju 1...")
+                self.node.get_logger().info(f"[{self.name}] Arah sudah disesuaikan! Memulai SLIDING...")
                 self.dock_state = 3
-                self.start_time = time.time()
                 self.yaw_effort_pub.publish(Float64(data=0.0))
                 return Status.RUNNING
                 
@@ -171,79 +164,6 @@ class Docking_Execution(BaseExecution):
             return Status.RUNNING
 
         elif self.dock_state == 3:
-            # FORWARD 1
-            if time.time() - self.start_time > MissionParams.dock_forward_time_1:
-                self.node.get_logger().info(f"[{self.name}] Selesai maju 1! Memulai putaran 2...")
-                self.dock_state = 4
-                if self.arena == "A":
-                    self.target_yaw = (self.heading - 90 + 360) % 360 # Turn CCW
-                else:
-                    self.target_yaw = (self.heading + 90) % 360 # Turn CW
-                self.speed_effort_pub.publish(Float64(data=0.0))
-                return Status.RUNNING
-                
-            self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
-            self.yaw_effort_pub.publish(Float64(data=0.0))
-            self.bow_effort_pub.publish(Float64(data=0.0))
-            return Status.RUNNING
-
-        elif self.dock_state == 4:
-            # ALIGN 2 (TURN 90 DEGREES IN)
-            from core.mission.gps_stuff import calc_turn
-            yaw_diff = calc_turn(self.target_yaw, self.heading)
-            
-            self.node.get_logger().info(f"[{self.name}] ALIGN 2: Berputar ke {self.target_yaw:.1f} deg (diff: {yaw_diff:.1f} deg)...", throttle_duration_sec=1.0)
-            
-            if abs(yaw_diff) < 5.0:
-                self.node.get_logger().info(f"[{self.name}] Selesai putaran 2! Memulai maju 2...")
-                self.dock_state = 5
-                self.start_time = time.time()
-                self.yaw_effort_pub.publish(Float64(data=0.0))
-                return Status.RUNNING
-                
-            yaw_cmd = float(self.effort) if yaw_diff > 0 else -float(self.effort)
-            self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
-            self.speed_effort_pub.publish(Float64(data=0.0))
-            self.bow_effort_pub.publish(Float64(data=0.0))
-            return Status.RUNNING
-
-        elif self.dock_state == 5:
-            # FORWARD 2
-            if time.time() - self.start_time > MissionParams.dock_forward_time_2:
-                self.node.get_logger().info(f"[{self.name}] Selesai maju 2! Memulai putaran 3...")
-                self.dock_state = 6
-                if self.arena == "A":
-                    self.target_yaw = (self.heading - 90 + 360) % 360 # Turn CCW
-                else:
-                    self.target_yaw = (self.heading + 90) % 360 # Turn CW
-                self.speed_effort_pub.publish(Float64(data=0.0))
-                return Status.RUNNING
-                
-            self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
-            self.yaw_effort_pub.publish(Float64(data=0.0))
-            self.bow_effort_pub.publish(Float64(data=0.0))
-            return Status.RUNNING
-
-        elif self.dock_state == 6:
-            # ALIGN 3 (TURN 90 DEGREES FINAL)
-            from core.mission.gps_stuff import calc_turn
-            yaw_diff = calc_turn(self.target_yaw, self.heading)
-            
-            self.node.get_logger().info(f"[{self.name}] ALIGN 3: Berputar ke {self.target_yaw:.1f} deg (diff: {yaw_diff:.1f} deg)...", throttle_duration_sec=1.0)
-            
-            if abs(yaw_diff) < 5.0:
-                self.node.get_logger().info(f"[{self.name}] Selesai putaran 3! Memulai SLIDING...")
-                self.dock_state = 7
-                self.yaw_effort_pub.publish(Float64(data=0.0))
-                return Status.RUNNING
-                
-            yaw_cmd = float(self.effort) if yaw_diff > 0 else -float(self.effort)
-            self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
-            self.speed_effort_pub.publish(Float64(data=0.0))
-            self.bow_effort_pub.publish(Float64(data=0.0))
-            return Status.RUNNING
-
-        elif self.dock_state == 7:
             # SLIDING
             if self.arena == "A":
                 # Slide Left (Surge Port CCW, Surge Starboard CW)

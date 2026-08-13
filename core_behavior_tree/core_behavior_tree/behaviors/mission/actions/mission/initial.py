@@ -103,11 +103,18 @@ class Initial_Fallback(BaseFallback):
         super().setup(**kwargs)
         self.docking_lat_pub = Topic.dock_lat.createPublisher(self.node)
         self.docking_lon_pub = Topic.dock_lon.createPublisher(self.node)
+        self.initial_heading_pub = Topic.initial_heading.createPublisher(self.node)
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
 
         self.pxmode_sub = Topic.pxmode.createSubscriber(self.node, self._pxmode_cb)
         self.pixhawk_sub = Topic.pixhawk.createSubscriber(self.node, self._pixhawk_cb)
-    
+        self.heading_sub = Topic.heading_deg.createSubscriber(self.node, self._heading_cb)
+        
+        self.heading = 0.0
+
+    def _heading_cb(self, msg: Float64):
+        self.heading = float(msg.data)
+
     def _pxmode_cb(self, msg: String):
         if msg.data != PxMode.AUTO:
             self.hold = True
@@ -123,7 +130,8 @@ class Initial_Fallback(BaseFallback):
         """Save Pixhawk coordinates for docking mission"""
         self.docking_lat_pub.publish(Float64(data=self.pixhawk.lat))
         self.docking_lon_pub.publish(Float64(data=self.pixhawk.lon))
-        self.node.get_logger().info(f"[{self.name}] Saving Docking Location on {self.pixhawk.lat}, {self.pixhawk.lon} {self.pixhawk.lat}")
+        self.initial_heading_pub.publish(Float64(data=self.heading))
+        self.node.get_logger().info(f"[{self.name}] Saving Docking Location on {self.pixhawk.lat}, {self.pixhawk.lon} with Heading {self.heading}")
 
     def fallback(self) -> Status:        
         self.node.get_logger().info(f"[{self.name}] Initial Fallback mode active..", throttle_duration_sec=1.0)

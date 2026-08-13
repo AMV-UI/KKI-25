@@ -218,14 +218,7 @@ class ObjectDetector:
                 cv2.putText(img, f"Red Buoys > 7000 area: {red_buoys_large}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
             
             elif mission == MissionStatus.BOTH_BOXES:
-                # Proximity Check
-                prox_thresh = getattr(MissionParams, 'finding_proximity_area_threshold', 40000.0)
-                if self.max_green_box > prox_thresh or self.max_blue_box > prox_thresh:
-                    yaw_state = -9999.0
-                    detected = True
-                    if self.max_green_box != -1: cv2.rectangle(img, (self.green_box["x1"], self.green_box["y1"]), (self.green_box["x2"], self.green_box["y2"]), (0, 0, 255), 3)
-                    if self.max_blue_box != -1: cv2.rectangle(img, (self.blue_box["x1"], self.blue_box["y1"]), (self.blue_box["x2"], self.blue_box["y2"]), (0, 69, 0), 3)
-                elif self.max_green_box != -1 and self.max_blue_box != -1:
+                if self.max_green_box != -1 and self.max_blue_box != -1:
                     mid_green = (self.green_box["x1"] + self.green_box["x2"]) // 2
                     mid_blue = (self.blue_box["x1"] + self.blue_box["x2"]) // 2
                     mid_x = (mid_green + mid_blue) // 2
