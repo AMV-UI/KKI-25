@@ -23,6 +23,29 @@ from ..behaviors.base_behavior import BaseBehavior
 
 from ..behaviors.mission.actions.mission.turn_next_buoy import *
 
+from core.utils.config import Topic
+from std_msgs.msg import Bool
+
+class DynamicBuoySequence(py_trees.composites.Sequence):
+    def __init__(self, name, memory=True, node=None):
+        super().__init__(name=name, memory=memory)
+        self.node = node
+        self.box_detected = False
+        Topic.box_detected.createSubscriber(self.node, self._box_cb)
+
+    def _box_cb(self, msg: Bool):
+        self.box_detected = bool(msg.data)
+
+    def update(self):
+        if self.box_detected:
+            return py_trees.common.Status.SUCCESS
+        status = super().update()
+        if status == py_trees.common.Status.SUCCESS:
+            # We finished Buoy and Turn_Next_Buoy, but no box yet. Loop back!
+            self.initialise()
+            return py_trees.common.Status.RUNNING
+        return status
+
 class MissionTreeBuilder:
     """Builder class responsible for constructing the behavior tree"""
     # Hard Code Config
@@ -41,19 +64,7 @@ class MissionTreeBuilder:
     # Perception
     MISSIONS_CONFIG = [
         (Initial_Execution, Initial_Fallback, "Initial", 0),
-        (Buoy_Execution, Buoy_Fallback, "Buoy", 0),
-        (Turn_Next_Buoy_Execution, Turn_Next_Buoy_Fallback, "Turn Next Buoy", 1),
-        (Buoy_Execution, Buoy_Fallback, "Buoy 2", 1),
-        (Turn_Next_Buoy_Execution, Turn_Next_Buoy_Fallback, "Turn Next Buoy", 1),
-        (Buoy_Execution, Buoy_Fallback, "Buoy 3", 1),
-        (Turn_Next_Buoy_Execution, Turn_Next_Buoy_Fallback, "Turn Next Buoy", 1),
-        (Buoy_Execution, Buoy_Fallback, "Buoy 4", 1),
-        (Turn_Next_Buoy_Execution, Turn_Next_Buoy_Fallback, "Turn Next Buoy", 1),
-        (Buoy_Execution, Buoy_Fallback, "Buoy 5", 1),
-        (Turn_Next_Buoy_Execution, Turn_Next_Buoy_Fallback, "Turn Next Buoy", 1),
-        (Buoy_Execution, Buoy_Fallback, "Buoy 6", 1),
-        (Turn_Next_Buoy_Execution, Turn_Next_Buoy_Fallback, "Turn Next Buoy", 1),
-        (Box_Execution, Box_Fallback, "Change Mission to Both Boxes", 6),
+        ("BUOY_LOOP", 1), # Dynamic Loop for Buoys
         (Finding_Execution, Finding_Fallback, "Finding Both Boxes", 6), 
         (Photo_Execution, Photo_Fallback, "Photo Both Boxes", 7), 
         (Box_Execution, Box_Fallback, "Change Mission to Docking", 10),
@@ -102,14 +113,28 @@ class MissionTreeBuilder:
             memory=True
         )
         
-        for mission_class, fallback_class, name, mission_id in self.MISSIONS_CONFIG:
-            mission_selector = self._create_mission_selector(
-                mission_class, 
-                fallback_class,
-                name, 
-                mission_id
-            )
-            mission_sequence.add_child(mission_selector)
+        for config in self.MISSIONS_CONFIG:
+            if config[0] == "BUOY_LOOP":
+                buoy_loop = DynamicBuoySequence("Dynamic Buoy Loop", memory=True, node=self.ros_node)
+                
+                buoy_sel = self._create_mission_selector(Buoy_Execution, Buoy_Fallback, "Buoy", 1)
+                turn_sel = self._create_mission_selector(Turn_Next_Buoy_Execution, Turn_Next_Buoy_Fallback, "Turn Next Buoy", 1)
+                
+                buoy_loop.add_children([buoy_sel, turn_sel])
+                mission_sequence.add_child(buoy_loop)
+                
+                # After the loop breaks, we must change mission to BOTH_BOXES
+                box_sel = self._create_mission_selector(Box_Execution, Box_Fallback, "Change Mission to Both Boxes", 6)
+                mission_sequence.add_child(box_sel)
+            else:
+                mission_class, fallback_class, name, mission_id = config
+                mission_selector = self._create_mission_selector(
+                    mission_class, 
+                    fallback_class,
+                    name, 
+                    mission_id
+                )
+                mission_sequence.add_child(mission_selector)
         
         return mission_sequence
     
