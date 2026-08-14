@@ -30,21 +30,46 @@ class DynamicBuoySequence(py_trees.composites.Sequence):
     def __init__(self, name, memory=True, node=None):
         super().__init__(name=name, memory=memory)
         self.node = node
-        self.box_detected = False
-        Topic.box_detected.createSubscriber(self.node, self._box_cb)
 
-    def _box_cb(self, msg: Bool):
-        self.box_detected = bool(msg.data)
+    def tick(self):
+        """Override the tick generator to implement the custom loop logic."""
+        self.logger.debug("%s.tick()" % self.__class__.__name__)
+        
+        # If we are starting fresh, initialise
+        if self.status != py_trees.common.Status.RUNNING:
+            self.current_child = self.children[0]
+            for child in self.children:
+                child.status = py_trees.common.Status.INVALID
 
-    def update(self):
-        if self.box_detected:
-            return py_trees.common.Status.SUCCESS
-        status = super().update()
-        if status == py_trees.common.Status.SUCCESS:
-            # We finished Buoy and Turn_Next_Buoy, but no box yet. Loop back!
-            self.initialise()
-            return py_trees.common.Status.RUNNING
-        return status
+        for child in self.children:
+            # Only tick the current child or the ones after it
+            if child == self.current_child or self.current_child is None:
+                yield from child.tick()
+                
+                if child.status == py_trees.common.Status.RUNNING:
+                    self.status = py_trees.common.Status.RUNNING
+                    self.current_child = child
+                    yield self
+                    return
+                elif child.status == py_trees.common.Status.FAILURE:
+                    # If any child fails (e.g. Turn_Next_Buoy times out), break the loop and return SUCCESS!
+                    self.status = py_trees.common.Status.SUCCESS
+                    self.current_child = None
+                    yield self
+                    return
+                # If SUCCESS, we continue to the next child in the for-loop
+                # We MUST set current_child to None so the next iteration will tick the next child!
+                self.current_child = None
+                
+        # If all children returned SUCCESS (both Buoy and Turn_Next_Buoy succeeded),
+        # it means we found a buoy and finished the sweep. We want to LOOP BACK!
+        self.status = py_trees.common.Status.RUNNING
+        self.current_child = self.children[0]
+        # Invalidate children so they can run again
+        for child in self.children:
+            child.stop(py_trees.common.Status.INVALID)
+            
+        yield self
 
 class MissionTreeBuilder:
     """Builder class responsible for constructing the behavior tree"""

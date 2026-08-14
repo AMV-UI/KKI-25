@@ -75,12 +75,6 @@ class Buoy_Execution(BaseExecution):
     def execute(self) -> Status:
         self.node.get_logger().info(f"[{self.name}] track {self.arena}", throttle_duration_sec=1.0)
         
-        # Preemptively skip to box mission if box detector found something
-        if getattr(self, 'box_detected', False):
-            self.node.get_logger().info(f"[{self.name}] Box detected preemptively! Terminating buoy mission early.")
-            self.mission_pub.publish(UInt8(data=self.mission))
-            return Status.SUCCESS
-
         if not self.detected:
             if self.has_seen_buoy:
                 self.frame_counter.is_started() 

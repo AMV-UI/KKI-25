@@ -55,19 +55,12 @@ class Turn_Next_Buoy_Execution(BaseExecution):
         self.node.get_logger().info(f"[{self.name}] Starting sweeping turn maneuver in arena {self.arena}")
 
     def execute(self) -> Status:
-        # Preemptively skip if box is detected
-        if getattr(self, 'box_detected', False):
-            self.node.get_logger().info(f"[{self.name}] Box detected preemptively! Terminating turn_next_buoy early.")
-            self.yaw_effort_pub.publish(Float64(data=0.0))
-            self.speed_effort_pub.publish(Float64(data=0.0))
-            return Status.SUCCESS
-
         total_elapsed = time.time() - self.global_start_time
         if total_elapsed >= MissionParams.turn_next_buoy_timeout:
             self.node.get_logger().info(f"[{self.name}] Global timeout ({MissionParams.turn_next_buoy_timeout}s) reached! Moving to next mission.")
             self.yaw_effort_pub.publish(Float64(data=0.0))
             self.speed_effort_pub.publish(Float64(data=0.0))
-            return Status.SUCCESS
+            return Status.FAILURE
 
         elapsed = time.time() - self.start_time
         
