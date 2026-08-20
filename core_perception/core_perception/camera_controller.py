@@ -140,6 +140,7 @@ class CameraController(Node):
         self.camera_processed_pub = Topic.camera_processed.createPublisher(self)
         self.green_box_pub = Topic.green_box_encoded.createPublisher(self)
         self.blue_box_pub = Topic.blue_box_encoded.createPublisher(self)
+        self.box_detected_pub = Topic.box_detected.createPublisher(self)
         # Subscribers (if needed)
         self.mission_type_sub = Topic.mission_type.createSubscriber(self, self.mission_callback)
         self.arena_sub = Topic.arena.createSubscriber(self, self._arena_cb)
@@ -200,11 +201,18 @@ class CameraController(Node):
             if not success:
                 return
 
-            if self.mission_type == MissionStatus.BUOY:
+            box_detected_bool = False
+            if self.mission_type == MissionStatus.BUOY or self.mission_type == MissionStatus.DOCKING:
                 self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
+                # Run box detector simultaneously to check for boxes during Buoy mission
+                # We use a dummy img copy so we don't draw over the main self.img
+                _, _, box_detected_bool = self.box_detector.process_frame(MissionStatus.BOTH_BOXES, self.arena, img.copy(), self.up_cap, self)
             else:
                 self.get_logger().info(f"Masuk sini", throttle_duration_sec=1.0)
                 self.img, self.dsc, self.detected = self.box_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
+            
+            self.box_detected_pub.publish(Bool(data=box_detected_bool))
+
             self.get_logger().info(f"Test: {self.mission_type}", throttle_duration_sec=1.0)
 
             if self.img is None:

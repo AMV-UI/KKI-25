@@ -233,6 +233,9 @@ class CameraController(Node):
             box_detected_bool = False
             if self.mission_type == MissionStatus.BUOY or self.mission_type == MissionStatus.DOCKING:
                 self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
+                # Run box detector simultaneously to check for boxes during Buoy mission
+                # We use a dummy img copy so we don't draw over the main self.img
+                _, _, box_detected_bool = self.box_detector.process_frame(MissionStatus.BOTH_BOXES, self.arena, img.copy(), self.up_cap, self)
             else:
                 self.img, self.dsc, self.detected = self.box_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
                 

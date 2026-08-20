@@ -69,6 +69,12 @@ class Turn_Next_Buoy_Execution(BaseExecution):
             self.yaw_effort_pub.publish(Float64(data=0.0))
             self.speed_effort_pub.publish(Float64(data=0.0))
             return Status.SUCCESS
+            
+        if self.box_detected and total_elapsed > 3.0:
+            self.node.get_logger().info(f"[{self.name}] Box detected! Breaking loop to go to Box Mission.")
+            self.yaw_effort_pub.publish(Float64(data=0.0))
+            self.speed_effort_pub.publish(Float64(data=0.0))
+            return Status.FAILURE
         
         if elapsed >= self.duration:
             self.node.get_logger().info(f"[{self.name}] Sweeping time {self.duration}s up. Reversing direction.")

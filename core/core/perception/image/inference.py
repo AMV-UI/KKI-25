@@ -122,6 +122,11 @@ class ObjectDetector:
                     color = (0, 0, 0)
                     area = abs((x2 - x1) * (y2 - y1))
 
+                    # Filter out excessively large bounding boxes (e.g., > 80% of frame)
+                    img_area = (width * 2) * (height * 2)
+                    if area > 0.8 * img_area:
+                        continue
+
                     # Filter out small/far away objects
                     min_buoy = getattr(MissionParams, 'min_area_buoy', 600.0)
                     if area < min_buoy: #simulasi
