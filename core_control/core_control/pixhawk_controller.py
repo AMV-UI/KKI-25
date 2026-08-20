@@ -136,9 +136,9 @@ class PixhawkController(Node):
         if pwm_val <= 1300:
             self.pxmode = PxMode.AUTO
         elif 1301 <= pwm_val <= 1700:
-            self.pxmode = PxMode.HOLD
+            self.pxmode = PxMode.AUTO
         else:
-            self.pxmode = PxMode.MANUAL
+            self.pxmode = PxMode.AUTO
 
         pxmode_msg = String()
         pxmode_msg.data = self.pxmode
