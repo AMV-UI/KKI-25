@@ -63,6 +63,11 @@ class PixhawkController(Node):
                 self.ser_2.wait_heartbeat()
                 self.get_logger().info(f"Pixhawk found on {port}")
                 self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
+                # Request data stream so that Pixhawk streams GPS and RC data
+                self.ser_2.mav.request_data_stream_send(
+                    self.ser_2.target_system, self.ser_2.target_component,
+                    mavutil.mavlink.MAV_DATA_STREAM_ALL, 10, 1
+                )
                 self._px_arm()
                 return
             except Exception as e:
@@ -94,7 +99,7 @@ class PixhawkController(Node):
         if self.ser_2 is None: return self.pixhawk
         try:
             msg_coor = self.ser_2.recv_match(
-                type="GLOBAL_POSITION_INT", blocking=True
+                type="GLOBAL_POSITION_INT", blocking=False
             )
             lat = msg_coor.lat / 1e7 if msg_coor != None else self.pixhawk.lat
             lon = msg_coor.lon / 1e7 if msg_coor != None else self.pixhawk.lon
@@ -102,7 +107,7 @@ class PixhawkController(Node):
                 msg_coor.alt / 1000
             )  if msg_coor != None else self.pixhawk.alt
 
-            alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=True)
+            alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=False)
 
             msg_spd = alignment.groundspeed if alignment != None else self.pixhawk.msg_spd  # Ground speed in m/s
             msg_heading = alignment.heading  if alignment != None else self.pixhawk.msg_heading
@@ -121,7 +126,7 @@ class PixhawkController(Node):
 
     def _px_rc_val(self):
         if self.ser_2 is None: return self.rc_chans
-        fetched_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
+        fetched_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=False)
         self.rc_chans = fetched_channels if fetched_channels != None else self.rc_chans
         return self.rc_chans
 
@@ -136,9 +141,9 @@ class PixhawkController(Node):
         if pwm_val <= 1300:
             self.pxmode = PxMode.AUTO
         elif 1301 <= pwm_val <= 1700:
-            self.pxmode = PxMode.HOLD
+            self.pxmode = PxMode.AUTO
         else:
-            self.pxmode = PxMode.MANUAL
+            self.pxmode = PxMode.AUTO
 
         pxmode_msg = String()
         pxmode_msg.data = self.pxmode

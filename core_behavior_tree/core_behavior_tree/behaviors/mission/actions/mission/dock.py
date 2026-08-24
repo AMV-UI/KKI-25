@@ -82,9 +82,7 @@ class Docking_Execution(BaseExecution):
         self.docking_lon = float(msg.data)
 
     def execute(self) -> Status:
-        # Override for testing GPS accuracy based on initial position
-        self.docking_lat = 44.51239
-        self.docking_lon = 26.10777
+
 
         theta = find_deg(self.lat, self.lon, self.docking_lat, self.docking_lon, self.heading)
         distance = haversine(self.lon, self.lat, self.docking_lon, self.docking_lat)
@@ -181,33 +179,6 @@ class Docking_Execution(BaseExecution):
             self.node.get_logger().info(f"[{self.name}] SLIDING: Sliding to {'Left' if self.arena == 'A' else 'Right'} into docking bay...", throttle_duration_sec=1.0)
             return Status.RUNNING
         
-        self.node.get_logger().info(f"[{self.name}] distance: {distance:.2f}m, theta: {theta:.2f} deg", throttle_duration_sec=1.0)
-        
-        if abs(theta) < 15:
-            self.node.get_logger().info(f"[{self.name}] Arah sesuai, kapal berjalan maju...", throttle_duration_sec=1.0)
-            speed = float(self.speed_effort)
-            
-            # Smooth proportional steering while moving forward
-            if abs(theta) < 2.0:
-                yaw_cmd = 0.0
-            else:
-                yaw_cmd = -theta * 2.0
-                max_yaw = float(self.effort * 0.4)
-                if yaw_cmd > max_yaw: yaw_cmd = max_yaw
-                elif yaw_cmd < -max_yaw: yaw_cmd = -max_yaw
-        else:
-            self.node.get_logger().info(f"[{self.name}] Berputar menyamakan arah ke target...", throttle_duration_sec=1.0)
-            speed = 0.0
-            
-            # Pivot constantly if off-angle
-            if theta > 0:
-                yaw_cmd = -float(self.effort)
-            else:
-                yaw_cmd = float(self.effort)
-
-        self.speed_effort_pub.publish(Float64(data=speed))
-        self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
-
         return Status.RUNNING
 
 class Docking_Fallback(BaseFallback):

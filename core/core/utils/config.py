@@ -231,8 +231,10 @@ class SPEED:
     Idle = 0
 
 class Channel:
-    MOTOR_X = 0
-    MOTOR_Y = 2
+    MOTOR_X = 0       # Pixhawk Channel 1 (Yaw/Steering)
+    MOTOR_Y = 2       # Pixhawk Channel 2 (Speed/Throttle)
+    MOTOR_BOW_1 = 1   # Pixhawk Channel 4 (Bow Thruster 1)
+    MOTOR_BOW_2 = 3   # Pixhawk Channel 5 (Bow Thruster 2)
 
 class PxMode:
     HOLD = "HOLD"
