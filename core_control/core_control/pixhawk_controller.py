@@ -98,25 +98,24 @@ class PixhawkController(Node):
     def request_pixhawk(self):
         if self.ser_2 is None: return self.pixhawk
         try:
-            msg_coor = self.ser_2.recv_match(
-                type="GLOBAL_POSITION_INT", blocking=False
-            )
-            lat = msg_coor.lat / 1e7 if msg_coor != None else self.pixhawk.lat
-            lon = msg_coor.lon / 1e7 if msg_coor != None else self.pixhawk.lon
-            alt = (
-                msg_coor.alt / 1000
-            )  if msg_coor != None else self.pixhawk.alt
+            # Pump the serial buffer to get all latest messages
+            while True:
+                msg = self.ser_2.recv_match(blocking=False)
+                if not msg:
+                    break
 
-            alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=False)
+            # Read latest cached GLOBAL_POSITION_INT
+            if 'GLOBAL_POSITION_INT' in self.ser_2.messages:
+                msg_coor = self.ser_2.messages['GLOBAL_POSITION_INT']
+                self.pixhawk.lat = msg_coor.lat / 1e7
+                self.pixhawk.lon = msg_coor.lon / 1e7
+                self.pixhawk.alt = msg_coor.alt / 1000
 
-            msg_spd = alignment.groundspeed if alignment != None else self.pixhawk.msg_spd  # Ground speed in m/s
-            msg_heading = alignment.heading  if alignment != None else self.pixhawk.msg_heading
-
-            self.pixhawk.lat = lat
-            self.pixhawk.lon = lon
-            self.pixhawk.alt = alt
-            self.pixhawk.msg_heading = msg_heading
-            self.pixhawk.msg_spd = msg_spd
+            # Read latest cached VFR_HUD
+            if 'VFR_HUD' in self.ser_2.messages:
+                alignment = self.ser_2.messages['VFR_HUD']
+                self.pixhawk.msg_spd = alignment.groundspeed
+                self.pixhawk.msg_heading = alignment.heading
 
             return self.pixhawk
 
@@ -126,8 +125,8 @@ class PixhawkController(Node):
 
     def _px_rc_val(self):
         if self.ser_2 is None: return self.rc_chans
-        fetched_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=False)
-        self.rc_chans = fetched_channels if fetched_channels != None else self.rc_chans
+        if 'RC_CHANNELS' in self.ser_2.messages:
+            self.rc_chans = self.ser_2.messages['RC_CHANNELS']
         return self.rc_chans
 
     def _get_pwm(self):
