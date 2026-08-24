@@ -39,14 +39,14 @@ class MissionStatus:
 
 class MissionParams:
     # Buoy Mission
-    buoy_speed_effort = 170.0
+    buoy_speed_effort = 200.0
     buoy_yaw_effort = 200.0
     buoy_time_threshold = 2.0
 
     # Turn Next Buoy Mission
-    turn_next_buoy_speed_effort = 200.0
-    turn_next_buoy_yaw_effort = 130.0
-    turn_next_buoy_duration = 5.0
+    turn_next_buoy_speed_effort = 180.0
+    turn_next_buoy_yaw_effort = 150.0
+    turn_next_buoy_duration = 10.0
     turn_next_buoy_timeout = 40.0
 
     # Finding Mission BOX
@@ -61,7 +61,7 @@ class MissionParams:
     unfinding_duration = 5.0
 
     # Detection Configuration
-    min_area_buoy = 400.0
+    min_area_buoy = 200.0
     min_area_docking_buoy = 3000.0
     default_arena = "B"
     
