@@ -32,6 +32,7 @@ class Param:
 
 class MissionStatus:
     BUOY = "buoy"
+    TURN_NEXT_BUOY = "turn_next_buoy"
     GREEN_BOX = "greenbox" 
     BLUE_BOX = "bluebox"
     DOCKING = "docking"

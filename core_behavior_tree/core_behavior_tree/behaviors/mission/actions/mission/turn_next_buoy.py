@@ -23,6 +23,7 @@ class Turn_Next_Buoy_Execution(BaseExecution):
         super().setup(**kwargs)
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
+        self.mission_type_pub = Topic.mission_type.createPublisher(self.node)
         
         self.arena_sub = Topic.arena.createSubscriber(
             self.node, 
@@ -48,11 +49,15 @@ class Turn_Next_Buoy_Execution(BaseExecution):
         self.detected = bool(msg.data)
 
     def initialise(self) -> None:
-        self.box_detected = False
+        from core.utils.config import MissionStatus
         self.start_time = time.time()
         self.global_start_time = time.time()
+        self.turn_completed = False
+        self.box_detected = False
+        self.detected = False
         self.direction = 1
-        self.node.get_logger().info(f"[{self.name}] Starting sweeping turn maneuver in arena {self.arena}")
+        self.mission_type_pub.publish(String(data=MissionStatus.TURN_NEXT_BUOY))
+        self.node.get_logger().info(f"[{self.name}] Initializing turn maneuver to next buoy in arena {self.arena}")
 
     def execute(self) -> Status:
         total_elapsed = time.time() - self.global_start_time

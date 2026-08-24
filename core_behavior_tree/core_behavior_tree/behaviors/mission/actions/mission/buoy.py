@@ -33,6 +33,7 @@ class Buoy_Execution(BaseExecution):
         self.frame_counter = FrameCounter(self.time_threshold)
 
         self.mission_pub = Topic.mission.createPublisher(self.node)
+        self.mission_type_pub = Topic.mission_type.createPublisher(self.node)
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
         
@@ -58,6 +59,7 @@ class Buoy_Execution(BaseExecution):
 
     def initialise(self) -> None:
         self.has_seen_buoy = False
+        self.mission_type_pub.publish(String(data=MissionStatus.BUOY))
         self.box_detected = False
         if self.frame_counter:
             self.frame_counter.reset()
