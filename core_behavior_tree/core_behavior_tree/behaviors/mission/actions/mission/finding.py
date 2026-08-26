@@ -101,11 +101,9 @@ class Finding_Execution(BaseExecution):
                     self.frame_counter.is_started()
                     if self.frame_counter.is_enough():
                         self.frame_counter.reset()
-                        self.node.get_logger().info(f"[{self.name}] Box hilang selama {self.time_threshold}s -> Beralih ke misi PHOTO!")
-                        if self.mission is not None:
-                            from std_msgs.msg import UInt8
-                            self.mission_pub.publish(UInt8(data=self.mission))
-                        return Status.SUCCESS
+                        self.node.get_logger().info(f"[{self.name}] Box hilang selama {self.time_threshold}s -> Beralih ke fase REVERSING!")
+                        self.phase = "reversing"
+                        return Status.RUNNING
                     
                     self.node.get_logger().info(f"[{self.name}] Box hilang sementara, menunggu...", throttle_duration_sec=1.0)
                     # Keep moving forward to try to find it again, similar to buoy
@@ -159,6 +157,20 @@ class Finding_Execution(BaseExecution):
             self.node.get_logger().info(f"[{self.name}] Menyelaraskan titik tengah Box & Maju (DSC: {self.dsc:.2f})", throttle_duration_sec=1.0)
             self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
             self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
+            return Status.RUNNING
+
+        # State: REVERSING
+        elif self.phase == "reversing":
+            if getattr(self, 'detected', False):
+                self.node.get_logger().info(f"[{self.name}] Box terlihat kembali! Beralih ke misi PHOTO!")
+                if self.mission is not None:
+                    from std_msgs.msg import UInt8
+                    self.mission_pub.publish(UInt8(data=self.mission))
+                return Status.SUCCESS
+            
+            self.node.get_logger().info(f"[{self.name}] Mundur mencari Box kembali...", throttle_duration_sec=1.0)
+            self.yaw_effort_pub.publish(Float64(data=0.0))
+            self.speed_effort_pub.publish(Float64(data=-float(self.speed_effort)))
             return Status.RUNNING
 
 class Finding_Fallback(BaseFallback):

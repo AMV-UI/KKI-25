@@ -1,7 +1,7 @@
 from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from std_msgs.msg import Float64, String, Bool
-from core.utils.config import Topic, MissionParams
+from core.utils.config import Topic, MissionParams, MissionStatus
 import time
 
 class Turn_Next_Buoy_Execution(BaseExecution):
@@ -23,6 +23,7 @@ class Turn_Next_Buoy_Execution(BaseExecution):
         super().setup(**kwargs)
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
+        self.mission_type_pub = Topic.mission_type.createPublisher(self.node)
         
         self.arena_sub = Topic.arena.createSubscriber(
             self.node, 
@@ -53,6 +54,7 @@ class Turn_Next_Buoy_Execution(BaseExecution):
         self.global_start_time = time.time()
         self.direction = 1
         self.node.get_logger().info(f"[{self.name}] Starting sweeping turn maneuver in arena {self.arena}")
+        self.mission_type_pub.publish(String(data=MissionStatus.TURN_NEXT_BUOY))
 
     def execute(self) -> Status:
         total_elapsed = time.time() - self.global_start_time

@@ -39,6 +39,8 @@ class CameraController(Node):
                 "green_buoy",
                 "red_buoy",
             ],
+            blue_model_path="/home/amv/models/KKI-25/bluebuoy.engine",
+            blue_class_names=["bluebuoy"]
         )
 
         self.box_detector = ObjectDetector(
@@ -203,11 +205,14 @@ class CameraController(Node):
 
             box_detected_bool = False
             if self.mission_type == MissionStatus.BUOY or self.mission_type == MissionStatus.DOCKING:
+                # Hanya model buoy yang menyala
                 self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
-                # Run box detector simultaneously to check for boxes during Buoy mission
-                # We use a dummy img copy so we don't draw over the main self.img
-                _, _, box_detected_bool = self.box_detector.process_frame(MissionStatus.BOTH_BOXES, self.arena, img.copy(), self.up_cap, self)
+            elif self.mission_type == MissionStatus.TURN_NEXT_BUOY:
+                # Model buoy dan box menyala dan digambar bersamaan di gambar yang sama
+                self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
+                self.img, _, box_detected_bool = self.box_detector.process_frame(MissionStatus.BOTH_BOXES, self.arena, self.img, self.up_cap, self)
             else:
+                # Hanya model box yang menyala
                 self.get_logger().info(f"Masuk sini", throttle_duration_sec=1.0)
                 self.img, self.dsc, self.detected = self.box_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
             

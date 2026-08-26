@@ -39,7 +39,8 @@ class MissionStatus:
 
 class MissionParams:
     # Buoy Mission
-    buoy_speed_effort = 200.0
+    # buoy_speed_effort = 200.0
+    buoy_speed_effort = 170.0
     buoy_yaw_effort = 200.0
     buoy_time_threshold = 2.0
 
@@ -105,6 +106,7 @@ class MissionStatus:
     BLUE_BOX = "bluebox"
     DOCKING = "docking"
     BOTH_BOXES = "BOTH_BOXES"
+    TURN_NEXT_BUOY = "turn_next_buoy"
     
 class Topic:
 

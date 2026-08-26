@@ -111,9 +111,10 @@ class Docking_Execution(BaseExecution):
             return Status.RUNNING
 
         elif self.dock_state == 1:
-            # APPROACH & AVOID
-            if distance <= MissionParams.dock_margin_error:
-                self.node.get_logger().info(f"[{self.name}] Mencapai batas margin GPS ({distance:.2f}m)! Mulai menyesuaikan arah akhir...")
+            # VISION APPROACH (Forward through gates)
+            if self.dsc == 9999.0:
+                # All buoys lost (passed through gates). Transition to Reverse to GPS
+                self.node.get_logger().info(f"[{self.name}] Buoy target hilang. Beralih mundur ke target GPS...")
                 self.dock_state = 2
                 self.speed_effort_pub.publish(Float64(data=0.0))
                 self.yaw_effort_pub.publish(Float64(data=0.0))
@@ -121,30 +122,63 @@ class Docking_Execution(BaseExecution):
                 return Status.RUNNING
 
             self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
-            
-            # Obstacle avoidance with red buoy
-            if self.dsc != 9999.0:
-                self.node.get_logger().info(f"[{self.name}] OBSTACLE AVOIDANCE: Buoy terdeteksi! Menghindar...", throttle_duration_sec=1.0)
-                # Arena A: Turn Right (Starboard) -> Negative Yaw
-                # Arena B: Turn Left (Port) -> Positive Yaw
-                if self.arena == "A":
-                    yaw_cmd = -float(self.effort)
-                else:
-                    yaw_cmd = float(self.effort)
+
+            # Handle hard-coded turns for "Only Blue" priority
+            if self.dsc == 7777.0:
+                self.node.get_logger().info(f"[{self.name}] VISION: Hanya Biru terlihat. Banting setir ke Kiri...", throttle_duration_sec=1.0)
+                yaw_cmd = float(self.effort)
+            elif self.dsc == 8888.0:
+                self.node.get_logger().info(f"[{self.name}] VISION: Hanya Biru terlihat. Banting setir ke Kanan...", throttle_duration_sec=1.0)
+                yaw_cmd = -float(self.effort)
             else:
-                self.node.get_logger().info(f"[{self.name}] GPS NAVIGATE: Jarak: {distance:.2f}m, theta: {theta:.2f}. Menuju waypoint...", throttle_duration_sec=1.0)
+                self.node.get_logger().info(f"[{self.name}] VISION: Berjalan ke tengah-tengah gate (DSC: {self.dsc:.2f})...", throttle_duration_sec=1.0)
+                # Proportional steering to center of gate
+                kp = getattr(MissionParams, 'kp_cam', 0.2)
+                yaw_cmd = -(self.dsc * kp) # Negative because Target Left (Negative DSC) -> Needs Left Turn -> Positive Yaw
+                
+                align_effort = float(self.effort) * 0.8
+                if yaw_cmd > align_effort: yaw_cmd = align_effort
+                elif yaw_cmd < -align_effort: yaw_cmd = -align_effort
+
+            self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
+            return Status.RUNNING
+            
+        elif self.dock_state == 2:
+            # REVERSE TO GPS
+            if distance <= MissionParams.dock_margin_error:
+                self.node.get_logger().info(f"[{self.name}] Mencapai batas margin GPS ({distance:.2f}m)! Memulai penyelarasan arah akhir...")
+                self.dock_state = 3
+                self.speed_effort_pub.publish(Float64(data=0.0))
+                self.yaw_effort_pub.publish(Float64(data=0.0))
+                self.bow_effort_pub.publish(Float64(data=0.0))
+                return Status.RUNNING
+
+            self.node.get_logger().info(f"[{self.name}] REVERSE: Mundur (Jarak: {distance:.2f}m)...", throttle_duration_sec=1.0)
+            self.speed_effort_pub.publish(Float64(data=-float(self.speed_effort)))
+            
+            # Steering while reversing (User wants it to steer to stay in middle of Green & Red buoys if visible, else use GPS)
+            if self.dsc != 9999.0 and self.dsc != 7777.0 and self.dsc != 8888.0:
+                self.node.get_logger().info(f"[{self.name}] REVERSE VISION: Menyelaraskan ke tengah buoy (DSC: {self.dsc:.2f})...", throttle_duration_sec=1.0)
+                kp = getattr(MissionParams, 'kp_cam', 0.2)
+                # When reversing, steering logic is INVERTED!
+                yaw_cmd = (self.dsc * kp)
+                align_effort = float(self.effort) * 0.8
+                if yaw_cmd > align_effort: yaw_cmd = align_effort
+                elif yaw_cmd < -align_effort: yaw_cmd = -align_effort
+            else:
+                self.node.get_logger().info(f"[{self.name}] REVERSE GPS: Menyelaraskan arah via GPS (theta: {theta:.2f})...", throttle_duration_sec=1.0)
                 if abs(theta) < 2.0:
                     yaw_cmd = 0.0
                 else:
-                    yaw_cmd = -theta * 2.0
-                max_yaw = float(self.effort * 0.4) # Limit to 40% effort for smooth GPS corrections
+                    yaw_cmd = theta * 2.0 # Reversing proportional
+                max_yaw = float(self.effort * 0.4) 
                 if yaw_cmd > max_yaw: yaw_cmd = max_yaw
                 elif yaw_cmd < -max_yaw: yaw_cmd = -max_yaw
                 
             self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
             return Status.RUNNING
-            
-        elif self.dock_state == 2:
+
+        elif self.dock_state == 3:
             # FINAL ALIGNMENT TO LOCKED HEADING
             from core.mission.gps_stuff import calc_turn
             yaw_diff = calc_turn(self.locked_heading, self.heading)
@@ -153,7 +187,7 @@ class Docking_Execution(BaseExecution):
             
             if abs(yaw_diff) < 5.0:
                 self.node.get_logger().info(f"[{self.name}] Arah sudah disesuaikan! Memulai SLIDING...")
-                self.dock_state = 3
+                self.dock_state = 4
                 self.yaw_effort_pub.publish(Float64(data=0.0))
                 return Status.RUNNING
                 
@@ -163,7 +197,7 @@ class Docking_Execution(BaseExecution):
             self.bow_effort_pub.publish(Float64(data=0.0))
             return Status.RUNNING
 
-        elif self.dock_state == 3:
+        elif self.dock_state == 4:
             # SLIDING
             if self.arena == "A":
                 # Slide Left (Surge Port CCW, Surge Starboard CW)
