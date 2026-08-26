@@ -38,9 +38,7 @@ class CameraController(Node):
             [
                 "green_buoy",
                 "red_buoy",
-            ],
-            blue_model_path="/home/amv/models/KKI-25/bluebuoy.engine",
-            blue_class_names=["bluebuoy"]
+            ]
         )
 
         self.box_detector = ObjectDetector(
