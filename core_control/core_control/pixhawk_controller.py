@@ -193,6 +193,11 @@ class PixhawkController(Node):
             if self.rc_chans:
                 self._px_set_mode(self.rc_chans.chan8_raw)
                 self._get_pwm()
+                
+                if self.pxmode == PxMode.AUTO and self.pwm_chan is not None:
+                    self.set_rc_channel_pwm(self.pwm_chan)
+                else:
+                    self.set_rc_channel_pwm([0] * 8)
             
 def main(args=None):
     rclpy.init(args=args)
