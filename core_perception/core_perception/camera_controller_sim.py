@@ -148,6 +148,7 @@ class CameraController(Node):
         # Publishers
         self.dsc_pub = Topic.dsc.createPublisher(self)
         self.detected_pub = Topic.detected.createPublisher(self)
+        self.blue_area_pub = Topic.blue_area.createPublisher(self)
         self.camera_processed_pub = Topic.camera_processed.createPublisher(self)
         self.green_box_pub = Topic.green_box_encoded.createPublisher(self)
         self.blue_box_pub = Topic.blue_box_encoded.createPublisher(self)
@@ -230,7 +231,7 @@ class CameraController(Node):
                 return
 
             box_detected_bool = False
-            if self.mission_type == MissionStatus.BUOY or self.mission_type == MissionStatus.DOCKING:
+            if self.mission_type == MissionStatus.BUOY or self.mission_type == MissionStatus.DOCKING or self.mission_type == MissionStatus.DOCKING_V2:
                 # Hanya model buoy yang menyala
                 self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
             elif self.mission_type == MissionStatus.TURN_NEXT_BUOY:
@@ -261,6 +262,11 @@ class CameraController(Node):
             detected_msg = Bool()
             detected_msg.data = self.detected
             self.detected_pub.publish(detected_msg)
+
+            if hasattr(self.buoy_detector, 'blue_area'):
+                blue_area_msg = Float64()
+                blue_area_msg.data = float(self.buoy_detector.blue_area)
+                self.blue_area_pub.publish(blue_area_msg)
 
             self.get_logger().info(
                 f"DSC: {self.dsc:.2f}, Detected: {self.detected}",

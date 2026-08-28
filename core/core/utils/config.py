@@ -105,6 +105,7 @@ class MissionStatus:
     GREEN_BOX = "greenbox" 
     BLUE_BOX = "bluebox"
     DOCKING = "docking"
+    DOCKING_V2 = "docking_v2"
     BOTH_BOXES = "BOTH_BOXES"
     TURN_NEXT_BUOY = "turn_next_buoy"
     
@@ -128,6 +129,7 @@ class Topic:
     box_detected = TopicFactory("/core/perception/box_detected", Bool)
 
     # Inference
+    blue_area = TopicFactory("/core/vision/image/blue_area", Float64)
     dsc = TopicFactory("/core/vision/image/dsc", Float64)
     detected = TopicFactory("/core/vision/image/detected", Bool)
     gate_passed = TopicFactory("/core/vision/gate_passed", Bool)
@@ -235,6 +237,8 @@ class SPEED:
 class Channel:
     MOTOR_X = 0
     MOTOR_Y = 2
+    MOTOR_BOW_LEFT = 1
+    MOTOR_BOW_RIGHT = 3
 
 class PxMode:
     HOLD = "HOLD"

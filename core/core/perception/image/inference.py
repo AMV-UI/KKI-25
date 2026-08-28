@@ -113,6 +113,7 @@ class ObjectDetector:
             self.blue_dock = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
             self.red_dock = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
             self.green_dock = {"x1": -1, "y1": -1, "x2": -1, "y2": -1}
+            self.blue_dock_centers = []
 
             # threshold boxes
             # self.minimum_blue_box_area = 200
@@ -150,7 +151,7 @@ class ObjectDetector:
                         )
 
 
-                    elif mission == MissionStatus.DOCKING:
+                    elif mission == MissionStatus.DOCKING or mission == MissionStatus.DOCKING_V2:
                         c_name = self.class_names[cls] if cls < len(self.class_names) else 'Unknown'
                         if c_name in ["blue-buoy", "blueBuoy", "blue buoy"]:
                             color = (255, 0, 0)
@@ -201,8 +202,10 @@ class ObjectDetector:
                                 self.blue_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
 
             # Run secondary blue model if available (specifically for DOCKING)
-            if self.blue_model and mission == MissionStatus.DOCKING:
+            if self.blue_model and (mission == MissionStatus.DOCKING or mission == MissionStatus.DOCKING_V2):
                 blue_results = self.blue_model(img, conf=self.conf_threshold_buoy, verbose=False, stream=True)
+                valid_blue_buoys = []
+                
                 for r in blue_results:
                     for box in r.boxes:
                         x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -212,21 +215,43 @@ class ObjectDetector:
                         c_name = self.blue_class_names[cls] if cls < len(self.blue_class_names) else 'Unknown'
                         area = abs((x2 - x1) * (y2 - y1))
                         img_area = (width * 2) * (height * 2)
-                        if area > 0.8 * img_area: continue
                         
+                        if area > 0.8 * img_area: continue
                         min_buoy = getattr(MissionParams, 'min_area_buoy', 600.0)
                         if area < min_buoy: continue
                         
-                        self.node.get_logger().info(f"[DEBUG BLUE YOLO] cls:{cls} name:{c_name} conf:{confidence:.2f} area:{area}", throttle_duration_sec=1.0)
+                        # Aspect ratio filter for noise (filter out tall/wide glitches)
+                        box_width = x2 - x1
+                        box_height = y2 - y1
+                        if box_height == 0: continue
+                        aspect_ratio = float(box_width) / float(box_height)
+                        if aspect_ratio < 0.4 or aspect_ratio > 2.5: continue
                         
                         if c_name in ["blue-buoy", "blueBuoy", "blue buoy", "bluebuoy"]:
-                            color = (255, 0, 0)
-                            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-                            cv2.putText(img, f"blue_buoy ({area})", (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-                            if area > self.max_blue_dock:
-                                self.max_blue_dock = area
-                                self.blue_dock = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+                            valid_blue_buoys.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2, "area": area})
 
+                # Filter blue buoys using threshold logic (same as red/green)
+                if len(valid_blue_buoys) > 0:
+                    # Cari buoy biru paling besar
+                    max_blue_area = max([b["area"] for b in valid_blue_buoys])
+                    
+                    for b in valid_blue_buoys:
+                        # Abaikan buoy yang ukurannya jauh lebih kecil dari buoy terbesar (noise)
+                        if b["area"] < max_blue_area * self.treshold:
+                            continue
+                            
+                        # Gambar buoy biru yang valid
+                        color = (255, 0, 0)
+                        cv2.rectangle(img, (b["x1"], b["y1"]), (b["x2"], b["y2"]), color, 3)
+                        cv2.putText(img, f"blue_buoy ({b['area']})", (b["x1"], b["y1"]), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+                        self.blue_dock_centers.append((b["x1"] + b["x2"]) // 2)
+                        
+                        if b["area"] > self.max_blue_dock:
+                            self.max_blue_dock = b["area"]
+                            self.blue_dock = {"x1": b["x1"], "y1": b["y1"], "x2": b["x2"], "y2": b["y2"]}
+
+            self.blue_area = float(self.max_blue_dock)
+            
             if mission == MissionStatus.BUOY: 
                 if self.max_red < self.max_green * self.treshold:
                     self.max_red = -1
@@ -636,5 +661,18 @@ class ObjectDetector:
                 else:
                     yaw_state = 9999.0
                 cv2.putText(img, f"Red Buoys > 3000 area: {red_buoys_large}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+
+            elif mission == MissionStatus.DOCKING_V2:
+                if self.max_blue_dock != -1:
+                    # Calculate center offset
+                    if len(self.blue_dock_centers) > 0:
+                        mid_x = sum(self.blue_dock_centers) // len(self.blue_dock_centers)
+                        yaw_state = mid_x - width
+                    else:
+                        yaw_state = 0.0
+                    detected = True
+                else:
+                    yaw_state = 0.0
+                    detected = False
 
             return img, yaw_state, detected, box_detected

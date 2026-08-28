@@ -12,6 +12,7 @@ from ..behaviors.mission.actions.mission.initial_dock import *
 from ..behaviors.mission.actions.mission.buoy  import *
 from ..behaviors.mission.actions.mission.finding import *
 from ..behaviors.mission.actions.mission.dock import *
+from ..behaviors.mission.actions.mission.dockv2 import *
 from ..behaviors.mission.actions.mission.reverse import *
 from ..behaviors.mission.actions.mission.box import *
 from ..behaviors.mission.actions.mission.passthrough import *
@@ -93,7 +94,7 @@ class MissionTreeBuilder:
         (Finding_Execution, Finding_Fallback, "Finding Both Boxes", 6), 
         (Photo_Execution, Photo_Fallback, "Photo Both Boxes", 7), 
         (Box_Execution, Box_Fallback, "Change Mission to Docking", 10),
-        (Docking_Execution, Docking_Fallback, "Docking", 10),
+        (DockingV2_Execution, DockingV2_Fallback, "Docking", 10),
         (Done_Execution, Done_Fallback, "Done", 10),
     ]
 

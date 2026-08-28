@@ -37,6 +37,14 @@ class Motor:
             res[self.channel.MOTOR_BOW] = self.__adjust(
                 res[self.channel.MOTOR_BOW], self.motor_adjust
             )
+        if hasattr(self.channel, 'MOTOR_BOW_LEFT') and self.channel.MOTOR_BOW_LEFT in res:
+            res[self.channel.MOTOR_BOW_LEFT] = self.__adjust(
+                res[self.channel.MOTOR_BOW_LEFT], self.motor_adjust
+            )
+        if hasattr(self.channel, 'MOTOR_BOW_RIGHT') and self.channel.MOTOR_BOW_RIGHT in res:
+            res[self.channel.MOTOR_BOW_RIGHT] = self.__adjust(
+                res[self.channel.MOTOR_BOW_RIGHT], self.motor_adjust
+            )
         return res
 
     def calculateSpeed(self, control_effort):
@@ -55,7 +63,10 @@ class Motor:
             self.channel.MOTOR_X: self.calculateSpeed(int(control_effort_x * x_speed)),
             self.channel.MOTOR_Y: self.calculateSpeed(int(-control_effort_y * motor_speed)),
         }
-        if hasattr(self.channel, 'MOTOR_BOW'):
+        if hasattr(self.channel, 'MOTOR_BOW_LEFT') and hasattr(self.channel, 'MOTOR_BOW_RIGHT'):
+            res[self.channel.MOTOR_BOW_LEFT] = self.calculateSpeed(int(bow_effort))
+            res[self.channel.MOTOR_BOW_RIGHT] = self.calculateSpeed(int(-bow_effort))
+        elif hasattr(self.channel, 'MOTOR_BOW'):
             res[self.channel.MOTOR_BOW] = self.calculateSpeed(int(bow_effort))
         return self.__calcAdjustedSpeed(res)
 
