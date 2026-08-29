@@ -129,23 +129,40 @@ class ObjectDetector:
 
                     color = (0, 0, 0)
                     area = abs((x2 - x1) * (y2 - y1))
-
-                    # Filter out excessively large bounding boxes (e.g., > 80% of frame)
-                    img_area = (width * 2) * (height * 2)
-                    if area > 0.8 * img_area:
-                        continue
-
-                    # Filter out small/far away objects
-                    min_buoy = getattr(MissionParams, 'min_area_buoy', 600.0)
                     
-                    # DEBUG: Print all detections
-                    self.node.get_logger().info(f"[DEBUG YOLO] cls:{cls} name:{self.class_names[cls] if cls < len(self.class_names) else 'Unknown'} conf:{confidence:.2f} area:{area} mission:{mission}", throttle_duration_sec=1.0)
+                    c_name = self.class_names[cls] if cls < len(self.class_names) else 'Unknown'
+                    is_box = "box" in c_name.lower()
                     
-                    if area < min_buoy: #simulasi
-                    # if area < 50:
-                        continue
+                    # Fetch configuration parameters
+                    if is_box:
+                        min_area_limit = getattr(MissionParams, 'min_area_box', 200.0)
+                        max_area_limit = getattr(MissionParams, 'max_pixel_area_box', 50000.0)
+                        min_ar_limit = getattr(MissionParams, 'min_aspect_ratio_box', 0.2)
+                        max_ar_limit = getattr(MissionParams, 'max_aspect_ratio_box', 3.0)
+                    else:
+                        min_area_limit = getattr(MissionParams, 'min_area_buoy', 200.0)
+                        max_area_limit = getattr(MissionParams, 'max_pixel_area', 50000.0)
+                        min_ar_limit = getattr(MissionParams, 'min_aspect_ratio', 0.2)
+                        max_ar_limit = getattr(MissionParams, 'max_aspect_ratio', 3.0)
 
-                    if mission == MissionStatus.BUOY:
+                    # 1. Pixel Area Filter
+                    if area < min_area_limit or area > max_area_limit:
+                        continue
+                        
+                    # 2. Aspect Ratio Filter (Noise/Glitches)
+                    box_width = x2 - x1
+                    box_height = y2 - y1
+                    if box_height == 0: 
+                        continue
+                    aspect_ratio = float(box_width) / float(box_height)
+                    
+                    if aspect_ratio < min_ar_limit or aspect_ratio > max_ar_limit:
+                        continue
+                        
+                    # DEBUG: Print all VALID detections
+                    self.node.get_logger().info(f"[DEBUG YOLO] cls:{cls} name:{self.class_names[cls] if cls < len(self.class_names) else 'Unknown'} conf:{confidence:.2f} area:{area} AR:{aspect_ratio:.2f} mission:{mission}", throttle_duration_sec=1.0)
+
+                    if mission == MissionStatus.BUOY or mission == MissionStatus.TURN_NEXT_BUOY:
                         img, self.red, self.green = self.buoy_detected(
                             cls, img, x1, y1, x2, y2, confidence, area
                         )
@@ -214,18 +231,25 @@ class ObjectDetector:
                         cls = int(box.cls[0])
                         c_name = self.blue_class_names[cls] if cls < len(self.blue_class_names) else 'Unknown'
                         area = abs((x2 - x1) * (y2 - y1))
-                        img_area = (width * 2) * (height * 2)
-                        
-                        if area > 0.8 * img_area: continue
-                        min_buoy = getattr(MissionParams, 'min_area_buoy', 600.0)
-                        if area < min_buoy: continue
-                        
-                        # Aspect ratio filter for noise (filter out tall/wide glitches)
+                        # Fetch configuration parameters
+                        min_buoy = getattr(MissionParams, 'min_area_buoy', 200.0)
+                        max_area = getattr(MissionParams, 'max_pixel_area', 50000.0)
+                        min_ar = getattr(MissionParams, 'min_aspect_ratio', 0.2)
+                        max_ar = getattr(MissionParams, 'max_aspect_ratio', 3.0)
+
+                        # 1. Pixel Area Filter
+                        if area < min_buoy or area > max_area:
+                            continue
+                            
+                        # 2. Aspect Ratio Filter (Noise/Glitches)
                         box_width = x2 - x1
                         box_height = y2 - y1
-                        if box_height == 0: continue
+                        if box_height == 0: 
+                            continue
                         aspect_ratio = float(box_width) / float(box_height)
-                        if aspect_ratio < 0.4 or aspect_ratio > 2.5: continue
+                        
+                        if aspect_ratio < min_ar or aspect_ratio > max_ar:
+                            continue
                         
                         if c_name in ["blue-buoy", "blueBuoy", "blue buoy", "bluebuoy"]:
                             valid_blue_buoys.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2, "area": area})
@@ -252,7 +276,7 @@ class ObjectDetector:
 
             self.blue_area = float(self.max_blue_dock)
             
-            if mission == MissionStatus.BUOY: 
+            if mission == MissionStatus.BUOY or mission == MissionStatus.TURN_NEXT_BUOY: 
                 if self.max_red < self.max_green * self.treshold:
                     self.max_red = -1
                 elif self.max_green < self.max_red * self.treshold:
@@ -514,16 +538,38 @@ class ObjectDetector:
                         continue
 
                     area = abs((x2 - x1) * (y2 - y1))
-                    img_area = (width * 2) * (height * 2)
-                    if area > 0.8 * img_area:
+                    
+                    c_name = self.class_names[cls] if cls < len(self.class_names) else 'Unknown'
+                    is_box = "box" in c_name.lower()
+                    
+                    # Fetch configuration parameters
+                    if is_box:
+                        min_area_limit = getattr(MissionParams, 'min_area_box', 200.0)
+                        max_area_limit = getattr(MissionParams, 'max_pixel_area_box', 50000.0)
+                        min_ar_limit = getattr(MissionParams, 'min_aspect_ratio_box', 0.2)
+                        max_ar_limit = getattr(MissionParams, 'max_aspect_ratio_box', 3.0)
+                    else:
+                        min_area_limit = getattr(MissionParams, 'min_area_buoy', 200.0)
+                        max_area_limit = getattr(MissionParams, 'max_pixel_area', 50000.0)
+                        min_ar_limit = getattr(MissionParams, 'min_aspect_ratio', 0.2)
+                        max_ar_limit = getattr(MissionParams, 'max_aspect_ratio', 3.0)
+
+                    # 1. Pixel Area Filter
+                    if area < min_area_limit or area > max_area_limit:
                         continue
                         
-                    min_buoy = getattr(MissionParams, 'min_area_buoy', 600.0)
-                    c_name = self.class_names[cls] if cls < len(self.class_names) else 'Unknown'
-                    self.node.get_logger().info(f"[DEBUG YOLO] cls:{cls} name:{c_name} conf:{confidence:.2f} area:{area}", throttle_duration_sec=1.0)
-                    
-                    if area < min_buoy:
+                    # 2. Aspect Ratio Filter (Noise/Glitches)
+                    box_width = x2 - x1
+                    box_height = y2 - y1
+                    if box_height == 0: 
                         continue
+                    aspect_ratio = float(box_width) / float(box_height)
+                    
+                    if aspect_ratio < min_ar_limit or aspect_ratio > max_ar_limit:
+                        continue
+                        
+                    c_name = self.class_names[cls] if cls < len(self.class_names) else 'Unknown'
+                    self.node.get_logger().info(f"[DEBUG YOLO] cls:{cls} name:{c_name} conf:{confidence:.2f} area:{area} AR:{aspect_ratio:.2f}", throttle_duration_sec=1.0)
 
                     # Buoys
                     if c_name in ["red buoy", "red-buoy", "redBuoy", "red_buoy"]:

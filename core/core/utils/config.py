@@ -47,8 +47,8 @@ class MissionParams:
     # Turn Next Buoy Mission
     turn_next_buoy_speed_effort = 180.0
     turn_next_buoy_yaw_effort = 150.0
-    turn_next_buoy_duration = 10.0
-    turn_next_buoy_timeout = 40.0
+    turn_next_buoy_duration = 20.0
+    turn_next_buoy_timeout = 80.0
 
     # Finding Mission BOX
     finding_speed_effort = 150.0
@@ -61,8 +61,18 @@ class MissionParams:
     unfinding_time_threshold = 0.2
     unfinding_duration = 5.0
 
-    # Detection Configuration
-    min_area_buoy = 200.0
+    # Detection Configuration (Buoys)
+    min_area_buoy = 600.0
+    max_pixel_area = 5000.0
+    min_aspect_ratio = 0.2
+    max_aspect_ratio = 3.0
+    
+    # Detection Configuration (Boxes)
+    min_area_box = 200.0
+    max_pixel_area_box = 10000.0
+    min_aspect_ratio_box = 0.2
+    max_aspect_ratio_box = 3.0
+    
     min_area_docking_buoy = 3000.0
     default_arena = "B"
     
@@ -75,8 +85,8 @@ class MissionParams:
     photo_time_threshold = 2.0
 
     # Dock Mission 
-    dock_speed_effort = 120.0
-    dock_yaw_effort = 150.0
+    dock_speed_effort = 170.0
+    dock_yaw_effort = 200.0
     dock_time_threshold = 0.2
     dock_margin_error = 5.0
 	
