@@ -39,20 +39,20 @@ class MissionStatus:
 
 class MissionParams:
     # Buoy Mission
-    # buoy_speed_effort = 200.0
-    buoy_speed_effort = 170.0
+    buoy_speed_effort = 200.0
+    #buoy_speed_effort = 170.0
     buoy_yaw_effort = 200.0
     buoy_time_threshold = 2.0
 
     # Turn Next Buoy Mission
     turn_next_buoy_speed_effort = 180.0
     turn_next_buoy_yaw_effort = 150.0
-    turn_next_buoy_duration = 20.0
-    turn_next_buoy_timeout = 80.0
+    turn_next_buoy_duration = 5.0
+    turn_next_buoy_timeout = 60.0
 
     # Finding Mission BOX
-    finding_speed_effort = 150.0
-    finding_yaw_effort = 150.0
+    finding_speed_effort = 170.0
+    finding_yaw_effort = 200.0
     finding_lost_timeout = 2.0
 
     # Unfinding Mission BOX
@@ -62,14 +62,14 @@ class MissionParams:
     unfinding_duration = 5.0
 
     # Detection Configuration (Buoys)
-    min_area_buoy = 600.0
-    max_pixel_area = 5000.0
+    min_area_buoy = 200.0
+    max_pixel_area = 1000.0
     min_aspect_ratio = 0.2
     max_aspect_ratio = 3.0
     
     # Detection Configuration (Boxes)
     min_area_box = 200.0
-    max_pixel_area_box = 10000.0
+    max_pixel_area_box = 1000.0
     min_aspect_ratio_box = 0.2
     max_aspect_ratio_box = 3.0
     
