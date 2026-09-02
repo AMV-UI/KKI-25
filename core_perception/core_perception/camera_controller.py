@@ -17,12 +17,25 @@ from std_msgs.msg import Float64, Bool, String
 
 class RealSenseCamera:
     """Wrapper for Intel RealSense to mimic cv2.VideoCapture interface (RGB only)"""
-    def __init__(self, width=640, height=480, fps=30):
+    def __init__(self, width=640, height=480, fps=30, json_path=None):
         import pyrealsense2 as rs
+        import os
         self.pipeline = rs.pipeline()
         self.config = rs.config()
         self.config.enable_stream(rs.stream.color, width, height, rs.format.bgr8, fps)
         self.profile = self.pipeline.start(self.config)
+        
+        # Load JSON config if provided (must be applied after device is active)
+        if json_path and os.path.exists(json_path):
+            try:
+                dev = self.profile.get_device()
+                advnc_mode = rs.rs400_advanced_mode(dev)
+                with open(json_path, 'r') as f:
+                    json_string = f.read()
+                advnc_mode.load_json(json_string)
+            except Exception as e:
+                print(f"[RealSense] Warning: Failed to apply JSON config: {e}")
+
         self.width = width
         self.height = height
         self.fps = fps
@@ -94,7 +107,9 @@ class CameraController(Node):
         )
 
         try:
-            self.up_cap = RealSenseCamera(width=640, height=480, fps=30)
+            # Anda dapat memuat file JSON dari RealSense Viewer dengan mengisi path-nya di bawah ini.
+            # Contoh: json_path='/home/amv/realsense_config.json'
+            self.up_cap = RealSenseCamera(width=640, height=480, fps=30, json_path=None)
             self.get_logger().info("Using Intel RealSense for up_cap (RGB only)")
         except Exception as e:
             self.get_logger().info(f"Could not initialize RealSense ({e}), using standard webcam")
