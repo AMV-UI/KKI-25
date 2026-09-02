@@ -108,7 +108,7 @@ class CameraController(Node):
 
         try:
             # Anda dapat memuat file JSON dari RealSense Viewer dengan mengisi path-nya di bawah ini.
-            # Contoh: json_path='/home/amv/realsense_config.json'
+            # json_path='/home/amv/models/KKI-25/realsense1.json'
             self.up_cap = RealSenseCamera(width=640, height=480, fps=30, json_path=None)
             self.get_logger().info("Using Intel RealSense for up_cap (RGB only)")
         except Exception as e:
