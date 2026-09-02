@@ -15,6 +15,47 @@ from rclpy.node import Node
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from std_msgs.msg import Float64, Bool, String
 
+class RealSenseCamera:
+    """Wrapper for Intel RealSense to mimic cv2.VideoCapture interface (RGB only)"""
+    def __init__(self, width=640, height=480, fps=30):
+        import pyrealsense2 as rs
+        self.pipeline = rs.pipeline()
+        self.config = rs.config()
+        self.config.enable_stream(rs.stream.color, width, height, rs.format.bgr8, fps)
+        self.profile = self.pipeline.start(self.config)
+        self.width = width
+        self.height = height
+        self.fps = fps
+
+    def read(self):
+        try:
+            frames = self.pipeline.wait_for_frames()
+            color_frame = frames.get_color_frame()
+            if not color_frame:
+                return False, None
+            color_image = np.asanyarray(color_frame.get_data())
+            return True, color_image
+        except Exception:
+            return False, None
+
+    def release(self):
+        try:
+            self.pipeline.stop()
+        except:
+            pass
+
+    def get(self, propId):
+        if propId == 3: # CAP_PROP_FRAME_WIDTH
+            return self.width
+        if propId == 4: # CAP_PROP_FRAME_HEIGHT
+            return self.height
+        if propId == 5: # CAP_PROP_FPS
+            return self.fps
+        return 0
+        
+    def set(self, propId, value):
+        pass
+
 class CameraController(Node):
     """
     Front Camera Node for Object Detection
@@ -52,10 +93,15 @@ class CameraController(Node):
             ],
         )
 
-        self.up_cap = cv2.VideoCapture(self.up_camera_serial_idx)
-        self.up_cap.set(5, 30)  # Set FPS (CAP_PROP_FPS is 5)
-        self.up_cap.set(3, 640)  # Set width
-        self.up_cap.set(4, 480)  # Set height
+        try:
+            self.up_cap = RealSenseCamera(width=640, height=480, fps=30)
+            self.get_logger().info("Using Intel RealSense for up_cap (RGB only)")
+        except Exception as e:
+            self.get_logger().info(f"Could not initialize RealSense ({e}), using standard webcam")
+            self.up_cap = cv2.VideoCapture(self.up_camera_serial_idx)
+            self.up_cap.set(5, 30)  # Set FPS (CAP_PROP_FPS is 5)
+            self.up_cap.set(3, 640)  # Set width
+            self.up_cap.set(4, 480)  # Set height
 
         # Configure down camera
         self.down_cap = cv2.VideoCapture(self.down_camera_serial_idx)
