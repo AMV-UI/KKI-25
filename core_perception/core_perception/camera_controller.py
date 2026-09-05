@@ -113,7 +113,12 @@ class CameraController(Node):
             self.get_logger().info("Using Intel RealSense for up_cap (RGB only)")
         except Exception as e:
             self.get_logger().info(f"Could not initialize RealSense ({e}), using standard webcam")
-            self.up_cap = cv2.VideoCapture(self.up_camera_serial_idx)
+            if self.up_camera_serial_idx is not None:
+                self.up_cap = cv2.VideoCapture(self.up_camera_serial_idx)
+            else:
+                self.get_logger().error("No fallback webcam found either! Using dummy VideoCapture.")
+                self.up_cap = cv2.VideoCapture(0) # or dummy
+            
             self.up_cap.set(5, 30)  # Set FPS (CAP_PROP_FPS is 5)
             self.up_cap.set(3, 640)  # Set width
             self.up_cap.set(4, 480)  # Set height
