@@ -62,14 +62,14 @@ class MissionParams:
     unfinding_duration = 5.0
 
     # Detection Configuration (Buoys)
-    min_area_buoy = 200.0
-    max_pixel_area = 1000.0
+    min_area_buoy = 100.0
+    max_pixel_area = 3000.0
     min_aspect_ratio = 0.2
     max_aspect_ratio = 3.0
     
     # Detection Configuration (Boxes)
-    min_area_box = 200.0
-    max_pixel_area_box = 1000.0
+    min_area_box = 100.0
+    max_pixel_area_box = 5000.0
     min_aspect_ratio_box = 0.2
     max_aspect_ratio_box = 3.0
     

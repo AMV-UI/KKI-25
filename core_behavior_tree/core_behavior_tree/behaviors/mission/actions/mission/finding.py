@@ -119,7 +119,7 @@ class Finding_Execution(BaseExecution):
             # Right = Negative
             if self.dsc == 8888.0:
                 self.node.get_logger().info(f"[{self.name}] Hanya Hijau terlihat. Maju sambil berputar mencari Biru...", throttle_duration_sec=1.0)
-                yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
+                yaw_cmd = float(self.effort) if self.arena == "A" else -float(self.effort)
                 self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
                 self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
                 return Status.RUNNING
@@ -128,7 +128,7 @@ class Finding_Execution(BaseExecution):
             # Left = Positive
             elif self.dsc == 7777.0:
                 self.node.get_logger().info(f"[{self.name}] Hanya Biru terlihat. Maju sambil berputar mencari Hijau...", throttle_duration_sec=1.0)
-                yaw_cmd = float(self.effort) if self.arena == "A" else -float(self.effort)
+                yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
                 self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
                 self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
                 return Status.RUNNING
