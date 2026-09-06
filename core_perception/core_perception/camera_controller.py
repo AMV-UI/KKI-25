@@ -16,14 +16,18 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallb
 from std_msgs.msg import Float64, Bool, String
 
 class RealSenseCamera:
-    """Wrapper for Intel RealSense to mimic cv2.VideoCapture interface (RGB only)"""
+    """Wrapper for Intel RealSense to mimic cv2.VideoCapture interface (RGB + Depth)"""
     def __init__(self, width=640, height=480, fps=30, json_path=None):
         import pyrealsense2 as rs
         import os
         self.pipeline = rs.pipeline()
         self.config = rs.config()
         self.config.enable_stream(rs.stream.color, width, height, rs.format.bgr8, fps)
+        self.config.enable_stream(rs.stream.depth, width, height, rs.format.z16, fps)
         self.profile = self.pipeline.start(self.config)
+        self.align = rs.align(rs.stream.color)
+        self.depth_scale = self.profile.get_device().first_depth_sensor().get_depth_scale()
+        self.depth_image = None
         
         # Load JSON config if provided (must be applied after device is active)
         if json_path and os.path.exists(json_path):
@@ -43,10 +47,13 @@ class RealSenseCamera:
     def read(self):
         try:
             frames = self.pipeline.wait_for_frames()
-            color_frame = frames.get_color_frame()
-            if not color_frame:
+            aligned_frames = self.align.process(frames)
+            color_frame = aligned_frames.get_color_frame()
+            depth_frame = aligned_frames.get_depth_frame()
+            if not color_frame or not depth_frame:
                 return False, None
             color_image = np.asanyarray(color_frame.get_data())
+            self.depth_image = np.asanyarray(depth_frame.get_data())
             return True, color_image
         except Exception:
             return False, None

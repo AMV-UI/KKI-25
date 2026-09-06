@@ -38,6 +38,10 @@ class ObjectDetector:
         self.pid_adjust = 200
         self.treshold = 0.25
 
+        # Tracker for depth fallback
+        self.tracker = {} # {"redBuoy": {"box": (x1, y1, x2, y2), "center": (cx, cy), "depth": z, "missed": 0, "area": area}}
+        self.MAX_MISSED_FRAMES = 45
+
         # Data Frame
         self.max_red = -1
         self.max_green = -1
@@ -53,6 +57,97 @@ class ObjectDetector:
     
     def _arena_cb(self, msg: String):
         self.arena = str(msg.data)
+
+    def update_depth_tracker(self, cap, img):
+        if not hasattr(cap, 'depth_image') or cap.depth_image is None or not hasattr(cap, 'depth_scale'):
+            return img
+
+        import numpy as np
+        depth_meters = cap.depth_image * cap.depth_scale
+
+        # Get depth blobs
+        mask = ((depth_meters > 0.3) & (depth_meters < 6.0)).astype(np.uint8) * 255
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        blobs = []
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area > 100:
+                x, y, w, h = cv2.boundingRect(cnt)
+                cx, cy = x + w//2, y + h//2
+                z = depth_meters[cy, cx]
+                if z == 0:
+                    roi = depth_meters[y:y+h, x:x+w]
+                    valid_depths = roi[roi > 0]
+                    if len(valid_depths) > 0:
+                        z = np.mean(valid_depths)
+                if z > 0:
+                    blobs.append({'box': (x, y, x+w, y+h), 'center': (cx, cy), 'area': area, 'depth': z})
+
+        # Process each tracked target category
+        targets = {
+            'redBuoy': [self.max_red, self.red],
+            'greenBuoy': [self.max_green, self.green],
+            'blueBox': [self.max_blue_box if hasattr(self, 'max_blue_box') else -1, self.blue_box],
+            'greenBox': [self.max_green_box if hasattr(self, 'max_green_box') else -1, self.green_box],
+            'blueDock': [self.max_blue_dock if hasattr(self, 'max_blue_dock') else -1, getattr(self, 'blue_dock', {'x1': -1, 'y1': -1, 'x2': -1, 'y2': -1})],
+            'redDock': [self.max_red_dock if hasattr(self, 'max_red_dock') else -1, getattr(self, 'red_dock', {'x1': -1, 'y1': -1, 'x2': -1, 'y2': -1})],
+            'greenDock': [self.max_green_dock if hasattr(self, 'max_green_dock') else -1, getattr(self, 'green_dock', {'x1': -1, 'y1': -1, 'x2': -1, 'y2': -1})]
+        }
+
+        for key, (max_area, box_dict) in targets.items():
+            if max_area != -1:
+                cx = (box_dict['x1'] + box_dict['x2']) // 2
+                cy = (box_dict['y1'] + box_dict['y2']) // 2
+                z = depth_meters[cy, cx]
+                if z == 0:
+                    roi = depth_meters[box_dict['y1']:box_dict['y2'], box_dict['x1']:box_dict['x2']]
+                    valid_depths = roi[roi > 0]
+                    if len(valid_depths) > 0:
+                        z = np.mean(valid_depths)
+                if z > 0:
+                    self.tracker[key] = {'box': (box_dict['x1'], box_dict['y1'], box_dict['x2'], box_dict['y2']), 'center': (cx, cy), 'depth': z, 'missed': 0, 'area': max_area}
+            else:
+                if key in self.tracker:
+                    tracked = self.tracker[key]
+                    tracked['missed'] += 1
+                    if tracked['missed'] < self.MAX_MISSED_FRAMES:
+                        best_blob = None
+                        min_dist = float('inf')
+                        for blob in blobs:
+                            import math
+                            dist = math.hypot(blob['center'][0] - tracked['center'][0], blob['center'][1] - tracked['center'][1])
+                            z_diff = abs(blob['depth'] - tracked['depth'])
+                            if dist < 100 and z_diff < 0.5:
+                                if dist < min_dist:
+                                    min_dist = dist
+                                    best_blob = blob
+                        
+                        if best_blob:
+                            new_box = best_blob['box']
+                            tracked['box'] = new_box
+                            tracked['center'] = best_blob['center']
+                            tracked['depth'] = best_blob['depth']
+                            tracked['area'] = best_blob['area']
+                            
+                            box_dict['x1'], box_dict['y1'], box_dict['x2'], box_dict['y2'] = new_box
+                            
+                            if key == 'redBuoy': self.max_red = tracked['area']
+                            elif key == 'greenBuoy': self.max_green = tracked['area']
+                            elif key == 'blueBox': self.max_blue_box = tracked['area']
+                            elif key == 'greenBox': self.max_green_box = tracked['area']
+                            elif key == 'blueDock': self.max_blue_dock = tracked['area']
+                            elif key == 'redDock': self.max_red_dock = tracked['area']
+                            elif key == 'greenDock': self.max_green_dock = tracked['area']
+
+                            cv2.rectangle(img, (new_box[0], new_box[1]), (new_box[2], new_box[3]), (0, 255, 255), 3)
+                            cv2.putText(img, f"DEPTH {key}", (new_box[0], new_box[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+                    else:
+                        del self.tracker[key]
+        return img
 
     def draw_detections(self, img, results):
         """Draw detection boxes and labels on frame"""
@@ -276,6 +371,8 @@ class ObjectDetector:
 
             self.blue_area = float(self.max_blue_dock)
             
+            img = self.update_depth_tracker(cap, img)
+
             if mission == MissionStatus.BUOY or mission == MissionStatus.TURN_NEXT_BUOY: 
                 if self.max_red < self.max_green * self.treshold:
                     self.max_red = -1
@@ -301,28 +398,21 @@ class ObjectDetector:
                 color = (0, 0, 0)
                 cv2.rectangle(img, (width, height), (width, height), color, 3)
             elif mission == MissionStatus.DOCKING:
-                if self.max_blue_dock != -1 and self.max_red_dock != -1:
-                    # Priority 1: Blue + Red
+                if self.max_blue_dock != -1:
                     mid_blue = (self.blue_dock["x1"] + self.blue_dock["x2"]) // 2
-                    mid_red = (self.red_dock["x1"] + self.red_dock["x2"]) // 2
-                    mid_x = (mid_blue + mid_red) // 2
-                    yaw_state = mid_x - width
-                    detected = True
-                elif self.max_blue_dock != -1:
-                    # Priority 2: Only Blue
-                    # Arena A -> Left (Port), Arena B -> Right (Starboard)
-                    if arena == "A":
-                        yaw_state = 7777.0 # Code for hard left
+                    yaw_state = mid_blue - width
+                    
+                    z = 999.0
+                    if 'blueDock' in getattr(self, 'tracker', {}):
+                        z = self.tracker['blueDock']['depth']
+                    
+                    if z > 0 and z < 1.5:  # Trigger done if within 1.5 meters
+                        detected = True
+                        cv2.putText(img, f"DOCKING REACHED: {z:.2f}m", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                     else:
-                        yaw_state = 8888.0 # Code for hard right
-                    detected = True
-                elif self.max_red_dock != -1 and self.max_green_dock != -1:
-                    # Priority 3: Red + Green
-                    mid_red = (self.red_dock["x1"] + self.red_dock["x2"]) // 2
-                    mid_green = (self.green_dock["x1"] + self.green_dock["x2"]) // 2
-                    mid_x = (mid_red + mid_green) // 2
-                    yaw_state = mid_x - width
-                    detected = True
+                        detected = False
+                        if z != 999.0:
+                            cv2.putText(img, f"DOCKING DIST: {z:.2f}m", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
                 else:
                     yaw_state = 9999.0
                     detected = False
@@ -610,6 +700,8 @@ class ObjectDetector:
                             self.max_blue_box = area
                             self.blue_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
 
+            img = self.update_depth_tracker(cap, img)
+
             # Buoy logic calculations
             buoy_detected_local = False
             buoy_yaw = 0.0
@@ -697,28 +789,49 @@ class ObjectDetector:
                     detected = False
                     
             elif mission == MissionStatus.DOCKING:
-                if red_buoys_large >= 3:
-                    detected = True
-                else:
-                    detected = False
-                if len(docking_buoys_centers) > 0:
-                    mid_x = sum(docking_buoys_centers) // len(docking_buoys_centers)
-                    yaw_state = mid_x - width
-                else:
-                    yaw_state = 9999.0
-                cv2.putText(img, f"Red Buoys > 3000 area: {red_buoys_large}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
-
-            elif mission == MissionStatus.DOCKING_V2:
                 if self.max_blue_dock != -1:
-                    # Calculate center offset
                     if len(self.blue_dock_centers) > 0:
                         mid_x = sum(self.blue_dock_centers) // len(self.blue_dock_centers)
                         yaw_state = mid_x - width
                     else:
                         yaw_state = 0.0
-                    detected = True
+
+                    z = 999.0
+                    if 'blueDock' in getattr(self, 'tracker', {}):
+                        z = self.tracker['blueDock']['depth']
+                    
+                    if z > 0 and z < 1.5:  # Trigger done if within 1.5 meters
+                        detected = True
+                        cv2.putText(img, f"DOCKING REACHED: {z:.2f}m", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                    else:
+                        detected = False
+                        if z != 999.0:
+                            cv2.putText(img, f"DOCKING DIST: {z:.2f}m", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
                 else:
-                    yaw_state = 0.0
+                    yaw_state = 9999.0
+                    detected = False
+
+            elif mission == MissionStatus.DOCKING_V2:
+                if self.max_blue_dock != -1:
+                    if len(self.blue_dock_centers) > 0:
+                        mid_x = sum(self.blue_dock_centers) // len(self.blue_dock_centers)
+                        yaw_state = mid_x - width
+                    else:
+                        yaw_state = 0.0
+
+                    z = 999.0
+                    if 'blueDock' in getattr(self, 'tracker', {}):
+                        z = self.tracker['blueDock']['depth']
+                    
+                    if z > 0 and z < 1.5:  
+                        detected = True
+                        cv2.putText(img, f"DOCKING REACHED: {z:.2f}m", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                    else:
+                        detected = False
+                        if z != 999.0:
+                            cv2.putText(img, f"DOCKING DIST: {z:.2f}m", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
+                else:
+                    yaw_state = 9999.0
                     detected = False
 
             return img, yaw_state, detected, box_detected

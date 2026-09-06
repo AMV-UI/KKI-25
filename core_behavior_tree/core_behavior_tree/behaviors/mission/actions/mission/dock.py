@@ -22,9 +22,10 @@ class Docking_Execution(BaseExecution):
         self.time_threshold = MissionParams.dock_time_threshold
         self.target = 180
         self.hold = False
-        self.dock_state = 0 # 0=WAITING_BUOYS, 1=TURNING, 2=NAVIGATING
+        self.dock_state = -1 # -1=REVERSE FROM BOX, 0=ALIGN GPS, 1=VISION, 3=ALIGN 90, 4=SLIDE
         self.target_yaw = 0.0
         self.locked_heading = 0.0
+        self.reverse_start_time = 0.0
 
         self.frame_counter = FrameCounter(self.time_threshold)
         self.effort = MissionParams.dock_yaw_effort
@@ -89,7 +90,50 @@ class Docking_Execution(BaseExecution):
         theta = find_deg(self.lat, self.lon, self.docking_lat, self.docking_lon, self.heading)
         distance = haversine(self.lon, self.lat, self.docking_lon, self.docking_lat)
 
-        if self.dock_state == 0:
+        if self.dock_state == -1:
+            # PHASE -1: MELEWATI BOX SEBELUM ALIGN GPS
+            # Gunakan topic mission_type untuk memberi tahu kamera mencari Box
+            from std_msgs.msg import String
+            self.mission_pub = getattr(self, 'mission_type_pub', Topic.mission_type.createPublisher(self.node))
+            self.mission_pub.publish(String(data=MissionStatus.BOTH_BOXES))
+            
+            speed = float(self.speed_effort)
+            yaw_cmd = 0.0
+            
+            # Asumsi: `self.detected` akan True jika melihat Box (karena mission_type = BOTH_BOXES)
+            if self.detected:
+                if self.frame_counter:
+                    self.frame_counter.reset()
+                
+                if self.dsc == 8888.0:
+                    yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
+                elif self.dsc == 7777.0:
+                    yaw_cmd = float(self.effort) if self.arena == "A" else -float(self.effort)
+                else:
+                    kp = getattr(MissionParams, 'kp_cam', 0.2)
+                    yaw_cmd = self.dsc * kp
+                    max_yaw = float(self.effort * 0.5)
+                    if yaw_cmd > max_yaw: yaw_cmd = max_yaw
+                    elif yaw_cmd < -max_yaw: yaw_cmd = -max_yaw
+                    
+                self.node.get_logger().info(f"[{self.name}] MELEWATI BOKS: dsc={self.dsc:.1f}, yaw_cmd={yaw_cmd:.1f}", throttle_duration_sec=1.0)
+            else:
+                self.node.get_logger().info(f"[{self.name}] BOKS HILANG! Menunggu {self.time_threshold}s...", throttle_duration_sec=1.0)
+                if self.frame_counter:
+                    self.frame_counter.is_started()
+                    if self.frame_counter.is_enough():
+                        self.node.get_logger().info(f"[{self.name}] Boks berhasil dilewati! Memulai manuver GPS...")
+                        self.dock_state = 0
+                        self.frame_counter.reset()
+                        self.speed_effort_pub.publish(Float64(data=0.0))
+                        self.yaw_effort_pub.publish(Float64(data=0.0))
+                        return Status.RUNNING
+                        
+            self.speed_effort_pub.publish(Float64(data=speed))
+            self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
+            return Status.RUNNING
+
+        elif self.dock_state == 0:
             # ALIGN TO GPS FIRST
             self.node.get_logger().info(f"[{self.name}] ALIGN_TO_GPS: Berputar menyamakan arah ke target GPS (theta: {theta:.2f})...", throttle_duration_sec=1.0)
             
@@ -112,10 +156,10 @@ class Docking_Execution(BaseExecution):
 
         elif self.dock_state == 1:
             # VISION APPROACH (Forward through gates)
-            if self.dsc == 9999.0:
-                # All buoys lost (passed through gates). Transition to Reverse to GPS
-                self.node.get_logger().info(f"[{self.name}] Buoy target hilang. Beralih mundur ke target GPS...")
-                self.dock_state = 2
+            if self.detected:
+                # Target distance reached (detected = True from camera). Transition to Align 90 deg.
+                self.node.get_logger().info(f"[{self.name}] Jarak Docking tercapai. Beralih ke perputaran 90 derajat...")
+                self.dock_state = 3
                 self.speed_effort_pub.publish(Float64(data=0.0))
                 self.yaw_effort_pub.publish(Float64(data=0.0))
                 self.bow_effort_pub.publish(Float64(data=0.0))
@@ -131,7 +175,7 @@ class Docking_Execution(BaseExecution):
                 self.node.get_logger().info(f"[{self.name}] VISION: Hanya Biru terlihat. Banting setir ke Kanan...", throttle_duration_sec=1.0)
                 yaw_cmd = -float(self.effort)
             else:
-                self.node.get_logger().info(f"[{self.name}] VISION: Berjalan ke tengah-tengah gate (DSC: {self.dsc:.2f})...", throttle_duration_sec=1.0)
+                self.node.get_logger().info(f"[{self.name}] VISION: Berjalan menuju dock (DSC: {self.dsc:.2f})...", throttle_duration_sec=1.0)
                 # Proportional steering to center of gate
                 kp = getattr(MissionParams, 'kp_cam', 0.2)
                 yaw_cmd = -(self.dsc * kp) # Negative because Target Left (Negative DSC) -> Needs Left Turn -> Positive Yaw
@@ -179,14 +223,17 @@ class Docking_Execution(BaseExecution):
             return Status.RUNNING
 
         elif self.dock_state == 3:
-            # FINAL ALIGNMENT TO LOCKED HEADING
+            # FINAL ALIGNMENT TO 90 DEGREES FROM LOCKED HEADING
             from core.mission.gps_stuff import calc_turn
-            yaw_diff = calc_turn(self.locked_heading, self.heading)
+            target_heading = (self.locked_heading - 90.0) if self.arena == "A" else (self.locked_heading + 90.0)
+            target_heading = target_heading % 360.0
             
-            self.node.get_logger().info(f"[{self.name}] FINAL ALIGN: Mengembalikan arah ke {self.locked_heading:.1f} deg (diff: {yaw_diff:.1f} deg)...", throttle_duration_sec=1.0)
+            yaw_diff = calc_turn(target_heading, self.heading)
+            
+            self.node.get_logger().info(f"[{self.name}] ALIGN 90 DEG: Mengarahkan ke {target_heading:.1f} deg (diff: {yaw_diff:.1f} deg)...", throttle_duration_sec=1.0)
             
             if abs(yaw_diff) < 5.0:
-                self.node.get_logger().info(f"[{self.name}] Arah sudah disesuaikan! Memulai SLIDING...")
+                self.node.get_logger().info(f"[{self.name}] Arah sudah disesuaikan 90 derajat! Memulai SLIDING...")
                 self.dock_state = 4
                 self.yaw_effort_pub.publish(Float64(data=0.0))
                 return Status.RUNNING

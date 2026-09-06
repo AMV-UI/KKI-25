@@ -161,10 +161,10 @@ class DockingV2_Execution(BaseExecution):
             # PHASE 2: VISION CENTERING BLUE BUOY
             self.mission_type_pub.publish(String(data=MissionStatus.DOCKING_V2))
             
-            self.node.get_logger().info(f"[{self.name}] CENTERING: BlueArea={self.blue_area}", throttle_duration_sec=1.0)
+            self.node.get_logger().info(f"[{self.name}] CENTERING: Mengikuti blue buoy (menunggu jarak < 1.5m)...", throttle_duration_sec=1.0)
             
-            if self.detected and self.blue_area >= 1000.0:
-                self.node.get_logger().info(f"[{self.name}] BLUE BUOY > 1000px terdeteksi! Memulai putaran 90 derajat...")
+            if self.detected:
+                self.node.get_logger().info(f"[{self.name}] Jarak Blue Buoy tercapai (<1.5m)! Memulai putaran 90 derajat...")
                 self.dock_state = 3
                 
                 # Kalkulasi target heading (Arena A = Kiri / -90, Arena B = Kanan / +90)
