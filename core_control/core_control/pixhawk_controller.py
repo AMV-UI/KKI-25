@@ -94,24 +94,17 @@ class PixhawkController(Node):
         if self.ser_2 is None: return self.pixhawk
         try:
             msg_coor = self.ser_2.recv_match(
-                type="GLOBAL_POSITION_INT", blocking=True
+                type="GLOBAL_POSITION_INT", blocking=False
             )
-            lat = msg_coor.lat / 1e7 if msg_coor != None else self.pixhawk.lat
-            lon = msg_coor.lon / 1e7 if msg_coor != None else self.pixhawk.lon
-            alt = (
-                msg_coor.alt / 1000
-            )  if msg_coor != None else self.pixhawk.alt
+            if msg_coor is not None:
+                self.pixhawk.lat = msg_coor.lat / 1e7
+                self.pixhawk.lon = msg_coor.lon / 1e7
+                self.pixhawk.alt = msg_coor.alt / 1000
 
-            alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=True)
-
-            msg_spd = alignment.groundspeed if alignment != None else self.pixhawk.msg_spd  # Ground speed in m/s
-            msg_heading = alignment.heading  if alignment != None else self.pixhawk.msg_heading
-
-            self.pixhawk.lat = lat
-            self.pixhawk.lon = lon
-            self.pixhawk.alt = alt
-            self.pixhawk.msg_heading = msg_heading
-            self.pixhawk.msg_spd = msg_spd
+            alignment = self.ser_2.recv_match(type="VFR_HUD", blocking=False)
+            if alignment is not None:
+                self.pixhawk.msg_spd = alignment.groundspeed
+                self.pixhawk.msg_heading = alignment.heading
 
             return self.pixhawk
 
@@ -121,7 +114,7 @@ class PixhawkController(Node):
 
     def _px_rc_val(self):
         if self.ser_2 is None: return self.rc_chans
-        fetched_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=True)
+        fetched_channels = self.ser_2.recv_match(type="RC_CHANNELS", blocking=False)
         self.rc_chans = fetched_channels if fetched_channels != None else self.rc_chans
         return self.rc_chans
 
@@ -184,6 +177,7 @@ class PixhawkController(Node):
         )
 
     def main(self):
+        last_heartbeat_time = time.time()
         while rclpy.ok():
             rclpy.spin_once(self, timeout_sec=0.01)
             
@@ -191,6 +185,15 @@ class PixhawkController(Node):
                 self._init_serial()
                 time.sleep(1)
                 continue
+
+            current_time = time.time()
+            if current_time - last_heartbeat_time > 1.0:
+                self.ser_2.mav.heartbeat_send(
+                    mavutil.mavlink.MAV_TYPE_GCS,
+                    mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+                    0, 0, 0
+                )
+                last_heartbeat_time = current_time
 
             # Request and publish pixhawk data
             pixhawk_data = self.request_pixhawk()
