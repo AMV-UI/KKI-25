@@ -36,12 +36,12 @@ def generate_launch_description():
              name="pixhawk_controller",
              output="screen",
         ),
-        Node(
-             package="core_control",
-             executable="esp_controller",
-             name="esp_controller",
-             output="screen",
-        ),
+        # Node(
+        #      package="core_control",
+        #      executable="esp_controller",
+        #      name="esp_controller",
+        #      output="screen",
+        # ),
         # Node(
         #      package="core_control",
         #      executable="pwm_controller",
