@@ -40,7 +40,7 @@ class ObjectDetector:
 
         # Tracker for depth fallback
         self.tracker = {} # {"redBuoy": {"box": (x1, y1, x2, y2), "center": (cx, cy), "depth": z, "missed": 0, "area": area}}
-        self.MAX_MISSED_FRAMES = 45
+        self.MAX_MISSED_FRAMES = getattr(MissionParams, 'depth_missed_frames', 45)
 
         # Data Frame
         self.max_red = -1
@@ -114,7 +114,8 @@ class ObjectDetector:
                 if key in self.tracker:
                     tracked = self.tracker[key]
                     tracked['missed'] += 1
-                    if tracked['missed'] < self.MAX_MISSED_FRAMES:
+                    max_missed_frames = getattr(MissionParams, 'depth_missed_frames', 45)
+                    if tracked['missed'] < max_missed_frames:
                         best_blob = None
                         min_dist = float('inf')
                         for blob in blobs:
@@ -397,7 +398,7 @@ class ObjectDetector:
 
                 color = (0, 0, 0)
                 cv2.rectangle(img, (width, height), (width, height), color, 3)
-            elif mission == MissionStatus.DOCKING:
+            elif mission == MissionStatus.DOCKING or mission == MissionStatus.DOCKING_V2:
                 if self.max_blue_dock != -1:
                     mid_blue = (self.blue_dock["x1"] + self.blue_dock["x2"]) // 2
                     yaw_state = mid_blue - width
@@ -788,7 +789,7 @@ class ObjectDetector:
                     yaw_state = 9999.0
                     detected = False
                     
-            elif mission == MissionStatus.DOCKING:
+            elif mission == MissionStatus.DOCKING or mission == MissionStatus.DOCKING_V2:
                 if self.max_blue_dock != -1:
                     if len(self.blue_dock_centers) > 0:
                         mid_x = sum(self.blue_dock_centers) // len(self.blue_dock_centers)

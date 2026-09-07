@@ -94,16 +94,17 @@ class DockingV2_Execution(BaseExecution):
                     self.frame_counter.reset()
                 
                 # Jika 8888.0 (hanya hijau) -> Belok berlawanan
-                # (-) Belok Kanan, (+) Belok Kiri
                 if self.dsc == 8888.0:
-                    yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
+                    sign = getattr(MissionParams, 'turn_away_green_sign', 1.0)
+                    yaw_cmd = (sign * float(self.effort)) if self.arena == "A" else (-sign * float(self.effort))
                 # Jika 7777.0 (hanya biru) -> Belok berlawanan
                 elif self.dsc == 7777.0:
-                    yaw_cmd = float(self.effort) if self.arena == "A" else -float(self.effort)
+                    sign = getattr(MissionParams, 'turn_away_blue_sign', -1.0)
+                    yaw_cmd = (sign * float(self.effort)) if self.arena == "A" else (-sign * float(self.effort))
                 else:
                     # Centering normal
                     kp = getattr(MissionParams, 'kp_cam', 0.2)
-                    yaw_cmd = self.dsc * kp
+                    yaw_cmd = -(self.dsc * kp)
                     max_yaw = float(self.effort * 0.5)
                     if yaw_cmd > max_yaw: yaw_cmd = max_yaw
                     elif yaw_cmd < -max_yaw: yaw_cmd = -max_yaw
@@ -183,7 +184,7 @@ class DockingV2_Execution(BaseExecution):
             
             if self.detected and self.blue_area > 0:
                 kp = getattr(MissionParams, 'kp_cam', 0.2)
-                yaw_cmd = self.dsc * kp # self.dsc adalah (mid_x - width). Positif = kanan = belok kanan (+)
+                yaw_cmd = -(self.dsc * kp) # self.dsc adalah (mid_x - width). Positif = kanan = belok kanan (+). Koreksi: butuh minus agar belok ke arah target.
                 
                 max_yaw = float(self.effort)
                 if yaw_cmd > max_yaw: 

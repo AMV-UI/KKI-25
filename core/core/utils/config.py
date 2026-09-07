@@ -74,7 +74,13 @@ class MissionParams:
     max_aspect_ratio_box = 3.0
     
     min_area_docking_buoy = 3000.0
+    depth_missed_frames = 45  # 45 frames ~ 1.5 seconds at 30 fps
     default_arena = "B"
+    
+    # Arah Belok saat Menghindari Box (Arena A)
+    # Ubah menjadi -1.0 jika kapal berbelok ke arah yang salah
+    turn_away_green_sign = 1.0
+    turn_away_blue_sign = -1.0
     
     # PID Tuning Parameters (Camera Tracking for Box)
     kp_cam = 0.2

@@ -115,9 +115,9 @@ class Photo_Execution(BaseExecution):
             
         if self.dsc == 8888.0:
             if self.frame_counter: self.frame_counter.reset()
-            # Only Green is seen. Green is on the left, Blue on the right.
-            # If we see Green and want Blue, we should turn Right (Negative)
-            yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
+            # Only Green is seen.
+            sign = getattr(MissionParams, 'turn_away_green_sign', 1.0)
+            yaw_cmd = (sign * float(self.effort)) if self.arena == "A" else (-sign * float(self.effort))
             self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
             self.speed_effort_pub.publish(Float64(data=0.0))
             self.node.get_logger().info(f"[{self.name}] Box Hijau terlihat! Memutar berlawanan mencari Box {target_name}...", throttle_duration_sec=1.0)
@@ -126,8 +126,8 @@ class Photo_Execution(BaseExecution):
         if self.dsc == 7777.0:
             if self.frame_counter: self.frame_counter.reset()
             # Only Blue is seen.
-            # If we see Blue and want Green, we should turn Left (Positive)
-            yaw_cmd = float(self.effort) if self.arena == "A" else -float(self.effort)
+            sign = getattr(MissionParams, 'turn_away_blue_sign', -1.0)
+            yaw_cmd = (sign * float(self.effort)) if self.arena == "A" else (-sign * float(self.effort))
             self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
             self.speed_effort_pub.publish(Float64(data=0.0))
             self.node.get_logger().info(f"[{self.name}] Box Biru terlihat! Memutar berlawanan mencari Box {target_name}...", throttle_duration_sec=1.0)
@@ -157,7 +157,8 @@ class Photo_Execution(BaseExecution):
         derivative = self.dsc - self.prev_dsc
         self.prev_dsc = self.dsc
         
-        yaw_cmd = (self.dsc * kp) + (self.integral * ki) + (derivative * kd)
+        raw_pid = (self.dsc * kp) + (self.integral * ki) + (derivative * kd)
+        yaw_cmd = -raw_pid
         align_effort = float(self.effort) * 0.5
         if yaw_cmd > align_effort: yaw_cmd = align_effort
         elif yaw_cmd < -align_effort: yaw_cmd = -align_effort
