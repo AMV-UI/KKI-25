@@ -90,11 +90,11 @@ class MissionTreeBuilder:
     # Perception
     MISSIONS_CONFIG = [
         (Initial_Execution, Initial_Fallback, "Initial", 0),
-        #("BUOY_LOOP", 1), # Dynamic Loop for Buoys
-        #(Finding_Execution, Finding_Fallback, "Finding Both Boxes", 6), 
-        #(Photo_Execution, Photo_Fallback, "Photo Both Boxes", 7), 
+        ("BUOY_LOOP", 1), # Dynamic Loop for Buoys
+        (Finding_Execution, Finding_Fallback, "Finding Both Boxes", 6), 
+        (Photo_Execution, Photo_Fallback, "Photo Both Boxes", 7), 
         (Box_Execution, Box_Fallback, "Change Mission to Docking", 10),
-        (DockingV2_Execution, DockingV2_Fallback, "Docking", 10),
+        (Docking_Execution, Docking_Fallback, "Docking", 10),
         (Done_Execution, Done_Fallback, "Done", 10),
     ]
 

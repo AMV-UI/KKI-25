@@ -63,13 +63,13 @@ class MissionParams:
 
     # Detection Configuration (Buoys)
     min_area_buoy = 100.0
-    max_pixel_area = 3000.0
+    max_pixel_area = 10000.0
     min_aspect_ratio = 0.2
     max_aspect_ratio = 3.0
     
     # Detection Configuration (Boxes)
     min_area_box = 100.0
-    max_pixel_area_box = 5000.0
+    max_pixel_area_box = 10000.0
     min_aspect_ratio_box = 0.2
     max_aspect_ratio_box = 3.0
     
