@@ -60,11 +60,13 @@ class ESPController(Node):
 
     def _get_serial_ports(self):
         dirs = []
-        list_of_files = os.listdir("/dev")
-        pattern = "ttyACM*"
-        for entry in list_of_files:
-            if fnmatch.fnmatch(entry, pattern):
-                dirs.append(f"/dev/{entry}")
+        try:
+            list_of_files = os.listdir("/dev")
+            for entry in list_of_files:
+                if fnmatch.fnmatch(entry, "ttyACM*") or fnmatch.fnmatch(entry, "ttyUSB*"):
+                    dirs.append(f"/dev/{entry}")
+        except Exception:
+            pass
         return dirs
 
     def _init_serial(self):

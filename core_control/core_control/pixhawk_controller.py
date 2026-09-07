@@ -43,11 +43,13 @@ class PixhawkController(Node):
 
     def _get_serial_ports(self):
         dirs = []
-        list_of_files = os.listdir("/dev")
-        pattern = "ttyUSB*"
-        for entry in list_of_files:
-            if fnmatch.fnmatch(entry, pattern):
-                dirs.append(f"/dev/{entry}")
+        try:
+            list_of_files = os.listdir("/dev")
+            for entry in list_of_files:
+                if fnmatch.fnmatch(entry, "ttyUSB*") or fnmatch.fnmatch(entry, "ttyACM*"):
+                    dirs.append(f"/dev/{entry}")
+        except Exception:
+            pass
         return dirs
 
     def _init_serial(self):
@@ -58,16 +60,24 @@ class PixhawkController(Node):
 
         self.get_logger().info(f"Available USB ports: {ports}")            
         for port in ports:
-            try:
-                self.ser_2 = mavutil.mavlink_connection(port, baud=57600)
-                self.ser_2.wait_heartbeat()
-                self.get_logger().info(f"Pixhawk found on {port}")
-                self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
-                self._px_arm()
-                return
-            except Exception as e:
-                self.get_logger().warn(f"Failed to connect to Pixhawk on {port}: {e}")
-                self.ser_2 = None
+            for baud in [57600, 115200]:
+                try:
+                    self.get_logger().info(f"Trying to connect to Pixhawk on {port} at {baud} baud...")
+                    self.ser_2 = mavutil.mavlink_connection(port, baud=baud)
+                    msg = self.ser_2.wait_heartbeat(timeout=3.0)
+                    
+                    if msg is not None:
+                        self.get_logger().info(f"Pixhawk found on {port} at {baud} baud!")
+                        self.ser_2.mav.heartbeat_send(0, 0, 0, 0, 0)
+                        self._px_arm()
+                        return
+                    else:
+                        self.get_logger().warn(f"No heartbeat from {port} at {baud} baud (Timeout).")
+                        self.ser_2.close()
+                        self.ser_2 = None
+                except Exception as e:
+                    self.get_logger().warn(f"Failed to connect to Pixhawk on {port} at {baud}: {e}")
+                    self.ser_2 = None
         
         self.error_throttle(5000, "Pixhawk not found on any port")
 
