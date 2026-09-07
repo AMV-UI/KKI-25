@@ -59,6 +59,8 @@ class Buoy_Execution(BaseExecution):
     def initialise(self) -> None:
         self.has_seen_buoy = False
         self.box_detected = False
+        self.integral = 0.0
+        self.prev_dsc = 0.0
         if self.frame_counter:
             self.frame_counter.reset()
         self.node.get_logger().info(f"[{self.name}] Initializing Buoy Execution")
@@ -87,12 +89,12 @@ class Buoy_Execution(BaseExecution):
                 self.node.get_logger().info(f"[{self.name}] Target lost briefly, waiting...", throttle_duration_sec=2.0)
                 # Keep moving forward slowly while temporarily lost
                 self.yaw_effort_pub.publish(Float64(data=0.0))
-                self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+                self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
             else:
                 self.node.get_logger().info(f"[{self.name}] Waiting for first buoy detection...", throttle_duration_sec=2.0)
                 # Keep moving forward to find it
                 self.yaw_effort_pub.publish(Float64(data=0.0))
-                self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+                self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
             
             return Status.RUNNING
 
@@ -100,12 +102,32 @@ class Buoy_Execution(BaseExecution):
         self.has_seen_buoy = True
         self.frame_counter.reset()
 
-        self.yaw_effort_pub.publish(Float64(data=self.dsc))
-        self.speed_effort_pub.publish(Float64(data=self.speed_effort))
+        kp = getattr(MissionParams, 'kp_cam', 0.2)
+        ki = getattr(MissionParams, 'ki_cam', 0.01)
+        kd = getattr(MissionParams, 'kd_cam', 0.4)
+        
+        self.integral += self.dsc
+        max_int = 2000.0
+        if self.integral > max_int: self.integral = max_int
+        elif self.integral < -max_int: self.integral = -max_int
+        
+        derivative = self.dsc - self.prev_dsc
+        self.prev_dsc = self.dsc
+        
+        # Negative sign: Target Left (Negative DSC) -> Needs Left Turn -> Positive Yaw
+        yaw_cmd = -(self.dsc * kp) - (self.integral * ki) - (derivative * kd)
+        
+        # Cap yaw effort
+        align_effort = 150.0 # Standard max turning effort
+        if yaw_cmd > align_effort: yaw_cmd = align_effort
+        elif yaw_cmd < -align_effort: yaw_cmd = -align_effort
+
+        self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
+        self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
             
         self.node.get_logger().info(
-            f"[{self.name}] Approaching target - DSC: {self.dsc}",
-            throttle_duration_sec=2.0
+            f"[{self.name}] Approaching target - DSC: {self.dsc:.1f}, Yaw: {yaw_cmd:.1f}",
+            throttle_duration_sec=1.0
             )
         
         return Status.RUNNING
