@@ -60,7 +60,7 @@ class PixhawkController(Node):
 
         self.get_logger().info(f"Available USB ports: {ports}")            
         for port in ports:
-            for baud in [57600, 115200]:
+            for baud in [57600, 115200, 38400, 9600, 921600]:
                 try:
                     self.get_logger().info(f"Trying to connect to Pixhawk on {port} at {baud} baud...")
                     self.ser_2 = mavutil.mavlink_connection(port, baud=baud)
