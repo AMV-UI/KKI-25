@@ -137,38 +137,45 @@ class PixhawkController(Node):
         if self.ser_2 is None: return
         
         # NOTE: Sesuaikan dengan mode switch Anda (sepertinya di Jetson sudah diubah)
+        new_pxmode = self.pxmode
         if pwm_val <= 1300:
-            self.pxmode = PxMode.AUTO
+            new_pxmode = PxMode.AUTO
         elif 1301 <= pwm_val <= 1700:
-            self.pxmode = PxMode.MANUAL
+            new_pxmode = PxMode.MANUAL
         else:
-            self.pxmode = PxMode.HOLD
+            new_pxmode = PxMode.HOLD
 
-        pxmode_msg = String()
-        pxmode_msg.data = self.pxmode
-        self.pxmode_pub.publish(pxmode_msg)       
-        
-        # Pixhawk mode to send
-        pxhawk_internal_mode = self.pxmode
-        
-        # CRITICAL: Jika ROS mode adalah AUTO, kita HARUS mengirim mode MANUAL ke Pixhawk.
-        # Karena di ArduRover, mode AUTO mengabaikan RC Override (menunggu waypoint).
-        # Mode MANUAL mengizinkan RC Override untuk mengontrol thruster.
-        if self.pxmode == PxMode.AUTO:
-            pxhawk_internal_mode = PxMode.MANUAL
+        if new_pxmode != getattr(self, '_last_pxmode', None):
+            self.pxmode = new_pxmode
+            self._last_pxmode = new_pxmode
+            
+            pxmode_msg = String()
+            pxmode_msg.data = self.pxmode
+            self.pxmode_pub.publish(pxmode_msg)       
+            
+            # Pixhawk mode to send
+            pxhawk_internal_mode = self.pxmode
+            
+            # CRITICAL: Jika ROS mode adalah AUTO, kita HARUS mengirim mode MANUAL ke Pixhawk.
+            # Karena di ArduRover, mode AUTO mengabaikan RC Override (menunggu waypoint).
+            # Mode MANUAL mengizinkan RC Override untuk mengontrol thruster.
+            if self.pxmode == PxMode.AUTO:
+                pxhawk_internal_mode = PxMode.MANUAL
 
-        if pxhawk_internal_mode not in self.ser_2.mode_mapping():
-            self.get_logger().warn(f"Unknown Mode : {pxhawk_internal_mode}")
-            return
+            if pxhawk_internal_mode not in self.ser_2.mode_mapping():
+                self.get_logger().warn(f"Unknown Mode : {pxhawk_internal_mode}")
+                return
 
-        mode_id = self.ser_2.mode_mapping()[pxhawk_internal_mode]
+            mode_id = self.ser_2.mode_mapping()[pxhawk_internal_mode]
 
-        self.ser_2.mav.set_mode_send(
-            self.ser_2.target_system,
-            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-            mode_id,
-        )
-        self.info_throttle(5000, f"Mode set to : {self.pxmode} (Pixhawk Internal: {pxhawk_internal_mode})")
+            self.ser_2.mav.set_mode_send(
+                self.ser_2.target_system,
+                mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                mode_id,
+            )
+            self.get_logger().info(f"Mode set to : {self.pxmode} (Pixhawk Internal: {pxhawk_internal_mode})")
+        else:
+            self.info_throttle(5000, f"Mode is : {self.pxmode}")
 
     def _pwm_callback(self, pwm_msg):
         self.pwm_chan = pwm_msg.channels
