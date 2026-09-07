@@ -83,7 +83,7 @@ class MissionParams:
     turn_away_blue_sign = -1.0
     
     # PID Tuning Parameters (Camera Tracking for Box)
-    kp_cam = 0.2
+    kp_cam = 0.45
     ki_cam = 0.01
     kd_cam = 0.4
 
