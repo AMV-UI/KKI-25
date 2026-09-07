@@ -133,7 +133,8 @@ class Photo_Execution(BaseExecution):
             self.node.get_logger().info(f"[{self.name}] Box Biru terlihat! Memutar berlawanan mencari Box {target_name}...", throttle_duration_sec=1.0)
             return False
         # Target box is roughly in the center, start counting frames
-        if abs(self.dsc) < 30.0:
+        margin = getattr(MissionParams, 'photo_margin_error', 150.0)
+        if abs(self.dsc) < margin:
             if self.frame_counter:
                 self.frame_counter.is_started()
                 if self.frame_counter.is_enough():
