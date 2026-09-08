@@ -186,6 +186,8 @@ class PixhawkController(Node):
         for idx, pwm in enumerate(pwm_list):
             if idx < 8:
                 rc_channel_values[idx] = pwm
+                
+        self.info_throttle(2000, f"Sending RC Override: {rc_channel_values}")
         
         self.ser_2.mav.rc_channels_override_send(
             self.ser_2.target_system, 
