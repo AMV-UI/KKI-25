@@ -35,11 +35,6 @@ class PixhawkController(Node):
         self._init_serial()
         self.get_logger().info("Pixhawk Controller Node Started")
 
-    def error_throttle(self, period_ms, msg):
-        self.get_logger().error(msg, throttle_duration_sec=period_ms/1000.0)
-        
-    def info_throttle(self, period_ms, msg):
-        self.get_logger().info(msg, throttle_duration_sec=period_ms/1000.0)
 
     def _get_serial_ports(self):
         dirs = []
@@ -55,7 +50,7 @@ class PixhawkController(Node):
     def _init_serial(self):
         ports = self._get_serial_ports()
         if not ports:
-            self.error_throttle(5000, "No USB serial ports found (Pixhawk)")
+            self.get_logger().error("No USB serial ports found (Pixhawk)", throttle_duration_sec=5.0)
             return
 
         self.get_logger().info(f"Available USB ports: {ports}")            
@@ -79,7 +74,7 @@ class PixhawkController(Node):
                     self.get_logger().warn(f"Failed to connect to Pixhawk on {port} at {baud}: {e}")
                     self.ser_2 = None
         
-        self.error_throttle(5000, "Pixhawk not found on any port")
+        self.get_logger().error("Pixhawk not found on any port", throttle_duration_sec=5.0)
 
     def _px_arm(self):
         if self.ser_2 is None: return
@@ -96,7 +91,7 @@ class PixhawkController(Node):
             0,
             0,
         )
-        self.error_throttle(5000, "Arming motors ...")
+        self.get_logger().error("Arming motors ...", throttle_duration_sec=5.0)
         self.ser_2.motors_armed_wait()
         self.get_logger().warn("Motor Armed!")
 
@@ -175,7 +170,7 @@ class PixhawkController(Node):
             )
             self.get_logger().info(f"Mode set to : {self.pxmode} (Pixhawk Internal: {pxhawk_internal_mode})")
         else:
-            self.info_throttle(5000, f"Mode is : {self.pxmode}")
+            self.get_logger().info(f"Mode is : {self.pxmode}", throttle_duration_sec=5.0)
 
     def _pwm_callback(self, pwm_msg):
         self.pwm_chan = pwm_msg.channels
@@ -187,7 +182,7 @@ class PixhawkController(Node):
             if idx < 8:
                 rc_channel_values[idx] = pwm
                 
-        self.info_throttle(2000, f"Sending RC Override: {rc_channel_values}")
+        self.get_logger().info(f"Sending RC Override: {rc_channel_values}", throttle_duration_sec=2.0)
         
         self.ser_2.mav.rc_channels_override_send(
             self.ser_2.target_system, 
