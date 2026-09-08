@@ -134,44 +134,12 @@ class Finding_Execution(BaseExecution):
                 return Status.RUNNING
 
             # Use PID to center the midpoint while moving forward
-            kp = getattr(MissionParams, 'kp_cam', 0.2)
-            ki = getattr(MissionParams, 'ki_cam', 0.01)
-            kd = getattr(MissionParams, 'kd_cam', 0.4)
-            
-            self.integral += self.dsc
-            max_int = 2000.0
-            if self.integral > max_int: self.integral = max_int
-            elif self.integral < -max_int: self.integral = -max_int
-            
-            derivative = self.dsc - self.prev_dsc
-            self.prev_dsc = self.dsc
-            
-            # Negative sign added because: Target Left (Negative DSC) -> Needs Left Turn -> Needs Positive Yaw
-            raw_pid = (self.dsc * kp) + (self.integral * ki) + (derivative * kd)
-            yaw_cmd = -raw_pid
-            
-            align_effort = float(self.effort) * 0.5
-            if yaw_cmd > align_effort: yaw_cmd = align_effort
-            elif yaw_cmd < -align_effort: yaw_cmd = -align_effort
-
-            self.node.get_logger().info(f"[{self.name}] Menyelaraskan titik tengah Box & Maju (DSC: {self.dsc:.2f})", throttle_duration_sec=1.0)
-            self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
-            self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
-            return Status.RUNNING
-
-        # State: REVERSING
-        elif self.phase == "reversing":
-            if getattr(self, 'detected', False):
-                self.node.get_logger().info(f"[{self.name}] Box terlihat kembali! Beralih ke misi PHOTO!")
-                if self.mission is not None:
-                    from std_msgs.msg import UInt8
-                    self.mission_pub.publish(UInt8(data=self.mission))
-                return Status.SUCCESS
-            
-            self.node.get_logger().info(f"[{self.name}] Mundur mencari Box kembali...", throttle_duration_sec=1.0)
-            self.yaw_effort_pub.publish(Float64(data=0.0))
-            self.speed_effort_pub.publish(Float64(data=-float(self.speed_effort)))
-            return Status.RUNNING
+            # INSTEAD: User requested to immediately switch to PHOTO mission when both boxes are detected!
+            self.node.get_logger().info(f"[{self.name}] Kedua box (Hijau & Biru) terdeteksi (DSC: {self.dsc:.2f})! Beralih ke misi PHOTO!")
+            if self.mission is not None:
+                from std_msgs.msg import UInt8
+                self.mission_pub.publish(UInt8(data=self.mission))
+            return Status.SUCCESS
 
 class Finding_Fallback(BaseFallback):
     """

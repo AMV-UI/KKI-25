@@ -38,6 +38,10 @@ class DockingV2_Execution(BaseExecution):
         self.start_time = 0.0
         self.sweep_direction = 1
 
+        self.dock_lat = 0.0
+        self.dock_lon = 0.0
+        self.pixhawk = Pixhawk()
+        
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
         self.frame_counter = FrameCounter(self.time_threshold)
@@ -48,6 +52,10 @@ class DockingV2_Execution(BaseExecution):
         self.blue_area_sub = Topic.blue_area.createSubscriber(self.node, self._blue_area_cb)
         
         self.box_detected_sub = Topic.box_detected.createSubscriber(self.node, self._box_detected_cb)
+        
+        self.dock_lat_sub = Topic.dock_lat.createSubscriber(self.node, self._dock_lat_cb)
+        self.dock_lon_sub = Topic.dock_lon.createSubscriber(self.node, self._dock_lon_cb)
+        self.pixhawk_sub = Topic.pixhawk.createSubscriber(self.node, self._pixhawk_cb)
 
         self.yaw_effort_pub = Topic.yaw_effort.createPublisher(self.node)
         self.speed_effort_pub = Topic.speed_effort.createPublisher(self.node)
@@ -74,54 +82,71 @@ class DockingV2_Execution(BaseExecution):
     def _box_detected_cb(self, msg: Bool):
         self.box_detected = bool(msg.data)
         
+    def _dock_lat_cb(self, msg: Float64):
+        self.dock_lat = float(msg.data)
+        
+    def _dock_lon_cb(self, msg: Float64):
+        self.dock_lon = float(msg.data)
+        
+    def _pixhawk_cb(self, msg: Pixhawk):
+        self.pixhawk = msg
+
     def initialise(self) -> None:
         self.dock_state = 0
         if self.frame_counter:
             self.frame_counter.reset()
-        self.node.get_logger().info(f"[{self.name}] Initializing Docking V2 (No GPS)")
+        self.node.get_logger().info(f"[{self.name}] Initializing Docking V2 (GPS Guided)")
 
     def execute(self) -> Status:
         
         if self.dock_state == 0:
-            # PHASE 0: EVADE BOXES
-            self.mission_type_pub.publish(String(data=MissionStatus.BOTH_BOXES))
+            # PHASE 0: NAVIGATE TO INITIAL GPS WHILE LOOKING FOR BLUE BUOY
+            self.mission_type_pub.publish(String(data=MissionStatus.DOCKING_V2))
             
-            speed = float(self.speed_effort)
-            yaw_cmd = 0.0
-            
-            if getattr(self, 'box_detected', False):
-                if self.frame_counter:
-                    self.frame_counter.reset()
-                
-                # Jika 8888.0 (hanya hijau) -> Belok berlawanan
-                if self.dsc == 8888.0:
-                    sign = getattr(MissionParams, 'turn_away_green_sign', 1.0)
-                    yaw_cmd = (sign * float(self.effort)) if self.arena == "A" else (-sign * float(self.effort))
-                # Jika 7777.0 (hanya biru) -> Belok berlawanan
-                elif self.dsc == 7777.0:
-                    sign = getattr(MissionParams, 'turn_away_blue_sign', -1.0)
-                    yaw_cmd = (sign * float(self.effort)) if self.arena == "A" else (-sign * float(self.effort))
-                else:
-                    # Centering normal
-                    kp = getattr(MissionParams, 'kp_cam', 0.2)
-                    yaw_cmd = -(self.dsc * kp)
-                    max_yaw = float(self.effort * 0.5)
-                    if yaw_cmd > max_yaw: yaw_cmd = max_yaw
-                    elif yaw_cmd < -max_yaw: yaw_cmd = -max_yaw
-                    
-                self.node.get_logger().info(f"[{self.name}] MELEWATI BOKS: dsc={self.dsc:.1f}, yaw_cmd={yaw_cmd:.1f}", throttle_duration_sec=1.0)
-            else:
-                self.node.get_logger().info(f"[{self.name}] BOKS HILANG! Menunggu {self.time_threshold}s...", throttle_duration_sec=1.0)
+            # 1. Check if blue buoy detected (from vision)
+            if self.detected and self.blue_area > 0:
                 if self.frame_counter:
                     self.frame_counter.is_started()
                     if self.frame_counter.is_enough():
-                        self.node.get_logger().info(f"[{self.name}] Boks berhasil dilewati! Beralih ke SWEEPING...")
-                        self.dock_state = 1
-                        self.start_time = time.time()
-                        self.sweep_direction = 1
+                        self.node.get_logger().info(f"[{self.name}] Blue Buoy terdeteksi saat menuju GPS! Beralih ke CENTERING...")
+                        self.dock_state = 2
                         self.frame_counter.reset()
-                        
-            self.speed_effort_pub.publish(Float64(data=speed))
+                        return Status.RUNNING
+            else:
+                if self.frame_counter:
+                    self.frame_counter.reset()
+
+            # 2. Navigate to GPS
+            # If gps is not valid, fallback to sweeping immediately
+            if self.dock_lat == 0.0 or self.dock_lon == 0.0 or self.pixhawk.lat == 0.0 or self.pixhawk.lon == 0.0:
+                self.node.get_logger().info(f"[{self.name}] Data GPS awal tidak valid, langsung beralih ke SWEEPING...")
+                self.dock_state = 1
+                self.start_time = time.time()
+                self.sweep_direction = 1
+                return Status.RUNNING
+
+            from core.mission.gps_stuff import haversine, find_deg
+            dist = haversine(self.pixhawk.lon, self.pixhawk.lat, self.dock_lon, self.dock_lat)
+            yaw_diff = find_deg(self.pixhawk.lat, self.pixhawk.lon, self.dock_lat, self.dock_lon, self.heading)
+
+            self.node.get_logger().info(f"[{self.name}] Menuju GPS Awal: Jarak {dist:.1f}m, Yaw Diff {yaw_diff:.1f}", throttle_duration_sec=1.0)
+
+            if dist < 4.0: # Reached within 4 meters
+                self.node.get_logger().info(f"[{self.name}] Telah sampai di sekitar titik GPS awal! Beralih ke SWEEPING mencari Dock...")
+                self.dock_state = 1
+                self.start_time = time.time()
+                self.sweep_direction = 1
+                return Status.RUNNING
+
+            # Proportional steering to waypoint
+            kp_gps = getattr(MissionParams, 'kp_gps', 2.0)
+            yaw_cmd = yaw_diff * kp_gps
+            
+            max_yaw = float(self.effort)
+            if yaw_cmd > max_yaw: yaw_cmd = max_yaw
+            elif yaw_cmd < -max_yaw: yaw_cmd = -max_yaw
+
+            self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
             self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
             return Status.RUNNING
 
