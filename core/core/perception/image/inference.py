@@ -190,7 +190,10 @@ class ObjectDetector:
         detected = False
 
         with torch.no_grad():
-            results = self.model(img, conf=self.conf_threshold_buoy if mission == MissionStatus.BUOY else self.conf_threshold_box, verbose=False, stream=True)
+            if mission == MissionStatus.DOCKING or mission == MissionStatus.DOCKING_V2:
+                results = []
+            else:
+                results = self.model(img, conf=self.conf_threshold_buoy if mission == MissionStatus.BUOY else self.conf_threshold_box, verbose=False, stream=True)
 
             # red / green buoy
             self.max_red = -1
@@ -603,7 +606,10 @@ class ObjectDetector:
         box_detected = False
 
         with torch.no_grad():
-            results = self.model(img, conf=self.conf_threshold_buoy, verbose=False, stream=True)
+            if mission == MissionStatus.DOCKING or mission == MissionStatus.DOCKING_V2:
+                results = []
+            else:
+                results = self.model(img, conf=self.conf_threshold_buoy, verbose=False, stream=True)
 
             self.max_red = -1
             self.max_green = -1

@@ -102,7 +102,7 @@ class Photo_Execution(BaseExecution):
             self.node.get_logger().error(f"[{self.name}] Failed to save photo: {str(e)}")
 
     def align_to_target(self, target_name):
-        if self.dsc == 9999.0:
+        if self.dsc == 9999.0 or self.dsc == 8888.0 or self.dsc == 7777.0:
             if self.frame_counter: self.frame_counter.reset()
             # Default spinning direction (like finding box)
             # Arena A: Turn Right (Negative), Arena B: Turn Left (Positive)
@@ -111,26 +111,6 @@ class Photo_Execution(BaseExecution):
             self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
             self.speed_effort_pub.publish(Float64(data=0.0))
             self.node.get_logger().info(f"[{self.name}] Memutar mencari Box {target_name} untuk difoto...", throttle_duration_sec=1.0)
-            return False
-            
-        if self.dsc == 8888.0:
-            if self.frame_counter: self.frame_counter.reset()
-            # Only Green is seen.
-            sign = getattr(MissionParams, 'turn_away_green_sign', 1.0)
-            yaw_cmd = (sign * float(self.effort)) if self.arena == "A" else (-sign * float(self.effort))
-            self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
-            self.speed_effort_pub.publish(Float64(data=0.0))
-            self.node.get_logger().info(f"[{self.name}] Box Hijau terlihat! Memutar berlawanan mencari Box {target_name}...", throttle_duration_sec=1.0)
-            return False
-            
-        if self.dsc == 7777.0:
-            if self.frame_counter: self.frame_counter.reset()
-            # Only Blue is seen.
-            sign = getattr(MissionParams, 'turn_away_blue_sign', -1.0)
-            yaw_cmd = (sign * float(self.effort)) if self.arena == "A" else (-sign * float(self.effort))
-            self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
-            self.speed_effort_pub.publish(Float64(data=0.0))
-            self.node.get_logger().info(f"[{self.name}] Box Biru terlihat! Memutar berlawanan mencari Box {target_name}...", throttle_duration_sec=1.0)
             return False
         # Target box is roughly in the center, start counting frames
         margin = getattr(MissionParams, 'photo_margin_error', 150.0)

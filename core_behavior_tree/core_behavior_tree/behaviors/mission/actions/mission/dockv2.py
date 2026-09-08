@@ -116,7 +116,15 @@ class DockingV2_Execution(BaseExecution):
                 if self.frame_counter:
                     self.frame_counter.reset()
 
-            # 2. Navigate to GPS
+            # 2. Check if box is detected (evasion logic)
+            if getattr(self, 'box_detected', False):
+                self.node.get_logger().info(f"[{self.name}] Awas! Ada Box di depan! Menghindar saat menuju GPS...", throttle_duration_sec=1.0)
+                yaw_cmd = float(self.effort) if self.arena == "A" else -float(self.effort)
+                self.speed_effort_pub.publish(Float64(data=float(self.speed_effort)))
+                self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
+                return Status.RUNNING
+
+            # 3. Navigate to GPS
             # If gps is not valid, fallback to sweeping immediately
             if self.dock_lat == 0.0 or self.dock_lon == 0.0 or self.pixhawk.lat == 0.0 or self.pixhawk.lon == 0.0:
                 self.node.get_logger().info(f"[{self.name}] Data GPS awal tidak valid, langsung beralih ke SWEEPING...")

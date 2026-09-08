@@ -278,10 +278,10 @@ class CameraController(Node):
                 return
 
             box_detected_bool = False
-            if self.mission_type == MissionStatus.BUOY or self.mission_type == MissionStatus.DOCKING or self.mission_type == MissionStatus.DOCKING_V2:
+            if self.mission_type == MissionStatus.BUOY:
                 # Hanya model buoy yang menyala
                 self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
-            elif self.mission_type == MissionStatus.TURN_NEXT_BUOY:
+            elif self.mission_type == MissionStatus.TURN_NEXT_BUOY or self.mission_type == MissionStatus.DOCKING or self.mission_type == MissionStatus.DOCKING_V2:
                 # Model buoy dan box menyala dan digambar bersamaan di gambar yang sama
                 self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
                 self.img, _, box_detected_bool = self.box_detector.process_frame(MissionStatus.BOTH_BOXES, self.arena, self.img, self.up_cap, self)

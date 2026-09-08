@@ -88,8 +88,8 @@ class MissionParams:
     kd_cam = 0.4
 
     # Photo Mission
-    photo_time_threshold = 1.0     # Waktu tunggu stabilitas (detik) sebelum jepret
-    photo_margin_error = 150.0     # Toleransi kemencengan (pixel) dari titik tengah (center)
+    photo_time_threshold = 0.2     # Waktu tunggu stabilitas (detik) sebelum jepret
+    photo_margin_error = 250.0     # Toleransi kemencengan (pixel) dari titik tengah (center)
 
     # Dock Mission 
     dock_speed_effort = 170.0
