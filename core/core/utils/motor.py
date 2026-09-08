@@ -61,7 +61,7 @@ class Motor:
         self.node.get_logger().debug(f"Autonomous Mode: motor_speed={motor_speed}, x_speed={x_speed}, bow={bow_effort}")
         res = {
             self.channel.MOTOR_X: self.calculateSpeed(int(control_effort_x * x_speed)),
-            self.channel.MOTOR_Y: self.calculateSpeed(int(-control_effort_y * motor_speed)),
+            self.channel.MOTOR_Y: self.calculateSpeed(int(control_effort_y * motor_speed)),
         }
         if hasattr(self.channel, 'MOTOR_BOW_LEFT') and hasattr(self.channel, 'MOTOR_BOW_RIGHT'):
             res[self.channel.MOTOR_BOW_LEFT] = self.calculateSpeed(int(bow_effort))
