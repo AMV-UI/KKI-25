@@ -74,7 +74,7 @@ class MissionParams:
     max_aspect_ratio_box = 3.0
     
     min_area_docking_buoy = 3000.0
-    depth_missed_frames = 45  # 45 frames ~ 1.5 seconds at 30 fps
+    depth_missed_frames = 15  # 15 frames ~ 1.0 - 1.5 seconds at realistic Jetson FPS (10-15 fps)
     default_arena = "B"
     
     # Arah Belok saat Menghindari Box (Arena A)
