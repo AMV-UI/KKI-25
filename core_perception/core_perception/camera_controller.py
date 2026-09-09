@@ -249,8 +249,12 @@ class CameraController(Node):
         return False
 
     def encode_base64(self, img):
+        if img is None:
+            return String(data="")
+        # Resize image to reduce bandwidth (fixes choppy/laggy video)
+        small_img = cv2.resize(img, (320, 240), interpolation=cv2.INTER_AREA)
         result, encoded_image = cv2.imencode(
-            ".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 20]
+            ".jpg", small_img, [int(cv2.IMWRITE_JPEG_QUALITY), 30]
         )
         if result:
             base64_image = base64.b64encode(encoded_image).decode("utf-8")
@@ -259,7 +263,7 @@ class CameraController(Node):
             return img_msg
         else:
             self.get_logger().error("Failed to encode frame to JPG")
-            return ""
+            return String(data="")
  
 
     def process_frame(self):
@@ -337,7 +341,10 @@ class CameraController(Node):
             if bot_camera is None:
                 bot_camera = top_camera  # Fallback
             
-            self.camera_processed_pub.publish(top_camera)
+            # Throttle stream over ROS to ~15 FPS to prevent network congestion (patah-patah)
+            self.frame_count = getattr(self, 'frame_count', 0) + 1
+            if self.frame_count % 2 == 0:
+                self.camera_processed_pub.publish(top_camera)
             
             # Combine both camera images to send in one String message
             combined_msg = String()

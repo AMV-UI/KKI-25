@@ -102,9 +102,9 @@ class Buoy_Execution(BaseExecution):
         self.has_seen_buoy = True
         self.frame_counter.reset()
 
-        kp = getattr(MissionParams, 'kp_cam', 0.2)
-        ki = getattr(MissionParams, 'ki_cam', 0.01)
-        kd = getattr(MissionParams, 'kd_cam', 0.4)
+        kp = getattr(MissionParams, 'kp_buoy', 0.2)
+        ki = getattr(MissionParams, 'ki_buoy', 0.01)
+        kd = getattr(MissionParams, 'kd_buoy', 0.4)
         
         self.integral += self.dsc
         max_int = 2000.0

@@ -82,10 +82,15 @@ class MissionParams:
     turn_away_green_sign = 1.0
     turn_away_blue_sign = -1.0
     
-    # PID Tuning Parameters (Camera Tracking for Box)
+    # PID Tuning Parameters (Camera Tracking for Box/Docking)
     kp_cam = 0.45
     ki_cam = 0.01
     kd_cam = 0.4
+
+    # PID Tuning Parameters (Camera Tracking specifically for Buoy)
+    kp_buoy = 0.45
+    ki_buoy = 0.01
+    kd_buoy = 0.4
 
     # Photo Mission
     photo_time_threshold = 0.2     # Waktu tunggu stabilitas (detik) sebelum jepret
