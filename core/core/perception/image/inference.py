@@ -292,20 +292,24 @@ class ObjectDetector:
                                 self.green_dock = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
 
                     elif mission == MissionStatus.GREEN_BOX:
-                        img, box_yaw_state, status = self.green_box_detected(
-                            cls, img, x1, y1, x2, y2, confidence
-                        )
-                        if status:
-                            return img, box_yaw_state, status
-                        # If false, keep checking other boxes
+                        if self.class_names[cls] == "greenBox":
+                            if area > self.max_green_box:
+                                self.max_green_box = area
+                                self.green_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+                        elif self.class_names[cls] == "blueBox":
+                            if area > self.max_blue_box:
+                                self.max_blue_box = area
+                                self.blue_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
 
                     elif mission == MissionStatus.BLUE_BOX:
-                        img, box_yaw_state, status = self.blue_box_detected(
-                            cls, img, x1, y1, x2, y2, confidence
-                        )
-                        if status:
-                            return img, box_yaw_state, status
-                        # If false, keep checking other boxes
+                        if self.class_names[cls] == "blueBox":
+                            if area > self.max_blue_box:
+                                self.max_blue_box = area
+                                self.blue_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+                        elif self.class_names[cls] == "greenBox":
+                            if area > self.max_green_box:
+                                self.max_green_box = area
+                                self.green_box = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
                         
                     elif mission == MissionStatus.BOTH_BOXES:
                         if self.class_names[cls] == "greenBox":
@@ -442,6 +446,38 @@ class ObjectDetector:
                     detected = True
                     cv2.rectangle(img, (self.blue_box["x1"], self.blue_box["y1"]), (self.blue_box["x2"], self.blue_box["y2"]), (255, 0, 0), 3)
                     cv2.putText(img, "blueBox", (self.blue_box["x1"], self.blue_box["y1"]), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+                else:
+                    yaw_state = 9999.0
+                    detected = False
+                    
+            elif mission == MissionStatus.GREEN_BOX:
+                if self.max_green_box != -1:
+                    mid_x = (self.green_box["x1"] + self.green_box["x2"]) // 2
+                    yaw_state = (mid_x - width) * 0.5
+                    detected = True
+                    cv2.rectangle(img, (self.green_box["x1"], self.green_box["y1"]), (self.green_box["x2"], self.green_box["y2"]), (0, 255, 0), 3)
+                    cv2.putText(img, "greenBox", (self.green_box["x1"], self.green_box["y1"]), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                elif self.max_blue_box != -1:
+                    yaw_state = 7777.0
+                    detected = True
+                    cv2.rectangle(img, (self.blue_box["x1"], self.blue_box["y1"]), (self.blue_box["x2"], self.blue_box["y2"]), (255, 0, 0), 3)
+                    cv2.putText(img, "blueBox", (self.blue_box["x1"], self.blue_box["y1"]), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+                else:
+                    yaw_state = 9999.0
+                    detected = False
+                    
+            elif mission == MissionStatus.BLUE_BOX:
+                if self.max_blue_box != -1:
+                    mid_x = (self.blue_box["x1"] + self.blue_box["x2"]) // 2
+                    yaw_state = (mid_x - width) * 0.5
+                    detected = True
+                    cv2.rectangle(img, (self.blue_box["x1"], self.blue_box["y1"]), (self.blue_box["x2"], self.blue_box["y2"]), (255, 0, 0), 3)
+                    cv2.putText(img, "blueBox", (self.blue_box["x1"], self.blue_box["y1"]), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+                elif self.max_green_box != -1:
+                    yaw_state = 8888.0
+                    detected = True
+                    cv2.rectangle(img, (self.green_box["x1"], self.green_box["y1"]), (self.green_box["x2"], self.green_box["y2"]), (0, 255, 0), 3)
+                    cv2.putText(img, "greenBox", (self.green_box["x1"], self.green_box["y1"]), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                 else:
                     yaw_state = 9999.0
                     detected = False
