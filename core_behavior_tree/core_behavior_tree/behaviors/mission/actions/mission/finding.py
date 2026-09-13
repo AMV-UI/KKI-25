@@ -62,7 +62,7 @@ class Finding_Execution(BaseExecution):
     def initialise(self) -> None:
         self.phase = "searching" # "searching", "aligning", "approaching"
         self.direction = 1
-        self.approach_start_time = 0.0
+        self.approach_start_time = time.time()
         self.integral = 0.0
         self.prev_dsc = 0.0
         self.has_seen_box = False
@@ -71,6 +71,11 @@ class Finding_Execution(BaseExecution):
         self.node.get_logger().info(f"[{self.name}] Initializing Finding Execution (Searching)")
 
     def execute(self) -> Status:
+        # Flush stale DSC values for 1 second before allowing detection to trigger
+        if time.time() - self.approach_start_time < 1.0:
+            self.dsc = 9999.0
+            setattr(self, 'detected', False)
+
         # If box is detected, mark it as seen
         if getattr(self, 'detected', False):
             if not getattr(self, 'has_seen_box', False):
@@ -91,6 +96,7 @@ class Finding_Execution(BaseExecution):
             yaw_val = -float(self.effort) if self.arena == "A" else float(self.effort)
             self.yaw_effort_pub.publish(Float64(data=yaw_val))
             self.speed_effort_pub.publish(Float64(data=0.0))
+                
             return Status.RUNNING
 
         # State: ALIGNING
