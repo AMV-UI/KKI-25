@@ -158,6 +158,7 @@ class CameraController(Node):
         self.mission_type = MissionStatus.BUOY
         self.show_result = False
         self.detected = False
+        self.current_depth = 999.0
         self.fps = 30
 
         # Setup communication
@@ -217,6 +218,7 @@ class CameraController(Node):
         self.green_box_pub = Topic.green_box_encoded.createPublisher(self)
         self.blue_box_pub = Topic.blue_box_encoded.createPublisher(self)
         self.box_detected_pub = Topic.box_detected.createPublisher(self)
+        self.depth_pub = Topic.depth.createPublisher(self)
         # Subscribers (if needed)
         self.mission_type_sub = Topic.mission_type.createSubscriber(self, self.mission_callback)
         self.arena_sub = Topic.arena.createSubscriber(self, self._arena_cb)
@@ -316,6 +318,10 @@ class CameraController(Node):
             detected_msg = Bool()
             detected_msg.data = self.detected
             self.detected_pub.publish(detected_msg)
+
+            depth_msg = Float64()
+            depth_msg.data = float(self.current_depth)
+            self.depth_pub.publish(depth_msg)
 
             if hasattr(self.buoy_detector, 'blue_area'):
                 blue_area_msg = Float64()

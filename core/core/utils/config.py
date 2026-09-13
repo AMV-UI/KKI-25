@@ -154,6 +154,7 @@ class Topic:
     blue_area = TopicFactory("/core/vision/image/blue_area", Float64)
     dsc = TopicFactory("/core/vision/image/dsc", Float64)
     detected = TopicFactory("/core/vision/image/detected", Bool)
+    depth = TopicFactory("/core/vision/image/depth", Float64)
     gate_passed = TopicFactory("/core/vision/gate_passed", Bool)
 
     heading_deg = TopicFactory("/core/heading_deg", Float64)

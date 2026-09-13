@@ -17,6 +17,7 @@ class Photo_Execution(BaseExecution):
         self.arena = getattr(MissionParams, 'default_arena', 'B')
         
         self.dsc = 9999.0
+        self.depth = 999.0
         self.prev_dsc = 0.0
         self.integral = 0.0
         self.effort = MissionParams.finding_yaw_effort
@@ -42,6 +43,9 @@ class Photo_Execution(BaseExecution):
         self.dsc_sub = Topic.dsc.createSubscriber(
             self.node, self._dsc_cb
         )
+        self.depth_sub = Topic.depth.createSubscriber(
+            self.node, self._depth_cb
+        )
         self.arena_sub = Topic.arena.createSubscriber(
             self.node, self._arena_cb
         )
@@ -51,6 +55,9 @@ class Photo_Execution(BaseExecution):
         
     def _dsc_cb(self, msg: Float64):
         self.dsc = float(msg.data)
+        
+    def _depth_cb(self, msg: Float64):
+        self.depth = float(msg.data)
         
     def _green_box_cb(self, msg: String):
         self.greenbox = str(msg.data)
@@ -102,15 +109,35 @@ class Photo_Execution(BaseExecution):
         except Exception as e:
             self.node.get_logger().error(f"[{self.name}] Failed to save photo: {str(e)}")
 
-    def align_to_target(self, target_name):
-        if self.dsc == 9999.0 or self.dsc == 8888.0 or self.dsc == 7777.0:
-            if self.frame_counter: self.frame_counter.reset()
+    def align_to_target(self, target_name: str, speed_override: float = 0.0) -> bool:
+        if self.dsc == 9999.0:
+            # Spin slowly
+            yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
+            self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
+            self.speed_effort_pub.publish(Float64(data=float(speed_override)))
+            return False
+            
+        elif self.dsc == 7777.0 and target_name == "Green":
+            # If we see Blue Box while looking for Green Box, push away
+            yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
+            self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
+            self.speed_effort_pub.publish(Float64(data=float(speed_override)))
+            return False
+            
+        elif self.dsc == 8888.0 and target_name == "Blue":
+            # If we see Green Box while looking for Blue Box, push away
+            yaw_cmd = float(self.effort) if self.arena == "A" else -float(self.effort)
+            self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
+            self.speed_effort_pub.publish(Float64(data=float(speed_override)))
+            return False
+            
+        if self.dsc > 8000.0:
             # Default spinning direction (like finding box)
             # Arena A: Turn Right (Negative), Arena B: Turn Left (Positive)
             yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
             
             self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
-            self.speed_effort_pub.publish(Float64(data=0.0))
+            self.speed_effort_pub.publish(Float64(data=float(speed_override)))
             self.node.get_logger().info(f"[{self.name}] Memutar mencari Box {target_name} untuk difoto...", throttle_duration_sec=1.0)
             return False
         # Target box is roughly in the center, start counting frames
@@ -121,7 +148,7 @@ class Photo_Execution(BaseExecution):
                 if self.frame_counter.is_enough():
                     self.frame_counter.reset()
                     self.yaw_effort_pub.publish(Float64(data=0.0))
-                    self.speed_effort_pub.publish(Float64(data=0.0))
+                    self.speed_effort_pub.publish(Float64(data=float(speed_override)))
                     return True
         else:
             if self.frame_counter:
@@ -146,7 +173,7 @@ class Photo_Execution(BaseExecution):
         elif yaw_cmd < -align_effort: yaw_cmd = -align_effort
 
         self.yaw_effort_pub.publish(Float64(data=float(yaw_cmd)))
-        self.speed_effort_pub.publish(Float64(data=0.0))
+        self.speed_effort_pub.publish(Float64(data=float(speed_override)))
         self.node.get_logger().info(f"[{self.name}] Menyelaraskan Box {target_name} (DSC: {self.dsc:.2f})", throttle_duration_sec=1.0)
         return False
 
@@ -233,8 +260,24 @@ class Photo_Execution(BaseExecution):
             # Publish 9: Capture Blue Box to GCS
             self.mission_pub.publish(UInt8(data=9))
             if self.align_to_target("Blue"):
-                self.node.get_logger().info(f"[{self.name}] Box Biru di tengah. Mengambil foto...")
+                self.node.get_logger().info(f"[{self.name}] Box Biru di tengah. Maju mendekat...")
+                self.phase = "forward_blue"
+            return Status.RUNNING
+            
+        elif self.phase == "forward_blue":
+            self.mission_type_pub.publish(String(data=MissionStatus.BLUE_BOX))
+            # Keep aligning but with forward speed!
+            speed = getattr(MissionParams, 'finding_speed_effort', 170.0)
+            self.align_to_target("Blue", speed_override=speed)
+            
+            # Check depth distance
+            if self.depth > 0.0 and self.depth <= 1.0:
+                self.node.get_logger().info(f"[{self.name}] Jarak kedalaman {self.depth:.2f}m memadai. Berhenti untuk foto...")
+                self.yaw_effort_pub.publish(Float64(data=0.0))
+                self.speed_effort_pub.publish(Float64(data=0.0))
                 self.phase = "wait_blue_photo"
+            else:
+                self.node.get_logger().info(f"[{self.name}] Maju mendekati Blue Box (Jarak: {self.depth:.2f}m)...", throttle_duration_sec=1.0)
             return Status.RUNNING
             
         elif self.phase == "wait_blue_photo":
