@@ -2,7 +2,7 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String, Float64
-from core.utils.config import Topic, MissionStatus
+from core.utils.config import Topic, MissionStatus, MissionParams
 from time import sleep
 
 class ParameterBlackboard(Node):    
@@ -11,7 +11,7 @@ class ParameterBlackboard(Node):
         super().__init__('parameter_blackboard')
 
         # Use self as the node for publishers/subscribers
-        self.arena = "A"
+        self.arena = getattr(MissionParams, 'default_arena', 'A')
         self.st_speed = 1.0
         self.tn_speed = 1.0
         self.dock_lat = 0.0
