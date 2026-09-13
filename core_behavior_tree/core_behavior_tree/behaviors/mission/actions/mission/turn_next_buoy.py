@@ -11,7 +11,7 @@ class Turn_Next_Buoy_Execution(BaseExecution):
     def __init__(self, name: str = "Turn_Next_Buoy_Execution", node=None, mission=None):
         super().__init__(name, node=node)
         self.node = node
-        self.arena = "B"
+        self.arena = getattr(MissionParams, 'default_arena', 'B')
         self.duration = MissionParams.turn_next_buoy_duration  # Duration for the turn maneuver
         self.speed_effort = MissionParams.turn_next_buoy_speed_effort
         self.yaw_effort = MissionParams.turn_next_buoy_yaw_effort

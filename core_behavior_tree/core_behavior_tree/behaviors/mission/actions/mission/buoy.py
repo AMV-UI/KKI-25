@@ -23,7 +23,7 @@ class Buoy_Execution(BaseExecution):
         self.detected = True
         self.dsc = 0.0
         self.speed_effort = MissionParams.buoy_speed_effort
-        self.arena = "B"
+        self.arena = getattr(MissionParams, 'default_arena', 'B')
         self.time_threshold = MissionParams.buoy_time_threshold
         self.mission = mission
         self.has_seen_buoy = False

@@ -22,7 +22,7 @@ class Finding_Execution(BaseExecution):
         self.find_mode = None
         self.frame_counter = None
         self.detected = False
-        self.arena = "B"
+        self.arena = getattr(MissionParams, 'default_arena', 'B')
         self.effort = MissionParams.finding_yaw_effort
         self.dsc = 9999.0
         self.mission = mission

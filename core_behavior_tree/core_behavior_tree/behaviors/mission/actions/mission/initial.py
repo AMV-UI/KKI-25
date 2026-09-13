@@ -1,7 +1,7 @@
 from ...mission_behaviors import BaseExecution, BaseFallback
 from py_trees.common import Status
 from std_msgs.msg import Bool, Float64, UInt8, String
-from core.utils.config import Topic
+from core.utils.config import Topic, MissionParams
 from core.mission.frame_counter import FrameCounter
 from core_msgs.msg import Pixhawk
 from core.utils.config import PxMode
@@ -17,7 +17,7 @@ class Initial_Execution(BaseExecution):
         super().__init__(name, node=node)
         self.node = node
 
-        self.arena = "B"
+        self.arena = getattr(MissionParams, 'default_arena', 'B')
         self.detected = False
         self.time_threshold = 0.2
         self.target = 126

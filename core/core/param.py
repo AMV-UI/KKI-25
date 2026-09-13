@@ -45,6 +45,16 @@ class ParameterBlackboard(Node):
         self.st_speed_sub = Topic.st_speed.createSubscriber(self, self._st_speed_cb)
         self.tn_speed_sub = Topic.tn_speed.createSubscriber(self, self._tn_speed_cb)
         self.mission_type_sub = Topic.mission_type.createSubscriber(self, self._mission_type_cb)
+        
+        # Publish parameters periodically so late-joining nodes don't miss them
+        self.timer = self.create_timer(1.0, self.publish_params)
+
+    def publish_params(self):
+        self.arena_pub.publish(String(data=self.arena))
+        self.st_speed_pub.publish(Float64(data=self.st_speed))
+        self.tn_speed_pub.publish(Float64(data=self.tn_speed))
+        self.mission_type_pub.publish(String(data=self.mission_type))
+
     
     def _mission_type_cb(self, msg: String):
         self.mission_type = msg.data

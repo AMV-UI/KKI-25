@@ -14,6 +14,7 @@ class Photo_Execution(BaseExecution):
         
         self.greenbox = None
         self.bluebox = None
+        self.arena = getattr(MissionParams, 'default_arena', 'B')
         
         self.dsc = 9999.0
         self.prev_dsc = 0.0
