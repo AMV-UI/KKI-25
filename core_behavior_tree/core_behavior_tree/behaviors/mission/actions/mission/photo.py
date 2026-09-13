@@ -181,6 +181,8 @@ class Photo_Execution(BaseExecution):
         elif self.phase == "align_green":
             # Keep publishing to ensure it switches
             self.mission_type_pub.publish(String(data=MissionStatus.GREEN_BOX))
+            # Publish 7: Capture Green Box to GCS
+            self.mission_pub.publish(UInt8(data=7))
             if self.align_to_target("Green"):
                 self.node.get_logger().info(f"[{self.name}] Box Hijau di tengah. Mengambil foto...")
                 self.phase = "wait_green_photo"
@@ -197,6 +199,8 @@ class Photo_Execution(BaseExecution):
             
         elif self.phase == "setup_blue":
             self.mission_type_pub.publish(String(data=MissionStatus.BLUE_BOX))
+            # Publish 8: Find Blue Box to GCS
+            self.mission_pub.publish(UInt8(data=8))
             self.bluebox = None
             self.integral = 0.0
             self.dsc = 9999.0
@@ -226,6 +230,8 @@ class Photo_Execution(BaseExecution):
             
         elif self.phase == "align_blue":
             self.mission_type_pub.publish(String(data=MissionStatus.BLUE_BOX))
+            # Publish 9: Capture Blue Box to GCS
+            self.mission_pub.publish(UInt8(data=9))
             if self.align_to_target("Blue"):
                 self.node.get_logger().info(f"[{self.name}] Box Biru di tengah. Mengambil foto...")
                 self.phase = "wait_blue_photo"
@@ -250,8 +256,8 @@ class Photo_Execution(BaseExecution):
             return Status.RUNNING
             
         elif self.phase == "done":
-            if self.mission is not None:
-                self.mission_pub.publish(UInt8(data=self.mission))
+            # Publish 9: Capture Blue Box is done, stay at 9 until next mission
+            self.mission_pub.publish(UInt8(data=9))
             return Status.SUCCESS
 
         return Status.RUNNING
