@@ -87,8 +87,8 @@ class Turn_Next_Buoy_Execution(BaseExecution):
         # Simultaneous forward and turn
         speed = self.speed_effort
         
-        # Turn Right for Track A (positive yaw effort), Turn Left for Track B (negative yaw effort)
-        base_yaw = self.yaw_effort if self.arena == "A" else -self.yaw_effort
+        # Turn Right for Track A (negative yaw effort), Turn Left for Track B (positive yaw effort)
+        base_yaw = -self.yaw_effort if self.arena == "A" else self.yaw_effort
         yaw = base_yaw * self.direction
         
         self.speed_effort_pub.publish(Float64(data=speed))

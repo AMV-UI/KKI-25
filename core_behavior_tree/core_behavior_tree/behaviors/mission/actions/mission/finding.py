@@ -87,8 +87,8 @@ class Finding_Execution(BaseExecution):
         # State: SEARCHING
         if self.phase == "searching":
             self.node.get_logger().info(f"[{self.name}] Mencari sembarang box... (Spinning)", throttle_duration_sec=2.0)
-            # Turn opposite of Turn_Next_Buoy (Turn_Next_Buoy A sends Positive, so we send Negative)
-            yaw_val = -float(self.effort) if self.arena == "A" else float(self.effort)
+            # Turn opposite of Turn_Next_Buoy (Turn_Next_Buoy A sends Negative, so we send Positive)
+            yaw_val = float(self.effort) if self.arena == "A" else -float(self.effort)
             self.yaw_effort_pub.publish(Float64(data=yaw_val))
             self.speed_effort_pub.publish(Float64(data=0.0))
             return Status.RUNNING
