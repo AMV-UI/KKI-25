@@ -79,8 +79,8 @@ class MissionParams:
     
     # Arah Belok saat Menghindari Box (Arena A)
     # Ubah menjadi -1.0 jika kapal berbelok ke arah yang salah
-    turn_away_green_sign = 1.0
-    turn_away_blue_sign = -1.0
+    turn_away_green_sign = -1.0
+    turn_away_blue_sign = 1.0
     
     # PID Tuning Parameters (Camera Tracking for Box/Docking)
     kp_cam = 0.45
