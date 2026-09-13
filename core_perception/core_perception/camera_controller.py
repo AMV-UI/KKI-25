@@ -350,11 +350,11 @@ class CameraController(Node):
             combined_msg = String()
             combined_msg.data = top_camera.data + "|||" + bot_camera.data
 
-            if(self.mission_type == MissionStatus.GREEN_BOX and self.detected):
+            if self.mission_type == MissionStatus.GREEN_BOX and self.detected and self.dsc != 7777.0 and self.dsc != 9999.0:
                 self.green_box_pub.publish(combined_msg)
 
             # Publish both camera images when Blue Box is detected
-            if(self.mission_type == MissionStatus.BLUE_BOX and self.detected):
+            if self.mission_type == MissionStatus.BLUE_BOX and self.detected and self.dsc != 8888.0 and self.dsc != 9999.0:
                 self.blue_box_pub.publish(combined_msg)
 
         except Exception as e:

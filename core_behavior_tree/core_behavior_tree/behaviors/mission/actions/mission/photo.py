@@ -154,7 +154,27 @@ class Photo_Execution(BaseExecution):
             self.mission_type_pub.publish(String(data=MissionStatus.GREEN_BOX))
             self.greenbox = None
             self.integral = 0.0
-            self.phase = "align_green"
+            self.dsc = 9999.0
+            if self.frame_counter:
+                self.frame_counter.reset()
+            self.wait_start_time = time.time()
+            self.phase = "wait_green_switch"
+            return Status.RUNNING
+            
+        elif self.phase == "wait_green_switch":
+            self.mission_type_pub.publish(String(data=MissionStatus.GREEN_BOX))
+            self.dsc = 9999.0
+            if self.frame_counter:
+                self.frame_counter.reset()
+            
+            # Spin slowly to find green box
+            yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
+            self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
+            self.speed_effort_pub.publish(Float64(data=0.0))
+            
+            # Wait 1.0 seconds to flush stale DSC from finding mission
+            if time.time() - self.wait_start_time > 1.0:
+                self.phase = "align_green"
             return Status.RUNNING
             
         elif self.phase == "align_green":
@@ -181,7 +201,26 @@ class Photo_Execution(BaseExecution):
             self.dsc = 9999.0
             if self.frame_counter:
                 self.frame_counter.reset()
-            self.phase = "align_blue"
+            self.wait_start_time = time.time()
+            self.phase = "wait_blue_switch"
+            return Status.RUNNING
+            
+        elif self.phase == "wait_blue_switch":
+            # Keep publishing mission status so camera controller switches its target
+            self.mission_type_pub.publish(String(data=MissionStatus.BLUE_BOX))
+            # Force reset dsc and counter so we don't accidentally snap a photo from lingering green box dsc
+            self.dsc = 9999.0
+            if self.frame_counter:
+                self.frame_counter.reset()
+            
+            # Spin the boat away from green box to force searching for blue box
+            yaw_cmd = -float(self.effort) if self.arena == "A" else float(self.effort)
+            self.yaw_effort_pub.publish(Float64(data=yaw_cmd))
+            self.speed_effort_pub.publish(Float64(data=0.0))
+            
+            # Wait for 1.5 seconds for topics to propagate and boat to start turning
+            if time.time() - self.wait_start_time > 1.5:
+                self.phase = "align_blue"
             return Status.RUNNING
             
         elif self.phase == "align_blue":
