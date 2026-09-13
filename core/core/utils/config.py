@@ -75,7 +75,7 @@ class MissionParams:
     
     min_area_docking_buoy = 3000.0
     depth_missed_frames = 15  # 15 frames ~ 1.0 - 1.5 seconds at realistic Jetson FPS (10-15 fps)
-    default_arena = "B"
+    default_arena = "A"
     
     # Arah Belok saat Menghindari Box (Arena A)
     # Ubah menjadi -1.0 jika kapal berbelok ke arah yang salah
