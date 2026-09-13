@@ -22,6 +22,7 @@ class Gcs(Node):
         self.yaw = 0.0
         self.comm = 0.0
         self.mission = 0
+        self.cache = {}
 
         self.arena = "B"
         self.setup()
@@ -108,6 +109,7 @@ class Gcs(Node):
 
     def _handle_incoming_data(self, topic_name, data):
         message = {"topic": topic_name, "data": data}
+        self.cache[topic_name] = message
         # self.get_logger().info(f"[{topic_name}] Received: {data}")
 
         asyncio.run_coroutine_threadsafe(
@@ -129,6 +131,14 @@ class Gcs(Node):
 async def websocket_handler(websocket, node):
     node.websocket_clients.add(websocket)
     node.get_logger().info("WebSocket client connected")
+    
+    # Send all cached messages to the new client
+    for msg in node.cache.values():
+        try:
+            await websocket.send(json.dumps({"data": msg}))
+        except Exception:
+            pass
+            
     try:
         # Iterate all websocket connection and keep all client listening
         async for _ in websocket:
