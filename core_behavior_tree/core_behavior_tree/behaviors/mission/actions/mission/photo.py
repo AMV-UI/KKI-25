@@ -236,6 +236,15 @@ class Photo_Execution(BaseExecution):
             if self.bluebox != None:
                 self.bluebox_pub.publish(String(data=self.bluebox))
                 self._save_photo_to_disk(self.bluebox, "BlueBox")
+                self.wait_start_time = time.time()
+                self.phase = "wait_after_photo"
+            return Status.RUNNING
+            
+        elif self.phase == "wait_after_photo":
+            self.yaw_effort_pub.publish(Float64(data=0.0))
+            self.speed_effort_pub.publish(Float64(data=0.0))
+            self.node.get_logger().info(f"[{self.name}] Selesai memfoto, menunggu 2 detik...", throttle_duration_sec=1.0)
+            if time.time() - self.wait_start_time > 2.0:
                 self.phase = "done"
             return Status.RUNNING
             
