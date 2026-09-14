@@ -808,11 +808,6 @@ class ObjectDetector:
                 detected = box_detected_local
                 
             elif mission == MissionStatus.GREEN_BOX:
-                z = 999.0
-                if 'greenBox' in getattr(self, 'tracker', {}):
-                    z = self.tracker['greenBox']['depth']
-                node.current_depth = float(z)
-                
                 if self.max_green_box != -1:
                     mid_x = (self.green_box["x1"] + self.green_box["x2"]) // 2
                     yaw_state = (mid_x - width) * 0.5
@@ -826,8 +821,12 @@ class ObjectDetector:
                     
             elif mission == MissionStatus.BLUE_BOX:
                 z = 999.0
-                if 'blueBox' in getattr(self, 'tracker', {}):
+                if 'blueBox' in getattr(self, 'tracker', {}) and self.tracker['blueBox']['depth'] > 0:
                     z = self.tracker['blueBox']['depth']
+                elif self.max_blue_box > 0:
+                    import math
+                    # Fallback: estimate depth using area (assuming 1m ~ 30000 px)
+                    z = math.sqrt(30000.0 / self.max_blue_box)
                 node.current_depth = float(z)
                 cv2.putText(img, f"DEPTH: {z:.2f}m", (50, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
                 
