@@ -93,6 +93,8 @@ class DockingV2_Execution(BaseExecution):
 
     def initialise(self) -> None:
         self.dock_state = 0
+        self.gps_integral = 0.0
+        self.gps_prev_error = 0.0
         if self.frame_counter:
             self.frame_counter.reset()
         self.node.get_logger().info(f"[{self.name}] Initializing Docking V2 (GPS Guided)")
@@ -146,9 +148,24 @@ class DockingV2_Execution(BaseExecution):
                 self.sweep_direction = 1
                 return Status.RUNNING
 
-            # Proportional steering to waypoint
+            # PID steering to waypoint
             kp_gps = getattr(MissionParams, 'kp_gps', 2.0)
-            yaw_cmd = yaw_diff * kp_gps
+            ki_gps = getattr(MissionParams, 'ki_gps', 0.0)
+            kd_gps = getattr(MissionParams, 'kd_gps', 0.0)
+
+            # Update integral
+            self.gps_integral += yaw_diff
+            max_int = 1000.0  # anti-windup cap
+            if self.gps_integral > max_int: self.gps_integral = max_int
+            elif self.gps_integral < -max_int: self.gps_integral = -max_int
+
+            # Calculate derivative
+            derivative = yaw_diff - self.gps_prev_error
+            self.gps_prev_error = yaw_diff
+
+            # Calculate PID output
+            raw_pid = (yaw_diff * kp_gps) + (self.gps_integral * ki_gps) + (derivative * kd_gps)
+            yaw_cmd = raw_pid
             
             max_yaw = float(self.effort)
             if yaw_cmd > max_yaw: yaw_cmd = max_yaw

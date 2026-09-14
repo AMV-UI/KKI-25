@@ -83,24 +83,29 @@ class MissionParams:
     turn_away_blue_sign = 1.0
     
     # PID Tuning Parameters (Camera Tracking for Box/Docking)
-    kp_cam = 0.45
+    kp_cam = 0.50
     ki_cam = 0.01
     kd_cam = 0.4
 
     # PID Tuning Parameters (Camera Tracking specifically for Buoy)
-    kp_buoy = 0.45
+    kp_buoy = 0.50
     ki_buoy = 0.01
     kd_buoy = 0.4
+
+    # PID Tuning Parameters (GPS Waypoint Steering)
+    kp_gps = 2.0
+    ki_gps = 0.05
+    kd_gps = 0.5
 
     # Photo Mission
     photo_time_threshold = 1.0    # Waktu tunggu stabilitas (detik) sebelum jepret
     photo_margin_error = 250.0     # Toleransi kemencengan (pixel) dari titik tengah (center)
 
     # Dock Mission 
-    dock_speed_effort = 170.0
+    dock_speed_effort = 200.0
     dock_yaw_effort = 200.0
-    dock_time_threshold = 0.2
-    dock_margin_error = 5.0
+    dock_time_threshold = 1.0
+    dock_margin_error = 10.0
 	
     # Passthrough Mission
     passthrough_speed_effort = 130.0
