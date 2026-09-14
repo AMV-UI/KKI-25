@@ -23,7 +23,7 @@ class Buoy_Execution(BaseExecution):
         self.detected = True
         self.dsc = 0.0
         self.speed_effort = MissionParams.buoy_speed_effort
-        self.arena = getattr(MissionParams, 'default_arena', 'B')
+        self.arena = getattr(MissionParams, 'default_arena', 'A')
         self.time_threshold = MissionParams.buoy_time_threshold
         self.mission = mission
         self.has_seen_buoy = False
@@ -118,7 +118,7 @@ class Buoy_Execution(BaseExecution):
         yaw_cmd = -(self.dsc * kp) - (self.integral * ki) - (derivative * kd)
         
         # Cap yaw effort
-        align_effort = 150.0 # Standard max turning effort
+        align_effort = float(getattr(MissionParams, 'buoy_yaw_effort', 200.0))
         if yaw_cmd > align_effort: yaw_cmd = align_effort
         elif yaw_cmd < -align_effort: yaw_cmd = -align_effort
 

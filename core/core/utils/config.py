@@ -104,6 +104,7 @@ class MissionParams:
     # Dock Mission 
     dock_speed_effort = 200.0
     dock_yaw_effort = 200.0
+    dock_sliding_effort = 300.0
     dock_time_threshold = 1.0
     dock_margin_error = 10.0
 	

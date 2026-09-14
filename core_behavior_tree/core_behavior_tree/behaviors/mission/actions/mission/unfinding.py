@@ -22,7 +22,7 @@ class Unfinding_Execution(BaseExecution):
         self.detected = True
         self.yaw_effort = MissionParams.unfinding_yaw_effort
         self.speed_effort = MissionParams.unfinding_speed_effort
-        self.arena = "B"
+        self.arena = getattr(MissionParams, 'default_arena', 'A')
         self.time_threshold = MissionParams.unfinding_time_threshold
         self.mission = mission
         

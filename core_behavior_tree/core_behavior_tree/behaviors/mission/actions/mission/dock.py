@@ -17,7 +17,7 @@ class Docking_Execution(BaseExecution):
         self.node = node
 
         self.mission = mission
-        self.arena = "B"
+        self.arena = getattr(MissionParams, 'default_arena', 'A')
         self.detected = False
         self.time_threshold = MissionParams.dock_time_threshold
         self.target = 180
@@ -246,14 +246,15 @@ class Docking_Execution(BaseExecution):
 
         elif self.dock_state == 4:
             # SLIDING
+            slide_effort = float(getattr(MissionParams, 'dock_sliding_effort', 300.0))
             if self.arena == "A":
                 # Slide Left (Surge Port CCW, Surge Starboard CW)
-                speed_cmd = -float(self.effort * 2.0)
-                bow_cmd = float(self.effort * 2.0)
+                speed_cmd = -slide_effort
+                bow_cmd = slide_effort
             else:
                 # Slide Right (Surge Port CW, Surge Starboard CCW)
-                speed_cmd = float(self.effort * 2.0)
-                bow_cmd = -float(self.effort * 2.0)
+                speed_cmd = slide_effort
+                bow_cmd = -slide_effort
                 
             self.yaw_effort_pub.publish(Float64(data=0.0))
             self.speed_effort_pub.publish(Float64(data=speed_cmd))

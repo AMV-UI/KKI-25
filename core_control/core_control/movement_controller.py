@@ -329,6 +329,22 @@ class MovementController(Node):
 
 
 
+    def _global_gps_logger(self):
+        """Automatically record lat/lon to a file every second when the boat has a valid GPS fix."""
+        now = time()
+        if not hasattr(self, 'last_gps_log_time'):
+            self.last_gps_log_time = 0.0
+            
+        if now - self.last_gps_log_time > 1.0:
+            self.last_gps_log_time = now
+            if self.current_lat != 0.0 and self.current_lon != 0.0:
+                try:
+                    with open("global_gps_log.csv", "a") as f:
+                        # Format: timestamp, mode, lat, lon
+                        f.write(f"{now},{self.rc5_state},{self.current_lat},{self.current_lon}\n")
+                except Exception as e:
+                    self.get_logger().error(f"Failed to write gps log: {e}")
+
     def update_recording(self, dt):
         """Record current lat/lon frames when in RECORDING state."""
         if self.recording_state != RecordingState.RECORDING:
@@ -496,6 +512,7 @@ class MovementController(Node):
             # 3) If playing back -> perform playback waypoint control
             # 4) If docking by RC5 HIGH -> do autonomous docking
 
+            self._global_gps_logger()
             self.update_recording(self.delta_time)
             self.update_return_navigation(self.delta_time)
             self.update_playback(self.delta_time)

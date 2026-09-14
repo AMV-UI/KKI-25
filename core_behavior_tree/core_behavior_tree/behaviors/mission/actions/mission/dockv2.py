@@ -22,7 +22,7 @@ class DockingV2_Execution(BaseExecution):
         self.node = node
 
         self.mission = mission
-        self.arena = "B"
+        self.arena = getattr(MissionParams, 'default_arena', 'A')
         self.detected = False
         self.dock_state = 0 # 0=EVADE, 1=SWEEP, 2=CENTER, 3=TURN, 4=SLIDE
         self.target_heading = 0.0
@@ -269,12 +269,13 @@ class DockingV2_Execution(BaseExecution):
 
         elif self.dock_state == 4:
             # PHASE 4: SLIDING
+            slide_effort = float(getattr(MissionParams, 'dock_sliding_effort', 300.0))
             if self.arena == "A":
-                speed_cmd = float(self.effort * 2.0)
-                bow_cmd = -float(self.effort * 2.0)
+                speed_cmd = slide_effort
+                bow_cmd = -slide_effort
             else:
-                speed_cmd = -float(self.effort * 2.0)
-                bow_cmd = float(self.effort * 2.0)
+                speed_cmd = -slide_effort
+                bow_cmd = slide_effort
                 
             self.yaw_effort_pub.publish(Float64(data=0.0))
             self.speed_effort_pub.publish(Float64(data=speed_cmd))

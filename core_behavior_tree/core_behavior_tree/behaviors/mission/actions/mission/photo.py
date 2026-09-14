@@ -9,12 +9,11 @@ class Photo_Execution(BaseExecution):
     def __init__(self, name, node=None, mission=None):
         super().__init__(name, node=node)
         self.node = node
-        self.arena = "B"
         self.mission = mission
         
         self.greenbox = None
         self.bluebox = None
-        self.arena = getattr(MissionParams, 'default_arena', 'B')
+        self.arena = getattr(MissionParams, 'default_arena', 'A')
         
         self.dsc = 9999.0
         self.depth = 999.0

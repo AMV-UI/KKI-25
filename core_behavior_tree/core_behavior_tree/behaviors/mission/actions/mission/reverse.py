@@ -11,7 +11,7 @@ class Reverse_Execution(BaseExecution):
     def __init__(self, name, node=None, mission=None):
         super().__init__(name, node=node)
         self.node = node
-        self.arena = "B"
+        self.arena = getattr(MissionParams, 'default_arena', 'A')
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)

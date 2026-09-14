@@ -17,7 +17,7 @@ class Initial_Execution(BaseExecution):
         super().__init__(name, node=node)
         self.node = node
 
-        self.arena = getattr(MissionParams, 'default_arena', 'B')
+        self.arena = getattr(MissionParams, 'default_arena', 'A')
         self.detected = False
         self.time_threshold = 0.2
         self.target = 126

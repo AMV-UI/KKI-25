@@ -22,7 +22,7 @@ class Pass_Execution(BaseExecution):
         self.detected = True
         self.dsc = 0.0
         self.speed_effort = MissionParams.passthrough_speed_effort
-        self.arena = "B"
+        self.arena = getattr(MissionParams, 'default_arena', 'A')
         self.time_threshold = MissionParams.passthrough_time_threshold
         self.mission = mission
         
