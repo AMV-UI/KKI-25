@@ -31,11 +31,11 @@ class CameraController(Node):
 
         self.up_camera_serial_idx = get_webcam_device_idx('046d_C270_HD_WEBCAM_E0198440')
         if self.up_camera_serial_idx is None:
-            self.up_camera_serial_idx = 0 # Fallback to generic /dev/video0
+            self.up_camera_serial_idx = 2 # Fallback to Intel RealSense (/dev/video2)
 
         self.down_camera_serial_idx = get_webcam_device_idx('Sonix_Technology_Co.__Ltd._USB_2.0_Camera_SN0001')
         if self.down_camera_serial_idx is None:
-            self.down_camera_serial_idx = 2 # Fallback to generic /dev/video2
+            self.down_camera_serial_idx = 4 # Fallback for down camera
 
         self.buoy_detector = ObjectDetector(
             "/models/best.pt",
@@ -57,13 +57,15 @@ class CameraController(Node):
             ],
         )
 
-        self.up_cap = cv2.VideoCapture(self.up_camera_serial_idx)
+        self.up_cap = cv2.VideoCapture(self.up_camera_serial_idx, cv2.CAP_V4L2)
+        self.up_cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Kurangi buffer untuk menghilangkan delay
         self.up_cap.set(5, 30)  # Set FPS (CAP_PROP_FPS is 5)
         self.up_cap.set(3, 640)  # Set width
         self.up_cap.set(4, 480)  # Set height
 
         # Configure down camera
-        self.down_cap = cv2.VideoCapture(self.down_camera_serial_idx)
+        self.down_cap = cv2.VideoCapture(self.down_camera_serial_idx, cv2.CAP_V4L2)
+        self.down_cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Kurangi buffer untuk menghilangkan delay
         self.down_cap.set(5, 30)  # Set FPS (CAP_PROP_FPS is 5)
         self.down_cap.set(3, 640)  # Set width
         self.down_cap.set(4, 480)  # Set height
@@ -88,8 +90,8 @@ class CameraController(Node):
         self.img = None
         self.img_64 = ""
         self.mission_type = MissionStatus.BUOY
-        self.show_result = True
-        self.detected = True
+        self.show_result = False
+        self.detected = False
         self.fps = 30
 
         # Setup communication
