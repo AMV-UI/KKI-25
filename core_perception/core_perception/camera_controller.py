@@ -15,67 +15,6 @@ from rclpy.node import Node
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from std_msgs.msg import Float64, Bool, String
 
-class RealSenseCamera:
-    """Wrapper for Intel RealSense to mimic cv2.VideoCapture interface (RGB + Depth)"""
-    def __init__(self, width=640, height=480, fps=30, json_path=None):
-        import pyrealsense2 as rs
-        import os
-        self.pipeline = rs.pipeline()
-        self.config = rs.config()
-        self.config.enable_stream(rs.stream.color, width, height, rs.format.bgr8, fps)
-        self.config.enable_stream(rs.stream.depth, width, height, rs.format.z16, fps)
-        self.profile = self.pipeline.start(self.config)
-        self.align = rs.align(rs.stream.color)
-        self.depth_scale = self.profile.get_device().first_depth_sensor().get_depth_scale()
-        self.depth_image = None
-        
-        # Load JSON config if provided (must be applied after device is active)
-        if json_path and os.path.exists(json_path):
-            try:
-                dev = self.profile.get_device()
-                advnc_mode = rs.rs400_advanced_mode(dev)
-                with open(json_path, 'r') as f:
-                    json_string = f.read()
-                advnc_mode.load_json(json_string)
-            except Exception as e:
-                print(f"[RealSense] Warning: Failed to apply JSON config: {e}")
-
-        self.width = width
-        self.height = height
-        self.fps = fps
-
-    def read(self):
-        try:
-            frames = self.pipeline.wait_for_frames()
-            aligned_frames = self.align.process(frames)
-            color_frame = aligned_frames.get_color_frame()
-            depth_frame = aligned_frames.get_depth_frame()
-            if not color_frame or not depth_frame:
-                return False, None
-            color_image = np.asanyarray(color_frame.get_data())
-            self.depth_image = np.asanyarray(depth_frame.get_data())
-            return True, color_image
-        except Exception:
-            return False, None
-
-    def release(self):
-        try:
-            self.pipeline.stop()
-        except:
-            pass
-
-    def get(self, propId):
-        if propId == 3: # CAP_PROP_FRAME_WIDTH
-            return self.width
-        if propId == 4: # CAP_PROP_FRAME_HEIGHT
-            return self.height
-        if propId == 5: # CAP_PROP_FPS
-            return self.fps
-        return 0
-        
-    def set(self, propId, value):
-        pass
-
 class CameraController(Node):
     """
     Front Camera Node for Object Detection
@@ -99,18 +38,18 @@ class CameraController(Node):
             self.down_camera_serial_idx = 2 # Fallback to generic /dev/video2
 
         self.buoy_detector = ObjectDetector(
-            "/models/buoy_v1.engine",
+            "/models/best.pt",
             self,
             [
                 "green_buoy",
                 "red_buoy",
             ],
-            blue_model_path="/models/bluebuoy.engine",
+            blue_model_path="/models/bluebuoy.pt",
             blue_class_names=["blue_buoy"]
         )
 
         self.box_detector = ObjectDetector(
-            "/models/box_v1.engine",
+            "/models/box_v1.pt",
             self,
             [
                 "blueBox",
@@ -118,22 +57,10 @@ class CameraController(Node):
             ],
         )
 
-        try:
-            # Anda dapat memuat file JSON dari RealSense Viewer dengan mengisi path-nya di bawah ini.
-            #json_path='/home/amv/models/KKI-25/realsense.json'
-            self.up_cap = RealSenseCamera(width=640, height=480, fps=30, json_path=None)
-            self.get_logger().info("Using Intel RealSense for up_cap (RGB only)")
-        except Exception as e:
-            self.get_logger().info(f"Could not initialize RealSense ({e}), using standard webcam")
-            if self.up_camera_serial_idx is not None:
-                self.up_cap = cv2.VideoCapture(self.up_camera_serial_idx)
-            else:
-                self.get_logger().error("No fallback webcam found either! Using dummy VideoCapture.")
-                self.up_cap = cv2.VideoCapture(0) # or dummy
-            
-            self.up_cap.set(5, 30)  # Set FPS (CAP_PROP_FPS is 5)
-            self.up_cap.set(3, 640)  # Set width
-            self.up_cap.set(4, 480)  # Set height
+        self.up_cap = cv2.VideoCapture(self.up_camera_serial_idx)
+        self.up_cap.set(5, 30)  # Set FPS (CAP_PROP_FPS is 5)
+        self.up_cap.set(3, 640)  # Set width
+        self.up_cap.set(4, 480)  # Set height
 
         # Configure down camera
         self.down_cap = cv2.VideoCapture(self.down_camera_serial_idx)
@@ -161,9 +88,8 @@ class CameraController(Node):
         self.img = None
         self.img_64 = ""
         self.mission_type = MissionStatus.BUOY
-        self.show_result = False
-        self.detected = False
-        self.current_depth = 999.0
+        self.show_result = True
+        self.detected = True
         self.fps = 30
 
         # Setup communication
@@ -185,7 +111,7 @@ class CameraController(Node):
         ret, frame = self.up_cap.read()
         if ret:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            photo_filename = f"/home/chu/Projects/KKI-25/core_perception/photos/{timestamp}_upCamera.jpg"
+            photo_filename = f"/ros2_ws/src/KKI-25/core_perception/photos/{timestamp}_upCamera.jpg"
             cv2.imwrite(photo_filename, frame)
             self.get_logger().info(f"Photo taken and saved to {photo_filename}", throttle_duration_sec=5.0)
             self.green_box_pub.publish(self.encode_base64(frame))
@@ -196,7 +122,7 @@ class CameraController(Node):
         ret, frame = self.down_cap.read()
         if ret:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            photo_filename = f"/home/chu/Projects/KKI-25/core_perception/photos/{timestamp}_downCamera.jpg"
+            photo_filename = f"/ros2_ws/src/KKI-25/core_perception/photos/{timestamp}_downCamera.jpg"
             cv2.imwrite(photo_filename, frame)
             self.get_logger().info(f"Photo taken and saved to {photo_filename}", throttle_duration_sec=5.0)
             self.blue_box_pub.publish(self.encode_base64(frame))
@@ -223,7 +149,6 @@ class CameraController(Node):
         self.green_box_pub = Topic.green_box_encoded.createPublisher(self)
         self.blue_box_pub = Topic.blue_box_encoded.createPublisher(self)
         self.box_detected_pub = Topic.box_detected.createPublisher(self)
-        self.depth_pub = Topic.depth.createPublisher(self)
         # Subscribers (if needed)
         self.mission_type_sub = Topic.mission_type.createSubscriber(self, self.mission_callback)
         self.arena_sub = Topic.arena.createSubscriber(self, self._arena_cb)
@@ -256,12 +181,8 @@ class CameraController(Node):
         return False
 
     def encode_base64(self, img):
-        if img is None:
-            return String(data="")
-        # Resize image to reduce bandwidth (fixes choppy/laggy video)
-        small_img = cv2.resize(img, (320, 240), interpolation=cv2.INTER_AREA)
         result, encoded_image = cv2.imencode(
-            ".jpg", small_img, [int(cv2.IMWRITE_JPEG_QUALITY), 30]
+            ".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 20]
         )
         if result:
             base64_image = base64.b64encode(encoded_image).decode("utf-8")
@@ -270,7 +191,7 @@ class CameraController(Node):
             return img_msg
         else:
             self.get_logger().error("Failed to encode frame to JPG")
-            return String(data="")
+            return ""
  
 
     def process_frame(self):
@@ -289,10 +210,10 @@ class CameraController(Node):
                 return
 
             box_detected_bool = False
-            if self.mission_type == MissionStatus.BUOY:
+            if self.mission_type == MissionStatus.BUOY or self.mission_type == MissionStatus.DOCKING or self.mission_type == MissionStatus.DOCKING_V2:
                 # Hanya model buoy yang menyala
                 self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
-            elif self.mission_type == MissionStatus.TURN_NEXT_BUOY or self.mission_type == MissionStatus.DOCKING or self.mission_type == MissionStatus.DOCKING_V2:
+            elif self.mission_type == MissionStatus.TURN_NEXT_BUOY:
                 # Model buoy dan box menyala dan digambar bersamaan di gambar yang sama
                 self.img, self.dsc, self.detected = self.buoy_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
                 self.img, _, box_detected_bool = self.box_detector.process_frame(MissionStatus.BOTH_BOXES, self.arena, self.img, self.up_cap, self)
@@ -301,37 +222,39 @@ class CameraController(Node):
                 self.get_logger().info(f"Masuk sini", throttle_duration_sec=1.0)
                 self.img, self.dsc, self.detected = self.box_detector.process_frame(self.mission_type, self.arena, img, self.up_cap, self)
             
-            self.box_detected_pub.publish(Bool(data=box_detected_bool))
+            try:
+                self.box_detected_pub.publish(Bool(data=box_detected_bool))
 
-            self.get_logger().info(f"Test: {self.mission_type}", throttle_duration_sec=1.0)
+                self.get_logger().info(f"Test: {self.mission_type}", throttle_duration_sec=1.0)
 
-            if self.img is None:
-                self.get_logger().warn("Failed to get frame", throttle_duration_sec=5.0)
-                return
-
-            # Visualize if enabled
-            if self.show_result:
-                exit_status = self.visualize()
-                if exit_status:
-                    rclpy.shutdown()
+                if self.img is None:
+                    self.get_logger().warn("Failed to get frame", throttle_duration_sec=5.0)
                     return
 
-            dsc_msg = Float64()
-            dsc_msg.data = float(self.dsc)
-            self.dsc_pub.publish(dsc_msg)
-            
-            detected_msg = Bool()
-            detected_msg.data = self.detected
-            self.detected_pub.publish(detected_msg)
+                # Visualize if enabled
+                if self.show_result:
+                    exit_status = self.visualize()
+                    if exit_status:
+                        rclpy.shutdown()
+                        return
 
-            depth_msg = Float64()
-            depth_msg.data = float(self.current_depth)
-            self.depth_pub.publish(depth_msg)
+                dsc_msg = Float64()
+                dsc_msg.data = float(self.dsc)
+                self.dsc_pub.publish(dsc_msg)
+                
+                detected_msg = Bool()
+                detected_msg.data = self.detected
+                self.detected_pub.publish(detected_msg)
 
-            if hasattr(self.buoy_detector, 'blue_area'):
-                blue_area_msg = Float64()
-                blue_area_msg.data = float(self.buoy_detector.blue_area)
-                self.blue_area_pub.publish(blue_area_msg)
+                if hasattr(self.buoy_detector, 'blue_area'):
+                    blue_area_msg = Float64()
+                    blue_area_msg.data = float(self.buoy_detector.blue_area)
+                    self.blue_area_pub.publish(blue_area_msg)
+            except Exception as e:
+                if 'InvalidHandle' in str(type(e)):
+                    pass # Ignore shutdown errors
+                else:
+                    raise e
 
             self.get_logger().info(
                 f"DSC: {self.dsc:.2f}, Detected: {self.detected}",
@@ -352,20 +275,17 @@ class CameraController(Node):
             if bot_camera is None:
                 bot_camera = top_camera  # Fallback
             
-            # Throttle stream over ROS to ~15 FPS to prevent network congestion (patah-patah)
-            self.frame_count = getattr(self, 'frame_count', 0) + 1
-            if self.frame_count % 2 == 0:
-                self.camera_processed_pub.publish(top_camera)
+            self.camera_processed_pub.publish(top_camera)
             
             # Combine both camera images to send in one String message
             combined_msg = String()
             combined_msg.data = top_camera.data + "|||" + bot_camera.data
 
-            if self.mission_type == MissionStatus.GREEN_BOX and self.detected and self.dsc != 7777.0 and self.dsc != 9999.0:
+            if(self.mission_type == MissionStatus.GREEN_BOX and self.detected):
                 self.green_box_pub.publish(combined_msg)
 
             # Publish both camera images when Blue Box is detected
-            if self.mission_type == MissionStatus.BLUE_BOX and self.detected and self.dsc != 8888.0 and self.dsc != 9999.0:
+            if(self.mission_type == MissionStatus.BLUE_BOX and self.detected):
                 self.blue_box_pub.publish(combined_msg)
 
         except Exception as e:

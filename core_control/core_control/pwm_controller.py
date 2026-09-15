@@ -66,11 +66,12 @@ class PWMController(Node):
             if idx < 8:
                 rc_channel_values[idx] = pwm
         
-        self.master.mav.rc_channels_override_send(
-            self.master.target_system, 
-            self.master.target_component,
-            *rc_channel_values,
-        )
+        if self.master is not None:
+            self.master.mav.rc_channels_override_send(
+                self.master.target_system, 
+                self.master.target_component,
+                *rc_channel_values,
+            )
     
     def main(self):
         self.get_logger().info("PWM Controller Node Started")
