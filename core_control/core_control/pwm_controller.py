@@ -10,10 +10,35 @@ from time import time, sleep
 class PWMController(Node):
     def __init__(self, node = Node):
         super().__init__('PWM')
+        import os
+        import fnmatch
+        
         self.node = node
-        self.master = mavutil.mavlink_connection("/dev/ttyUSB0", baud=57600)
-        self.master.target_system = 1
-        self.master.target_component = 1
+        
+        # Auto-detect serial port
+        self.master = None
+        ports = []
+        try:
+            list_of_files = os.listdir("/dev")
+            for entry in list_of_files:
+                if fnmatch.fnmatch(entry, "ttyUSB*") or fnmatch.fnmatch(entry, "ttyACM*"):
+                    ports.append(f"/dev/{entry}")
+        except Exception:
+            pass
+
+        for port in ports:
+            try:
+                self.get_logger().info(f"PWMController trying to connect to Pixhawk on {port}...")
+                self.master = mavutil.mavlink_connection(port, baud=57600)
+                self.master.target_system = 1
+                self.master.target_component = 1
+                break
+            except Exception as e:
+                pass
+                
+        if self.master is None:
+            self.get_logger().error("PWMController failed to find Pixhawk!")
+
         self.pxmode = PxMode.HOLD
         self.pwm_chan = None
         self._setup_communication()

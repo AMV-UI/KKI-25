@@ -91,21 +91,26 @@ class CameraController(Node):
         self.arena = "B"
 
         self.up_camera_serial_idx = get_webcam_device_idx('046d_C270_HD_WEBCAM_E0198440')
+        if self.up_camera_serial_idx is None:
+            self.up_camera_serial_idx = 0 # Fallback to generic /dev/video0
+
         self.down_camera_serial_idx = get_webcam_device_idx('Sonix_Technology_Co.__Ltd._USB_2.0_Camera_SN0001')
+        if self.down_camera_serial_idx is None:
+            self.down_camera_serial_idx = 2 # Fallback to generic /dev/video2
 
         self.buoy_detector = ObjectDetector(
-            "/home/amv/models/KKI-25/buoy_v1.engine",
+            "/models/buoy_v1.engine",
             self,
             [
                 "green_buoy",
                 "red_buoy",
             ],
-            blue_model_path="/home/amv/models/KKI-25/bluebuoy.engine",
+            blue_model_path="/models/bluebuoy.engine",
             blue_class_names=["blue_buoy"]
         )
 
         self.box_detector = ObjectDetector(
-            "/home/amv/models/KKI-25/box_v1.engine",
+            "/models/box_v1.engine",
             self,
             [
                 "blueBox",
@@ -180,7 +185,7 @@ class CameraController(Node):
         ret, frame = self.up_cap.read()
         if ret:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            photo_filename = f"/home/amv/KKI-25/core_perception/photos/{timestamp}_upCamera.jpg"
+            photo_filename = f"/home/chu/Projects/KKI-25/core_perception/photos/{timestamp}_upCamera.jpg"
             cv2.imwrite(photo_filename, frame)
             self.get_logger().info(f"Photo taken and saved to {photo_filename}", throttle_duration_sec=5.0)
             self.green_box_pub.publish(self.encode_base64(frame))
@@ -191,7 +196,7 @@ class CameraController(Node):
         ret, frame = self.down_cap.read()
         if ret:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            photo_filename = f"/home/amv/KKI-25/core_perception/photos/{timestamp}_downCamera.jpg"
+            photo_filename = f"/home/chu/Projects/KKI-25/core_perception/photos/{timestamp}_downCamera.jpg"
             cv2.imwrite(photo_filename, frame)
             self.get_logger().info(f"Photo taken and saved to {photo_filename}", throttle_duration_sec=5.0)
             self.blue_box_pub.publish(self.encode_base64(frame))
