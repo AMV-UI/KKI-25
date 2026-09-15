@@ -31,7 +31,13 @@ class CameraController(Node):
 
         self.up_camera_serial_idx = get_webcam_device_idx('046d_C270_HD_WEBCAM_E0198440')
         if self.up_camera_serial_idx is None:
-            self.up_camera_serial_idx = 2 # Fallback to Intel RealSense (/dev/video2)
+            # Fallback to Intel RealSense D400 series
+            self.up_camera_serial_idx = get_webcam_device_idx('Intel_R__RealSense_TM__Depth_Camera_400_Intel_R__RealSense_TM__Depth_Camera_400')
+        if self.up_camera_serial_idx is None:
+            # Fallback to Intel RealSense D455 (Uses D430 module)
+            self.up_camera_serial_idx = get_webcam_device_idx('Intel_R__RealSense_TM__Depth_Camera_430_Intel_R__RealSense_TM__Depth_Camera_430')
+        if self.up_camera_serial_idx is None:
+            self.up_camera_serial_idx = 2 # Hard fallback
 
         self.down_camera_serial_idx = get_webcam_device_idx('Sonix_Technology_Co.__Ltd._USB_2.0_Camera_SN0001')
         if self.down_camera_serial_idx is None:
@@ -90,8 +96,8 @@ class CameraController(Node):
         self.img = None
         self.img_64 = ""
         self.mission_type = MissionStatus.BUOY
-        self.show_result = False
-        self.detected = False
+        self.show_result = True
+        self.detected = True
         self.fps = 30
 
         # Setup communication
