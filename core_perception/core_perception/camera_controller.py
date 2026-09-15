@@ -64,6 +64,16 @@ class CameraController(Node):
         )
 
         self.up_cap = cv2.VideoCapture(self.up_camera_serial_idx, cv2.CAP_V4L2)
+        if not self.up_cap.isOpened() and self.up_camera_serial_idx is not None:
+            # For RealSense, the first node is often Depth which OpenCV V4L2 cannot open.
+            # Try the next few nodes to find the RGB stream.
+            for offset in [1, 2, 3]:
+                test_idx = self.up_camera_serial_idx + offset
+                test_cap = cv2.VideoCapture(test_idx, cv2.CAP_V4L2)
+                if test_cap.isOpened():
+                    self.up_cap = test_cap
+                    self.up_camera_serial_idx = test_idx
+                    break
         self.up_cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Kurangi buffer untuk menghilangkan delay
         self.up_cap.set(5, 30)  # Set FPS (CAP_PROP_FPS is 5)
         self.up_cap.set(3, 640)  # Set width
