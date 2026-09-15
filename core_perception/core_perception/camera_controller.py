@@ -74,10 +74,11 @@ class CameraController(Node):
                     self.up_cap = test_cap
                     self.up_camera_serial_idx = test_idx
                     break
+        self.up_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'UYVY'))
         self.up_cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Kurangi buffer untuk menghilangkan delay
-        self.up_cap.set(5, 30)  # Set FPS (CAP_PROP_FPS is 5)
-        self.up_cap.set(3, 640)  # Set width
-        self.up_cap.set(4, 480)  # Set height
+        self.up_cap.set(cv2.CAP_PROP_FPS, 30)
+        self.up_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.up_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
         # Configure down camera
         self.down_cap = cv2.VideoCapture(self.down_camera_serial_idx, cv2.CAP_V4L2)
@@ -106,8 +107,8 @@ class CameraController(Node):
         self.img = None
         self.img_64 = ""
         self.mission_type = MissionStatus.BUOY
-        self.show_result = True
-        self.detected = True
+        self.show_result = False
+        self.detected = False
         self.fps = 30
 
         # Setup communication
